@@ -1,0 +1,67 @@
+# Owner-provided images, photos, downloads, and local experiments.
+/evidence/*
+!/evidence/README.md
+/downloads/
+/archive/
+/build/
+
+# Generated deliverables. Keep the directory's explanation.
+/out/*
+!/out/README.md
+
+# Publish curated analysis notes and scripts, not extracted stock files or logs.
+/analysis/*
+!/analysis/*.md
+!/analysis/*.py
+# Original ChatGPT research export; curated findings are in RESEARCH.md.
+/analysis/deepresearchreport.md
+
+# Disk images, firmware/module binaries, and downloaded archives anywhere else.
+*.img
+*.img.*
+*.iso
+*.raw
+*.qcow
+*.qcow2
+*.vmdk
+*.vdi
+*.ko
+*.zip
+*.7z
+*.tar
+*.tar.*
+*.tgz
+
+# Python and compiler outputs.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.o
+*.a
+*.so
+*.so.*
+
+# Local credentials and environment overrides.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+
+# Editor, OS, and temporary files.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+*.tmp
+*.log
+*.sock
+*.pid
