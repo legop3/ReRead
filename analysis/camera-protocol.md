@@ -3,18 +3,17 @@
 Investigation started 2026-11-07, capture verified 2026-11-08 on Daniel's Reader
 running ReRead 0.2.1 / antiX, Linux 5.10.256-antix.1-486-smp.
 
-**Platform integration:** ReRead 0.3.0 now includes this hardware backend and
-firmware in the versioned platform package, with a shared camera service, web
-capture page and sleep/resume handling. Use the [maintained camera interface](../antix/CAMERA.md).
-The raw research CLI below imports that same backend and refuses to run while
-the shared service owns the camera. The rest of this document records the
-research evidence and its original validation boundaries.
+**Platform integration:** ReRead 0.4.0 replaces the Python proof-of-concept with
+one native USB/focus/framing/processing engine. Current usage is documented in
+[the camera interface](../antix/CAMERA.md); stock processing equivalence is in
+[the native processing report](camera-native-processing.md). Earlier observations
+below remain historical evidence, rather than a second maintained camera stack.
 
 ## What works
 
 The stock camera can deliver images through normal Linux libusb without running
-Intel's application, old camera library, or old Boost dependencies. The research
-probe [camera-probe.py](camera-probe.py) retrieved a 1,866,240-byte stream. A single
+Intel's application, old camera library, or old Boost dependencies. The initial research
+probe retrieved a 1,866,240-byte stream. A single
 queued USB transfer contained consecutive complete **648 × 480** Bayer frames,
 311,040 words apart, with intact line markers. The grayscale preview was visually
 inspected and shows a recognizable scene. Further work on 2026-11-08 captured
@@ -32,41 +31,26 @@ handling remain unfinished. The only runtime additions were Debian `fxload`,
 
 ## Reproduce on the Reader
 
-Requires root, `fxload` and `python3-usb`. Copy the two research Python scripts
-and the owner's `usr/share/usb/CameraCtlr.hex` extracted from the stock image to a
-research directory on the Reader. Then:
+Use the platform `reader-camera` CLI or Camera web page for normal captures.
+For raw diagnostic captures, [camera-probe.cpp](camera-probe.cpp) links the same
+native hardware source, rather than preserving the old Python camera engine:
 
 ```sh
-python3 camera-probe.py --firmware CameraCtlr.hex --stream stream.raw
-python3 camera-preview.py stream.raw preview.pgm
-
-# Focus and capture a still; add --flash for stock automatic flash mode.
-python3 camera-probe.py --still still.raw
-python3 camera-preview.py still.raw still.pgm --width 2592 --height 1920 --vflip
-
-# Optional color PNG conversion, using FFmpeg installed on the conversion host.
-python3 camera-preview.py still.raw still.png --width 2592 --height 1920 --bayer bggr --vflip
+# In the i386-capable builder (workspace mounted at /work):
+g++ -m32 -std=c++17 -O2 -pthread analysis/camera-probe.cpp \
+  antix/camera_hardware.cpp -lusb-1.0 -o build/antix/camera-probe
+# Copy that binary to the Reader, then pause the service before direct USB use:
+reader-camera suspend
+./camera-probe --still page.raw
+reader-camera resume
 ```
 
-The grayscale decoder uses only Python's standard library. It selects a complete
-frame, checks every line marker and produces a contrast-scaled PGM. Optional
-`--bayer` conversion uses FFmpeg's existing demosaicer/encoder. It does not
-reproduce Intel's white balance, lens shading or sharpening. Still images use
-BGGR; streams use GBRG, recovered from the stock Bayer function tables. Vertical
-flipping makes the captured page readable in the tested still setup; this is
-explicit in the preview CLI rather than changing the raw data.
-Local previews: `build/antix/camera-still-color.png` and
-`build/antix/camera-still-flash-color.png`. Color currently has visible cast/noise;
-these are diagnostic previews, not finished photographic output.
-
-The probe checksum-checks firmware and loads it into **FX2 RAM** only if the
-unprogrammed camera is present. The initial RAM load and subsequent captures
-were tested separately; the combined cold-start CLI path still needs a future
-power-cycle check. It does not load `Vend_Ax.hex`, write EEPROM, or program the
-FPGA's persistent image. Firmware is kept as an owner-supplied local artifact,
-not included in source control. RAM firmware will need loading again after a
-power loss. See [resource/ABI ledger](camera-resources.md) for the stock helper's
-separate EEPROM-repair branch and persistent FPGA updater.
+Add `--flash` after the output filename for a flash still; `--stream stream.raw`
+retrieves a three-frame diagnostic burst. Firmware must already have been loaded
+by the platform service. The probe does not program EEPROM or FPGA storage.
+The old Python raw probe and diagnostic gamma converter have been removed.
+The offline [stock comparison runner](compare-camera-processing.py) renders raw
+fixtures through both stock and ReRead native processing.
 
 ## Live observations
 
@@ -296,3 +280,46 @@ Artifacts: `build/antix/camera-current.jpg` (earlier blurred still),
 capture/download, rejection of concurrent capture, resume after capture and lease
 expiry after leaving the page. It does not validate stock-equivalent image
 processing or all focus recovery branches.
+
+## Stock architecture and preview throughput (2026-11-08)
+
+The traced stock capture path is a native **userspace C++ library**, not a
+camera-specific kernel capture interface. `StreamServer::Capture` calls
+`detail::CaptureStreamImage` at **0x199ab**; that follows the direct libusb bulk
+path documented above. Retained REA/Hopper Evidence:
+`ev_6f54bfb81b7989147f2d2a88f72a683b7303260129c59f4b0d58d7c2ceca8243`,
+`analysis/inventory/camera-stream-server-rea.json`. This is static call-path
+evidence, not a runtime trace of the stock application.
+
+The constructor **0x19ef0** adds three assembly-line stations at **0x1a0b2**,
+**0x1a129**, and **0x1a1a0**. `AssemblyLine::AddStation` starts a Boost worker
+thread at **0x1e084**. `StreamServer::Process` calls `ProcessStreamImage` at
+**0x1928c**; the processing path calls raw-frame preparation (**0x18f3a**),
+lens-shading correction (**0x18f7d**), Bayer conversion (**0x19018**), and gain
+control (**0x19060**), followed by dispatch to the application callback. This
+establishes a threaded native capture/processing/delivery pipeline. It does not
+establish the stock application's actual displayed frame rate.
+
+On ReRead's physical Reader, ten consecutive stock-sized raw reads returned
+1,866,240 bytes each. After the first 0.8082-second startup read, nine reads took
+**0.2045–0.2060 seconds each**: approximately **14.6 raw frame equivalents/sec**
+in the current sensor mode. This is transfer throughput, not measured usable
+preview FPS and not a maximum sensor specification. The 2 FPS web preview must
+not be described as a hardware limit.
+
+Current preview reads a three-frame burst, converts one selected frame, then
+starts its next read. This discards frames and serializes USB waiting with image
+processing. Profiling also exposed per-frame Python LUT creation/rounding:
+Pillow's 16-bit `point()` path handles a 65,536-entry table each time. The profiler
+adds overhead, so its timings are not uninstrumented frame rates. An affine
+8-bit tone-mapping experiment is retained under
+`build/antix/camera-image-affine-experiment.py`; it was not installed or released.
+At this investigation stage the device and converter remained at 0.3.1; the
+subsequent 0.4.0 native replacement is described below.
+
+Recommended next implementation: a compiled userspace backend for continuous
+buffered capture, frame validation and image processing, with the shared service
+remaining the single hardware owner. Use established libusb and image libraries;
+Python remains suitable for web/settings/control. A kernel driver or V4L2 adapter
+is not required by this traced stock path. Focus and calibrated image processing
+are separate unfinished work; native code alone does not establish their quality.

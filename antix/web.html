@@ -45,6 +45,7 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  <p class="muted">Aim at your subject and hold the Reader still while it focuses. Photos are saved in Files.</p>
  <p><button id="camera-live-toggle">Pause live view</button> <span id="camera-live-status" class="muted"></span></p>
  <img id="camera-live" alt="Live view from the Reader" hidden style="display:block;max-width:100%;height:auto;border-radius:6px">
+ <label for="camera-mode">Photo type</label><select id="camera-mode"><option value="photo">Photo</option><option value="document">Document</option></select>
  <label class="check"><input id="camera-flash" type="checkbox"> Use flash</label>
  <button id="camera-capture" disabled>Take photo</button>
  <p id="camera-details" class="muted"></p>
@@ -123,7 +124,7 @@ async function refreshWifi(){const s=await get('/api/wifi'),text=wifiDescription
 async function navigate(){const next=location.hash.slice(1)||'overview';page=['overview','files','wifi','settings','apps','updates','camera'].includes(next)?next:'overview';
  for(const a of document.querySelectorAll('nav a')){const active=a.dataset.page===page;if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');$('page-'+a.dataset.page).hidden=!active;}
  message('');try{await refreshSystem();await refreshBattery();if(page==='wifi'||page==='overview')await refreshWifi();if(page==='camera'){startLive();await refreshCamera();}if(page==='apps'||page==='updates')await refreshPlatform();$('package-operation').hidden=!['apps','updates'].includes(page);}catch(e){message(e.message,true);}}
-let cameraSubmitting=false,liveEnabled=true,liveRunning=false,liveURL=null;
+let cameraSubmitting=false,liveEnabled=true,liveRunning=false,liveURL=null,liveInfo='Live view';
 async function startLive(){
  if(liveRunning||!liveEnabled||page!=='camera'||document.hidden)return;
  liveRunning=true;let sequence=0;
@@ -134,13 +135,14 @@ async function startLive(){
    if(!liveEnabled||page!=='camera'||document.hidden)break;
    const previous=liveURL;liveURL=URL.createObjectURL(blob);$('camera-live').src=liveURL;$('camera-live').hidden=false;
    if(previous)URL.revokeObjectURL(previous);
-   $('camera-live-status').textContent='Live · 648 × 480';
+   $('camera-live-status').textContent=liveInfo;
   }catch(e){$('camera-live-status').textContent=e.message;await new Promise(r=>setTimeout(r,1000));}
  }}finally{liveRunning=false;$('camera-live-status').textContent=liveEnabled?'Live view paused.':'Live view off.';}
 }
 $('camera-live-toggle').onclick=()=>{liveEnabled=!liveEnabled;$('camera-live-toggle').textContent=liveEnabled?'Pause live view':'Start live view';if(liveEnabled)startLive();};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)startLive();});
 async function refreshCamera(){const s=await get('/api/camera');
+ if(s.stream?.running&&s.stream.width){liveInfo='Live · '+s.stream.width+' × '+s.stream.height+' · '+s.stream.preview_fps.toFixed(1)+' fps';if(liveRunning)$('camera-live-status').textContent=liveInfo;}
  const busy=s.state==='capturing';$('camera-status').textContent=busy?'Focusing and taking photo…':s.error||({idle:'Ready.',sleeping:'Camera is paused for sleep.',starting:'Starting camera…'}[s.state]||s.state);
  $('camera-capture').disabled=cameraSubmitting||busy||s.paused||['offline','starting'].includes(s.state);
  const photo=s.latest;if(!photo)return;
@@ -149,7 +151,7 @@ async function refreshCamera(){const s=await get('/api/camera');
  if(img.dataset.photo!==name){img.src='/api/camera/preview?photo='+name;img.dataset.photo=name;}img.hidden=false;
  const download=$('camera-download');download.href='/files/'+name;download.download=photo.filename;download.hidden=false;
 }
-$('camera-capture').onclick=async()=>{cameraSubmitting=true;$('camera-capture').disabled=true;try{await post('/api/camera/capture',{flash:$('camera-flash').checked});message('');}catch(e){message(e.message,true);}finally{cameraSubmitting=false;await refreshCamera().catch(e=>message(e.message,true));}};
+$('camera-capture').onclick=async()=>{cameraSubmitting=true;$('camera-capture').disabled=true;try{await post('/api/camera/capture',{flash:$('camera-flash').checked,mode:$('camera-mode').value});message('');}catch(e){message(e.message,true);}finally{cameraSubmitting=false;await refreshCamera().catch(e=>message(e.message,true));}};
 $('networks').onchange=()=>{const n=networks[Number($('networks').value)];if($('networks').value===''||!n)return;$('ssid').value=n.ssid;$('security').value=n.security;updateSecurity();$('wifi-password').focus();};
 function updateSecurity(){const secure=$('security').value!=='open';$('wifi-password-field').hidden=!secure;$('wifi-password').required=secure;}
 $('security').onchange=updateSecurity;

@@ -9,11 +9,11 @@ The project target is a multipurpose, button-operated handheld with a small cust
 The maintained product is **ReRead**, based on antiX Core i386 with normal runit,
 apt/dpkg, ALSA, evdev and standard Linux power interfaces. SSD boot, all controls,
 sleep, USB Ethernet/web/SSH, USB Wi-Fi, battery reporting and speaker playback
-have been verified on the Reader. ReRead 0.3.1 packages the shared camera
+have been verified on the Reader. ReRead 0.4.0 packages the shared native camera
 service and firmware, with live web preview and an app/SSH capture interface.
 Camera research produced complete
 648×480 stream frames and 2592×1920 stills through Python/libusb, with FPGA focus
-lock and automatic flash. Focus accuracy and color/exposure quality remain unfinished. See the
+lock and automatic flash. Native pixel processing matches the executed stock library on five fixtures; fixed-page stock/native hardware captures were compared separately. See the
 [platform camera interface](antix/CAMERA.md) and
 [camera protocol and capture report](analysis/camera-protocol.md).
 See [ReRead system notes](antix/README.md) for current behavior and limitations.

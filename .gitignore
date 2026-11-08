@@ -13,6 +13,7 @@
 /analysis/*
 !/analysis/*.md
 !/analysis/*.py
+!/analysis/*.cpp
 # Original ChatGPT research export; curated findings are in RESEARCH.md.
 /analysis/deepresearchreport.md
 

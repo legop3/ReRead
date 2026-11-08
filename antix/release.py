@@ -44,10 +44,16 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
                          ('battery.py', 'reader_battery.py'),
                          ('audio.py', 'reader-audio'),
                          ('camera.py', 'reader_camera.py'),
-                         ('camera_hardware.py', 'reader_camera_hardware.py'),
-                         ('camera_image.py', 'reader_camera_image.py'),
+                         ('camera_backend.py', 'reader_camera_backend.py'),
                          ('manager.py', 'reader_manager.py'), ('update.py', 'reader-update')]:
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
+    native_camera = build_dir / 'libreader-camera.so'
+    subprocess.run(['g++', '-m32', '-std=c++17', '-O2', '-march=i686',
+                    '-Wall', '-Wextra', '-Werror', '-fPIC', '-shared', '-pthread',
+                    *[str(base / 'antix' / source) for source in
+                      ('camera_native.cpp', 'camera_hardware.cpp', 'camera_processing.cpp')],
+                    '-lusb-1.0', '-ljpeg', '-o', str(native_camera)], check=True)
+    copy(native_camera, 'usr/lib/reread/libreader-camera.so', 0o644)
     # Owner-supplied controller firmware is a tiny build input, not a dependency
     # on the stock operating system. Packages contain it for offline installs.
     firmware = base / 'build/firmware/CameraCtlr.hex'
@@ -77,7 +83,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: libc6 (>= 2.36), python3, python3-usb, python3-pil (>= 10.2), libdc1394-25, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: libc6 (>= 2.36), python3, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.

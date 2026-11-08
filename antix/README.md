@@ -157,12 +157,13 @@ An optional end-to-end installer check is `python3 /work/antix/test-installer.py
 [reader-keys.h](reader-keys.h) defines the measured controls and stable `READER_*` IDs. Hold value 1 means unlocked; value 0 means locked. The viewer displays it without enforcing a lock. Its initial state at boot remains unchecked.
 
 The custom console font is included in early boot and runtime, with a tall-font fallback.
-ReRead 0.3.1 includes a [shared camera service](CAMERA.md), available through the
+ReRead 0.4.0 includes a [shared native camera engine](CAMERA.md), available through the
 Camera web page with live preview, `reader-camera` CLI and a local HTTP/JSON socket for apps. It
-captures 2592×1920 JPEGs with per-device focus calibration, FPGA autofocus and
+captures stock-cropped 2588×1916 JPEGs with per-device focus calibration, FPGA autofocus and
 optional automatic flash. Firmware loading, capture cleanup and sleep/resume are
-managed by the platform. Exposure/color quality and difficult-focus recovery
-remain unfinished.
+managed by the platform. The recovered pixel processing matches stock on the
+validated fixtures; hardware validation and remaining boundaries are recorded
+in the camera notes.
 
 Runtime logs persist under `/var/log/reader`; boot diagnostics use normal Linux tools (`dmesg`, `findmnt`, `/proc/bus/input/devices`). The installed image locks the ISO's shared root/demo passwords; normal operation needs no login. For maintenance, use a live USB to mount/chroot the SSD, or add `rw init=/bin/sh` to the installed boot command to set local credentials.
 

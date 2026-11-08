@@ -2,7 +2,6 @@
 """ReRead shared camera service and local HTTP client for apps."""
 import argparse
 import fcntl
-from contextlib import nullcontext
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler
 import json
@@ -49,15 +48,10 @@ class Platform:
         self.lock = threading.RLock()
         self.worker = None
         self.preview_until = 0
-        self.live_frame = None
-        self.live_sequence = 0
-        self.live_condition = threading.Condition(self.lock)
-        self.hardware_lock = threading.Lock()
-        self.preview_stop = threading.Event()
+        self.backend = None
         self.paused = False
         self.state = 'starting'
         self.error = ''
-        self.pending_capture = None
         self.job = None
         self.latest = None
         STATE.mkdir(parents=True, exist_ok=True)
@@ -73,26 +67,13 @@ class Platform:
         self.prepare()
 
     def prepare(self):
-        from reader_camera_hardware import Camera, load_firmware
+        from reader_camera_backend import NativeCamera, load_firmware
         try:
+            if self.backend:
+                self.backend.close()
+                self.backend = None
             load_firmware(FIRMWARE)
-            camera = Camera()
-            try:
-                try:
-                    camera.query(0x0f)
-                except Exception:
-                    # Camera-only bus reset repairs endpoint sync after wake.
-                    camera.dev.reset()
-                    camera.close()
-                    time.sleep(.5)
-                    camera = Camera()
-                    camera.query(0x0f)
-                # Also clear a strobe left enabled by an interrupted process.
-                camera.send(0x10, b'\x03\x00', subcommand=6)
-                camera.send(0x10, b'\x05', subcommand=6)
-                camera.stop_stream()
-            finally:
-                camera.close()
+            self.backend = NativeCamera()
             self.state, self.error = 'idle', ''
         except Exception as error:
             self.state, self.error = 'error', str(error)
@@ -100,125 +81,55 @@ class Platform:
 
     def status(self):
         with self.lock:
+            stats = self.backend.stats() if self.backend and not self.paused else {}
             return dict(state=self.state, error=self.error, paused=self.paused,
-                        job=self.job, latest=self.latest,
+                        job=self.job, latest=self.latest, engine='native',
                         live=self.preview_until > time.monotonic() and not self.paused,
-                        frame=self.live_sequence)
+                        frame=stats.get('displayed', 0), stream=stats)
 
-    def preview(self):
-        """Renew a short lease; a closed browser leaves no camera running."""
+    def live(self, after=0):
         with self.lock:
             if self.paused:
                 raise ValueError('The camera is paused for sleep.')
+            if not self.backend:
+                raise RuntimeError(self.error or 'The camera is unavailable.')
+            backend = self.backend
             self.preview_until = time.monotonic() + 8
-            if not getattr(self, 'preview_worker', None) or not self.preview_worker.is_alive():
-                self.preview_stop.clear()
-                self.preview_worker = threading.Thread(target=self.stream, daemon=True)
-                self.preview_worker.start()
-        return self.status()
-
-    def stream(self):
-        from reader_camera_hardware import Camera
-        from reader_camera_image import stream_jpeg
-        try:
-            with self.hardware_lock:
-                camera = Camera()
-                try:
-                    camera.start_stream()
-                    while not self.preview_stop.is_set() and (time.monotonic() < self.preview_until or self.pending_capture):
-                        # Capture requests take ownership between complete USB bursts.
-                        with self.lock:
-                            job = self.pending_capture
-                            self.pending_capture = None
-                        if job:
-                            self.take_photo(job, camera)
-                        else:
-                            try:
-                                frame = stream_jpeg(camera.read_stream())
-                            except ValueError:
-                                continue  # Discard a partial FIFO frame, never show torn rows.
-                            with self.live_condition:
-                                self.live_frame = frame
-                                self.live_sequence += 1
-                                self.live_condition.notify_all()
-                finally:
-                    try:
-                        camera.stop_stream()
-                    finally:
-                        camera.close()
-        except Exception as error:
-            print('Live view failed:', error, flush=True)
-            with self.lock:
-                self.error = str(error)
-        finally:
-            with self.lock:
-                self.live_frame = None
-                self.preview_worker = None
-                job = self.pending_capture
-                self.pending_capture = None
-                self.live_condition.notify_all()
-            if job:
-                self.take_photo(job)
-
-    def live(self, after=0):
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            self.preview()
-            with self.live_condition:
-                self.live_condition.wait_for(
-                    lambda: self.live_sequence > after or self.paused or self.preview_worker is None,
-                    timeout=max(0, deadline-time.monotonic()))
-                if self.paused:
-                    raise ValueError('The camera is paused for sleep.')
-                if self.live_frame is not None:
-                    return self.live_frame, self.live_sequence
-                if self.preview_worker is None and self.error:
-                    raise RuntimeError(self.error)
-                # A request can arrive while an expired stream is closing.
-                # Once it has closed, renew the lease on a fresh owner.
-        raise RuntimeError(self.error or 'Live view is starting.')
+        return backend.frame(after)
 
     def capture(self, data):
         flash = data.get('flash', False)
+        mode = data.get('mode', 'photo')
+        if mode not in ('photo', 'document'):
+            raise ValueError('Camera mode must be photo or document.')
         if type(flash) is not bool:
             raise ValueError('Flash must be true or false.')
         with self.lock:
             if self.paused:
                 raise ValueError('The camera is paused for sleep.')
+            if not self.backend:
+                raise ValueError(self.error or 'The camera is unavailable.')
             if self.state == 'capturing':
                 raise ValueError('The camera is already taking a photo.')
             if shutil.disk_usage(FILES).free < 64 * 1024 * 1024:
                 raise ValueError('Not enough free storage for a photo.')
-            self.job = dict(id=uuid.uuid4().hex, state='running', flash=flash)
+            self.job = dict(id=uuid.uuid4().hex, state='running', flash=flash, mode=mode)
             self.state, self.error = 'capturing', ''
-            if getattr(self, 'preview_worker', None) and self.preview_worker.is_alive():
-                self.pending_capture = dict(self.job)
-            else:
-                self.worker = threading.Thread(target=self.take_photo, args=(dict(self.job),))
-                self.worker.start()
+            self.worker = threading.Thread(target=self.take_photo, args=(dict(self.job), self.backend))
+            self.worker.start()
             return dict(self.job)
 
-    def take_photo(self, job, streaming_camera=None):
+    def take_photo(self, job, backend):
         try:
-            from reader_camera_hardware import Camera, load_firmware
-            from reader_camera_image import encode
-            load_firmware(FIRMWARE)
             with tempfile.TemporaryDirectory(dir=STATE, prefix='capture-') as temporary:
                 temporary = Path(temporary)
-                with self.hardware_lock if streaming_camera is None else nullcontext():
-                    camera = streaming_camera or Camera()
-                    try:
-                        camera.capture_still(temporary / 'frame.raw', flash=job['flash'], stream_ready=streaming_camera is not None)
-                    finally:
-                        if streaming_camera is None:
-                            camera.close()
+                result = backend.capture(job['flash'], temporary / 'photo.jpg', temporary / 'preview.jpg', document=job['mode'] == 'document')
                 name = 'photo-' + time.strftime('%Y%m%d-%H%M%S') + '-' + job['id'][:6] + '.jpg'
                 photo, preview = FILES / name, STATE / 'preview.jpg'
-                encode(temporary / 'frame.raw', temporary / 'photo.jpg', temporary / 'preview.jpg')
                 os.replace(temporary / 'photo.jpg', photo)
                 os.replace(temporary / 'preview.jpg', preview)
-                latest = dict(filename=name, width=2592, height=1920,
-                              bytes=photo.stat().st_size, flash=job['flash'], created=time.time())
+                latest = dict(filename=name, **result,
+                              bytes=photo.stat().st_size, flash=job['flash'], mode=job['mode'], created=time.time())
                 (temporary / 'latest.json').write_text(json.dumps(latest))
                 os.replace(temporary / 'latest.json', STATE / 'latest.json')
             with self.lock:
@@ -232,29 +143,25 @@ class Platform:
                 self.state, self.error = 'error', str(error)
 
     def suspend(self):
-        # Stop accepting captures before waiting; no USB owner survives S3.
         with self.lock:
             self.paused = True
             self.preview_until = 0
-            self.preview_stop.set()
-            preview_worker = getattr(self, 'preview_worker', None)
             worker = self.worker
-        if preview_worker:
-            preview_worker.join(45)
-            if preview_worker.is_alive():
-                raise RuntimeError('Camera is still stopping live view.')
+            backend = self.backend
         if worker:
             worker.join(45)
             if worker.is_alive():
                 raise RuntimeError('Camera is still finishing a capture. Try sleep again.')
+        if backend:
+            backend.close()
         with self.lock:
+            self.backend = None
             self.state = 'sleeping'
         return self.status()
 
     def resume(self):
         with self.lock:
-            if (self.state == 'capturing' or
-                    getattr(self, 'preview_worker', None) and self.preview_worker.is_alive()):
+            if self.state == 'capturing':
                 raise ValueError('Camera is busy.')
             self.prepare()
             self.paused = False
@@ -313,7 +220,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Server(ThreadingMixIn, UnixStreamServer):
-    pass
+    # Requests can bunch up during the stock-priority still USB transfer.
+    request_queue_size = 32
 
 
 def serve():
@@ -338,10 +246,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=('serve', 'status', 'capture', 'suspend', 'resume'))
     parser.add_argument('--flash', action='store_true')
+    parser.add_argument('--document', action='store_true')
     args = parser.parse_args()
     if args.action == 'serve':
         return serve()
-    result = request(args.action, **({'flash': args.flash} if args.action == 'capture' else {}))
+    result = request(args.action, **({'flash': args.flash, 'mode': 'document' if args.document else 'photo'} if args.action == 'capture' else {}))
     if args.action == 'capture':
         job_id = result['id']
         deadline = time.monotonic() + 90
