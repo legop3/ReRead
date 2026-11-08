@@ -26,7 +26,7 @@ def package(system,packed,root_id):
               'root_partition_mib':image.ROOT_BYTES/MIB,'boot_partition_mib':image.BOOT_MIB-1,
               'installer_mode':'automatic stream, sync, reboot',
               'boot_layout':'FAT mounted at /boot; antiX-based installer',
-              'hardware_status':'0.2.0 installer and hardware confirmed on Reader; 0.2.1 full-disk lean image needs physical retest',
+              'hardware_status':'0.2.1 full-disk install confirmed on Reader; fresh root reports 2162.8 MiB free of 3561.6 MiB',
               'usb_gadget_status':'reader2: DHCP, HTTP file transfers and SSH confirmed with Fedora',
               'wifi_status':'adapter discovery, scanning, saved network and HTTPS confirmed on Reader'}
     (OUT/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')

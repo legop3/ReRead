@@ -14,11 +14,18 @@ case "$1" in
             echo deep > /sys/power/mem_sleep || exit 1
         fi
         echo "$(date -Iseconds) suspend" >> /var/log/reader/power.log
+        if [ -S /run/reader-camera.sock ]; then
+            /usr/local/sbin/reader-camera suspend || exit 1
+        fi
         sync
-        echo mem > /sys/power/state || exit 1
+        if ! echo mem > /sys/power/state; then
+            /usr/local/sbin/reader-camera resume || true
+            exit 1
+        fi
         echo "$(date -Iseconds) resumed" >> /var/log/reader/power.log
         /usr/local/sbin/reader-fan-reset >>/var/log/reader/fan.log 2>&1 || true
         /usr/local/sbin/reader-audio init >>/var/log/reader/audio.log 2>&1 || true
+        /usr/local/sbin/reader-camera resume >>/var/log/reader/camera.log 2>&1 || true
         setfont -C /dev/tty1 /usr/share/reader/font-large.psf 2>/dev/null ||
             setfont -C /dev/tty1 /usr/share/reader/font-tall.psf 2>/dev/null || true
         ;;

@@ -9,10 +9,11 @@ import shutil
 import socket
 import subprocess
 import tempfile
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 import reader_wifi as wifi
 import reader_manager as manager
 import reader_battery as battery
+import reader_camera as camera
 
 FILES = Path('/var/lib/reader/files')
 PAGE = Path('/usr/share/reader/web.html')
@@ -60,6 +61,31 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, json.dumps(manager.status()), 'application/json')
         if route == '/api/battery':
             return self.reply(200, json.dumps(battery.status()), 'application/json')
+        if route == '/api/camera':
+            try:
+                state = camera.request()
+            except (OSError, RuntimeError) as error:
+                state = dict(state='offline', error='Camera service unavailable: ' + str(error), latest=None)
+            return self.reply(200, json.dumps(state), 'application/json')
+        if route == '/api/camera/live':
+            try:
+                after = int(parse_qs(urlsplit(self.path).query).get('after', ['0'])[0])
+                frame, sequence = camera.request('live?after=' + str(after))
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/jpeg')
+                self.send_header('Content-Length', str(len(frame)))
+                self.send_header('X-Frame', sequence)
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                self.wfile.write(frame)
+                return
+            except (OSError, RuntimeError, ValueError) as error:
+                return self.reply(503, str(error))
+        if route == '/api/camera/preview':
+            path = camera.STATE / 'preview.jpg'
+            if not path.is_file():
+                return self.reply(404, 'Take a photo first.')
+            return self.reply(200, path.read_bytes(), 'image/jpeg')
         if route.startswith('/files/'):
             try:
                 path = self.filename()
@@ -126,12 +152,14 @@ class Handler(BaseHTTPRequestHandler):
                     os.fsync(dest.fileno())
                 os.replace(temporary, target)
                 return self.reply(200, 'Uploaded ' + target.name)
-            if route not in ('/api/settings', '/api/wifi/scan', '/api/wifi/connect', '/api/wifi/forget', '/api/apps/action') or length > 4096:
+            if route not in ('/api/settings', '/api/wifi/scan', '/api/wifi/connect', '/api/wifi/forget', '/api/apps/action', '/api/camera/capture') or length > 4096:
                 self.close_connection = True
                 return self.reply(400, 'Invalid request.')
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Expected settings object.')
+            if route == '/api/camera/capture':
+                return self.reply(202, json.dumps(camera.request('capture', **data)), 'application/json')
             if route == '/api/apps/action':
                 action = data.get('action')
                 if action not in ('remove', 'enable', 'disable'):
@@ -159,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
                 subprocess.run(['hostname', hostname], check=True)
                 Path('/etc/hostname').write_text(hostname + '\n')
             return self.reply(200, 'Saved. SSH: ssh root@' + ADDRESS)
-        except (ValueError, TypeError, OSError, subprocess.SubprocessError) as error:
+        except (ValueError, TypeError, RuntimeError, OSError, subprocess.SubprocessError) as error:
             self.close_connection = True
             self.reply(400, str(error))
         finally:

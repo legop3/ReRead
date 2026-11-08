@@ -1,5 +1,6 @@
 """Build the ReRead platform package from source. Used by fresh installs too."""
 import argparse
+import hashlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -42,8 +43,22 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
     for source, name in [('power.sh', 'reader-power'), ('start-reader.sh', 'start-reader'),
                          ('battery.py', 'reader_battery.py'),
                          ('audio.py', 'reader-audio'),
+                         ('camera.py', 'reader_camera.py'),
+                         ('camera_hardware.py', 'reader_camera_hardware.py'),
+                         ('camera_image.py', 'reader_camera_image.py'),
                          ('manager.py', 'reader_manager.py'), ('update.py', 'reader-update')]:
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
+    # Owner-supplied controller firmware is a tiny build input, not a dependency
+    # on the stock operating system. Packages contain it for offline installs.
+    firmware = base / 'build/firmware/CameraCtlr.hex'
+    if not firmware.is_file():
+        raise RuntimeError('Provide build/firmware/CameraCtlr.hex from your Reader backup; see antix/README.md.')
+    if hashlib.sha256(firmware.read_bytes()).hexdigest() != '61d003fca740a8ea4901c73f6a8fc2a07fbb3d1d8b203231e51fda1138a9b23e':
+        raise RuntimeError('CameraCtlr.hex does not match the investigated Reader firmware.')
+    copy(firmware, 'lib/firmware/reread/CameraCtlr.hex')
+    write('usr/local/sbin/reader-camera', '#!/bin/sh\nexec /usr/bin/python3 /usr/local/sbin/reader_camera.py "$@"\n', 0o755)
+    write('etc/sv/reader-camera/run', '#!/bin/sh\nmkdir -p /var/log/reader\nexec /usr/local/sbin/reader-camera serve >>/var/log/reader/camera.log 2>&1\n', 0o755)
+    (root / 'etc/runit/runsvdir/default/reader-camera').symlink_to('/etc/sv/reader-camera')
     for font in ['font-large.psf', 'font-tall.psf']:
         copy(base / 'antix/assets' / font, 'usr/share/reader/' + font)
     copy(base / 'antix/assets/COPYING', 'usr/share/doc/reread/font-COPYING')
@@ -62,7 +77,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: libc6 (>= 2.36), python3, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: libc6 (>= 2.36), python3, python3-usb, python3-pil (>= 10.2), libdc1394-25, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.

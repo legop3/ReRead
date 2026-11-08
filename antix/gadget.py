@@ -37,7 +37,8 @@ def configure(root, base, build, kernel):
     policy.write_text('#!/bin/sh\nexit 101\n')
     policy.chmod(0o755)
     try:
-        run('chroot', str(root), 'apt-get', 'install', '-y', '--no-install-recommends', 'dropbear-bin', 'chrony', 'alsa-utils')
+        run('chroot', str(root), 'apt-get', 'install', '-y', '--no-install-recommends',
+            'dropbear-bin', 'chrony', 'alsa-utils', 'python3-usb', 'python3-pil', 'libdc1394-25', 'fxload')
     finally:
         if old_policy is None:
             policy.unlink()

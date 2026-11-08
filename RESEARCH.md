@@ -4,12 +4,18 @@ Initial investigation: 2026-11-06. The original findings below came from offline
 
 The project target is a multipurpose, button-operated handheld with a small custom interface. Camera/upload/audio are possible features; a desktop is outside the intended experience. Preserve the original hardware support while building the new system.
 
-## Current progress: 2026-11-07
+## Current progress: 2026-11-08
 
 The maintained product is **ReRead**, based on antiX Core i386 with normal runit,
 apt/dpkg, ALSA, evdev and standard Linux power interfaces. SSD boot, all controls,
 sleep, USB Ethernet/web/SSH, USB Wi-Fi, battery reporting and speaker playback
-have been verified on the Reader. Camera/flash integration remains future work.
+have been verified on the Reader. ReRead 0.3.1 packages the shared camera
+service and firmware, with live web preview and an app/SSH capture interface.
+Camera research produced complete
+648×480 stream frames and 2592×1920 stills through Python/libusb, with FPGA focus
+lock and automatic flash. Focus accuracy and color/exposure quality remain unfinished. See the
+[platform camera interface](antix/CAMERA.md) and
+[camera protocol and capture report](analysis/camera-protocol.md).
 See [ReRead system notes](antix/README.md) for current behavior and limitations.
 
 The build and automatic installer use antiX only. The stock-kernel prototype and
@@ -86,15 +92,20 @@ colbert::camera::sensor::Init()
 
 Static REA/Hopper analysis of `usb::FindCypress()` at `0xe960` shows vendor ID `0x04b4` and branches for product IDs `0x1005` and `0x0083`. The udev script independently handles those same product IDs. The helper uses `fxload -t fx2` with `CameraCtlr.hex`, and also contains an EEPROM repair branch. This supports a custom userspace camera interface rather than assuming `/dev/video0` or UVC support.
 
-REA evidence: `ev_fda1d2b2c2c3b65ffb18f8db62d838543451ab5a1088374c5a0de822eb51abbf`. Full result and snapshot: `analysis/inventory/camera-find-cypress.json` and `camera.rea-snapshot.json`. Decompiled code is an approximation; hardware behavior and full protocol remain unverified.
+Initial REA evidence: `ev_fda1d2b2c2c3b65ffb18f8db62d838543451ab5a1088374c5a0de822eb51abbf`. Full result and snapshot: `analysis/inventory/camera-find-cypress.json` and `camera.rea-snapshot.json`. See the [later protocol report](analysis/camera-protocol.md) for live corroboration and remaining unknowns.
 
 The recorded FPGA programming log reports version `0x58` already matching the supplied image and therefore no update. This is historical evidence, not an instruction to program it.
 
-ReRead needs a capture interface for the custom FX2/FPGA path. The surviving
-library, firmware and exported names are protocol/ABI clues, not a working modern
-camera backend. Prefer a normal Linux media interface where practical; retain
-only hardware-specific code that is actually necessary. Capture, autofocus and
-flash remain unverified on antiX.
+The research probe now loads the stock FX2 RAM firmware and captures complete
+648×480 Bayer frames using modern Python/libusb on antiX. The live Reader reports
+controller 5.6 and FPGA `0x59`; no persistent FPGA update was performed. The old
+Intel library is used as protocol evidence, not executed as a runtime dependency.
+The probe now also reads per-device BIOS focus calibration, waits for FPGA focus
+lock, captures complete 2592×1920 stills and operates the flash. FFmpeg provides
+basic research preview conversion. ReRead 0.3.0 packages this backend with shared
+capture ownership, a web test page and sleep/resume handling, using libdc1394 and
+Pillow for conversion. Color/exposure quality and difficult-focus recovery still
+need work.
 
 ## Networking and the gadget port
 

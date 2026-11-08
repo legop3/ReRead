@@ -82,6 +82,8 @@ The SSD image fills the known Reader SSD (4,004,388,864 bytes): a 1 MiB alignmen
 
 ## Runtime storage
 
+A fresh ReRead 0.2.1 installation was confirmed on the physical Reader: **2,162.8 MiB free of 3,561.6 MiB** after boot. The full SSD is allocated; the difference from raw capacity is the boot partition and filesystem overhead. Free space changes as packages, caches and user files accumulate.
+
 Fresh images remove the live ISO's kernel headers, installer/template tools,
 memory tester, AMD graphics firmware and all-locales
 bundle using apt/dpkg. ReRead generates `en_US.UTF-8`; other locales can still
@@ -105,8 +107,10 @@ The host USB writer runs separately after a successful build.
 
 Provide `downloads/antiX-26.1_386-core.iso` (antiX 26.1 Core i386).
 The builder checks SHA-256 `5e07ed85acba1d2c33a7e41b089e80ce203eeb11d81af8c830e64e2e058ead7e`
-when populating its ISO cache. This is the only firmware/image input.
-The stock disk backup is optional hardware research material.
+when populating its ISO cache. Also provide the Reader's 23 KB
+`build/firmware/CameraCtlr.hex` as described in [camera build inputs](CAMERA.md).
+The full stock disk backup is optional research material; only this extracted
+camera firmware file is included in the platform package.
 
 ```sh
 ./make-usb.sh                 # Build release files and write the USB stick
@@ -152,7 +156,13 @@ An optional end-to-end installer check is `python3 /work/antix/test-installer.py
 
 [reader-keys.h](reader-keys.h) defines the measured controls and stable `READER_*` IDs. Hold value 1 means unlocked; value 0 means locked. The viewer displays it without enforcing a lock. Its initial state at boot remains unchecked.
 
-The custom console font is included in early boot and runtime, with a tall-font fallback. Camera and flash integration remain separate work.
+The custom console font is included in early boot and runtime, with a tall-font fallback.
+ReRead 0.3.1 includes a [shared camera service](CAMERA.md), available through the
+Camera web page with live preview, `reader-camera` CLI and a local HTTP/JSON socket for apps. It
+captures 2592×1920 JPEGs with per-device focus calibration, FPGA autofocus and
+optional automatic flash. Firmware loading, capture cleanup and sleep/resume are
+managed by the platform. Exposure/color quality and difficult-focus recovery
+remain unfinished.
 
 Runtime logs persist under `/var/log/reader`; boot diagnostics use normal Linux tools (`dmesg`, `findmnt`, `/proc/bus/input/devices`). The installed image locks the ISO's shared root/demo passwords; normal operation needs no login. For maintenance, use a live USB to mount/chroot the SSD, or add `rw init=/bin/sh` to the installed boot command to set local credentials.
 

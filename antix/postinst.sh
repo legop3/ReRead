@@ -19,9 +19,14 @@ if [ -r /sys/module/iusbc/srcversion ]; then
     fi
 fi
 # Never reload USB networking during an update over that connection.
-for service in reader reader-web reader-battery; do
+if [ -S /run/reader-camera.sock ]; then
+    /usr/local/sbin/reader-camera suspend || true
+fi
+for service in reader reader-web reader-battery reader-camera; do
     if [ -p "/etc/sv/$service/supervise/control" ]; then
-        sv -w 5 restart "$service" || true
+        restart_timeout=5
+        [ "$service" != reader-camera ] || restart_timeout=45
+        sv -w "$restart_timeout" restart "$service" || true
     fi
 done
 if [ -n "${2:-}" ]; then
