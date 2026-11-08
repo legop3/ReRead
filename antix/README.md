@@ -1,14 +1,17 @@
 # ReRead build and system notes
 
-ReRead is a handheld platform built on **antiX 26.1 Core i386**, kernel `5.10.256-antix.1-486-smp`. It uses antiX's package management and normal runit startup, with a small button interface and no desktop. There is one maintained OS image.
+ReRead is a handheld platform built on **antiX 26.1 Core i386**, kernel `5.10.256-antix.1-486-smp`. It uses antiX's package management and normal runit startup, with a Qt LinuxFB button interface and no desktop. There is one maintained OS image.
 
 ## Releases and updates
 
 The full installer installs antiX plus the **same `reread` Debian package used
 for later updates**. The source of truth is this repository, not a running
 Reader. Version is set in [VERSION](VERSION); [release.py](release.py) builds
-the platform package from source. Personal files, network credentials, host
+the platform and Camera packages from source. Personal files, network credentials, host
 identity and installed apps are not part of its payload.
+
+Camera updates use the separate `reread-app-camera_<version>_i386.deb` on **Apps**.
+To add Camera to an older installation, update the core first, then install that app package.
 
 For ordinary updates, open **Updates** in the USB web interface and select
 `reread_<version>_i386.deb`. The update installs in place without formatting or
@@ -20,7 +23,7 @@ background-service/driver changes; reboot with `reboot` over SSH when indicated.
 
 **Apps** installs/updates `reread-app-*` packages, lists installed apps, and removes
 them while retaining their data and conffiles. Service apps can be enabled or
-disabled persistently. There are no bundled apps yet; see the
+disabled persistently. The installer bundles the separately packaged Camera app; see the
 [app packaging contract](apps/README.md).
 
 Core code/assets, hardware module and service definitions are package-owned.
@@ -50,9 +53,8 @@ This is an early platform, not a complete appliance update system. Updates are
 in-place package transactions without automatic rollback or protection against
 a power failure mid-update. Changes to the bootloader or kernel ABI still need a tested update
 and recovery path. Repository-hosted release discovery can be added later
-without changing the package format. The on-device foreground app launcher and
-its display/input/lifecycle contract are still to be designed; current app
-management covers package installation and optional background services.
+without changing the package format. The foreground launcher discovers standard `.desktop` entries; the shared Qt SDK defines
+display, physical input and lifecycle behavior. See [UI notes](ui/README.md).
 
 ## Installation
 
@@ -157,8 +159,8 @@ An optional end-to-end installer check is `python3 /work/antix/test-installer.py
 [reader-keys.h](reader-keys.h) defines the measured controls and stable `READER_*` IDs. Hold value 1 means unlocked; value 0 means locked. The viewer displays it without enforcing a lock. Its initial state at boot remains unchecked.
 
 The custom console font is included in early boot and runtime, with a tall-font fallback.
-ReRead 0.4.0 includes a [shared native camera engine](CAMERA.md), available through the
-Camera web page with live preview, `reader-camera` CLI and a local HTTP/JSON socket for apps. It
+ReRead includes a [shared native camera engine](CAMERA.md), available through the
+on-device Camera app, `reader-camera` CLI and a local HTTP/JSON socket for apps. It
 captures stock-cropped 2588×1916 JPEGs with per-device focus calibration, FPGA autofocus and
 optional automatic flash. Firmware loading, capture cleanup and sleep/resume are
 managed by the platform. The recovered pixel processing matches stock on the

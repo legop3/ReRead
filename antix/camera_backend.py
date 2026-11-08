@@ -65,7 +65,10 @@ class NativeCamera:
         library.reader_camera_frame.argtypes = [C.c_void_p, C.c_uint64, C.POINTER(C.c_void_p),
             C.POINTER(C.c_size_t), C.POINTER(C.c_uint64), C.c_char_p, C.c_size_t]
         library.reader_camera_frame.restype = C.c_int
-        library.reader_camera_capture.argtypes = [C.c_void_p, C.c_int, C.c_int, C.c_char_p, C.c_char_p,
+        library.reader_camera_rgb_frame.argtypes = [C.c_void_p, C.c_uint64, C.POINTER(C.c_void_p),
+            C.POINTER(C.c_size_t), C.POINTER(C.c_uint64), C.POINTER(C.c_int), C.POINTER(C.c_int), C.c_char_p, C.c_size_t]
+        library.reader_camera_rgb_frame.restype = C.c_int
+        library.reader_camera_capture.argtypes = [C.c_void_p, C.c_int, C.c_int, C.c_int, C.c_char_p, C.c_char_p,
             C.POINTER(Photo), C.c_char_p, C.c_size_t]
         library.reader_camera_capture.restype = C.c_int
         library.reader_camera_stats.argtypes = [C.c_void_p, C.POINTER(Stats)]
@@ -101,23 +104,29 @@ class NativeCamera:
         self.library.reader_camera_destroy(self.handle)
         self.handle = None
 
-    def frame(self, after):
+    def frame(self, after, raw=False):
         output, size, sequence = C.c_void_p(), C.c_size_t(), C.c_uint64()
         error = C.create_string_buffer(512)
+        width, height = C.c_int(), C.c_int()
         with self.call() as handle:
-            result = self.library.reader_camera_frame(handle, after, C.byref(output),
-                C.byref(size), C.byref(sequence), error, len(error))
+            if raw:
+                result = self.library.reader_camera_rgb_frame(handle, after, C.byref(output),
+                    C.byref(size), C.byref(sequence), C.byref(width), C.byref(height), error, len(error))
+            else:
+                result = self.library.reader_camera_frame(handle, after, C.byref(output),
+                    C.byref(size), C.byref(sequence), error, len(error))
             if result:
                 raise RuntimeError(error.value.decode(errors='replace'))
             try:
-                return C.string_at(output, size.value), sequence.value
+                data = C.string_at(output, size.value), sequence.value
+                return (*data, width.value, height.value) if raw else data
             finally:
                 self.library.reader_camera_free(output)
 
-    def capture(self, flash, photo, preview, document=False):
+    def capture(self, flash, photo, preview, document=False, rotation=0):
         result, error = Photo(), C.create_string_buffer(512)
         with self.call() as handle:
-            code = self.library.reader_camera_capture(handle, int(flash), int(document), str(photo).encode(),
+            code = self.library.reader_camera_capture(handle, int(flash), int(document), rotation, str(photo).encode(),
                 str(preview).encode(), C.byref(result), error, len(error))
             if code:
                 raise RuntimeError(error.value.decode(errors='replace'))

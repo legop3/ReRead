@@ -93,7 +93,7 @@ void jpeg_error(j_common_ptr context) {
     context->err->format_message(context,err->message);longjmp(err->jump,1);
 }
 
-std::vector<unsigned char> encode_jpeg(const unsigned char* pixels,int width,int height,int quality,bool flip_vertical,bool swap_rb) {
+std::vector<unsigned char> encode_jpeg(const unsigned char* pixels,int width,int height,int quality,bool flip_vertical,bool swap_rb,bool rotate_180) {
     jpeg_compress_struct compressor{};JpegError error{};
     compressor.err=jpeg_std_error(&error.base);error.base.error_exit=jpeg_error;
     unsigned char* buffer=nullptr;unsigned long size=0;
@@ -101,9 +101,11 @@ std::vector<unsigned char> encode_jpeg(const unsigned char* pixels,int width,int
     jpeg_create_compress(&compressor);jpeg_mem_dest(&compressor,&buffer,&size);
     compressor.image_width=width;compressor.image_height=height;compressor.input_components=3;compressor.in_color_space=swap_rb?JCS_EXT_BGR:JCS_RGB;
     jpeg_set_defaults(&compressor);jpeg_set_quality(&compressor,std::clamp(quality,1,100),TRUE);jpeg_start_compress(&compressor,TRUE);
+    std::vector<unsigned char> reversed(rotate_180?width*3:0);
     while(compressor.next_scanline<compressor.image_height) {
-        const size_t y=flip_vertical?height-1-compressor.next_scanline:compressor.next_scanline;
+        const size_t y=(flip_vertical != rotate_180)?height-1-compressor.next_scanline:compressor.next_scanline;
         auto* row=const_cast<unsigned char*>(pixels+y*width*3);
+        if(rotate_180){for(int x=0;x<width;x++)for(int c=0;c<3;c++)reversed[x*3+c]=row[(width-1-x)*3+c];row=reversed.data();}
         jpeg_write_scanlines(&compressor,&row,1);
     }
     jpeg_finish_compress(&compressor);std::vector<unsigned char> result(buffer,buffer+size);
@@ -151,7 +153,7 @@ Image process_frame(const std::vector<uint16_t>& frame,int width,int height,bool
     return out;
 }
 
-std::vector<unsigned char> jpeg(const Image& input,int quality,int max_width,bool flip_vertical,bool swap_rb) {
+std::vector<unsigned char> jpeg(const Image& input,int quality,int max_width,bool flip_vertical,bool swap_rb,bool rotate_180) {
     if(input.width<=0||input.height<=0||input.rgb.size()!=static_cast<size_t>(input.width)*input.height*3)
         throw std::runtime_error("Invalid RGB image");
     const int width=max_width>0?std::min(max_width,input.width):input.width;
@@ -172,6 +174,6 @@ std::vector<unsigned char> jpeg(const Image& input,int quality,int max_width,boo
         }
         pixels=scaled.data();
     }
-    return encode_jpeg(pixels,width,height,quality,flip_vertical,swap_rb);
+    return encode_jpeg(pixels,width,height,quality,flip_vertical,swap_rb,rotate_180);
 }
 } // namespace reread

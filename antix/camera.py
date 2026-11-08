@@ -30,7 +30,7 @@ def request(action='status', **data):
     try:
         connection.sock.connect(SOCKET)
         method = 'GET' if action == 'status' or action.startswith('live?') else 'POST'
-        connection.request(method, '/' + action, json.dumps(data), {'Content-Type': 'application/json'})
+        connection.request(method, '/' + action, json.dumps(data) if method == 'POST' else None, {'Content-Type': 'application/json'})
         response = connection.getresponse()
         body = response.read()
         if response.status == 200 and response.getheader('Content-Type') == 'image/jpeg':
@@ -87,7 +87,7 @@ class Platform:
                         live=self.preview_until > time.monotonic() and not self.paused,
                         frame=stats.get('displayed', 0), stream=stats)
 
-    def live(self, after=0):
+    def live(self, after=0, raw=False):
         with self.lock:
             if self.paused:
                 raise ValueError('The camera is paused for sleep.')
@@ -95,9 +95,12 @@ class Platform:
                 raise RuntimeError(self.error or 'The camera is unavailable.')
             backend = self.backend
             self.preview_until = time.monotonic() + 8
-        return backend.frame(after)
+        return backend.frame(after, raw=raw)
 
     def capture(self, data):
+        rotation = data.get('rotation', 0)
+        if type(rotation) is not int or rotation not in (0, 180):
+            raise ValueError('Rotation must be 0 or 180 degrees.')
         flash = data.get('flash', False)
         mode = data.get('mode', 'photo')
         if mode not in ('photo', 'document'):
@@ -113,7 +116,7 @@ class Platform:
                 raise ValueError('The camera is already taking a photo.')
             if shutil.disk_usage(FILES).free < 64 * 1024 * 1024:
                 raise ValueError('Not enough free storage for a photo.')
-            self.job = dict(id=uuid.uuid4().hex, state='running', flash=flash, mode=mode)
+            self.job = dict(id=uuid.uuid4().hex, state='running', flash=flash, mode=mode, rotation=rotation)
             self.state, self.error = 'capturing', ''
             self.worker = threading.Thread(target=self.take_photo, args=(dict(self.job), self.backend))
             self.worker.start()
@@ -123,13 +126,13 @@ class Platform:
         try:
             with tempfile.TemporaryDirectory(dir=STATE, prefix='capture-') as temporary:
                 temporary = Path(temporary)
-                result = backend.capture(job['flash'], temporary / 'photo.jpg', temporary / 'preview.jpg', document=job['mode'] == 'document')
+                result = backend.capture(job['flash'], temporary / 'photo.jpg', temporary / 'preview.jpg', document=job['mode'] == 'document', rotation=job['rotation'])
                 name = 'photo-' + time.strftime('%Y%m%d-%H%M%S') + '-' + job['id'][:6] + '.jpg'
                 photo, preview = FILES / name, STATE / 'preview.jpg'
                 os.replace(temporary / 'photo.jpg', photo)
                 os.replace(temporary / 'preview.jpg', preview)
                 latest = dict(filename=name, **result,
-                              bytes=photo.stat().st_size, flash=job['flash'], mode=job['mode'], created=time.time())
+                              bytes=photo.stat().st_size, flash=job['flash'], mode=job['mode'], rotation=job['rotation'], created=time.time())
                 (temporary / 'latest.json').write_text(json.dumps(latest))
                 os.replace(temporary / 'latest.json', STATE / 'latest.json')
             with self.lock:
@@ -181,17 +184,24 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path.startswith('/live?'):
+        if self.path.startswith(('/live?', '/rgb?')):
             try:
                 from urllib.parse import parse_qs, urlsplit
                 after = int(parse_qs(urlsplit(self.path).query).get('after', ['0'])[0])
-                frame, sequence = self.server.platform.live(after)
+                raw = self.path.startswith('/rgb?')
+                result = self.server.platform.live(after, raw=raw)
+                frame, sequence = result[:2]
                 self.send_response(200)
-                self.send_header('Content-Type', 'image/jpeg')
+                self.send_header('Content-Type', 'application/x-reread-rgb' if raw else 'image/jpeg')
+                if raw:
+                    self.send_header('X-Width', str(result[2]))
+                    self.send_header('X-Height', str(result[3]))
                 self.send_header('Content-Length', str(len(frame)))
                 self.send_header('X-Frame', str(sequence))
                 self.end_headers()
                 self.wfile.write(frame)
+                return
+            except (BrokenPipeError, ConnectionResetError):
                 return
             except (ValueError, RuntimeError, OSError) as error:
                 return self.reply(503, {'error': str(error)})

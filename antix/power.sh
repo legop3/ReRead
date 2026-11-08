@@ -26,8 +26,7 @@ case "$1" in
         /usr/local/sbin/reader-fan-reset >>/var/log/reader/fan.log 2>&1 || true
         /usr/local/sbin/reader-audio init >>/var/log/reader/audio.log 2>&1 || true
         /usr/local/sbin/reader-camera resume >>/var/log/reader/camera.log 2>&1 || true
-        setfont -C /dev/tty1 /usr/share/reader/font-large.psf 2>/dev/null ||
-            setfont -C /dev/tty1 /usr/share/reader/font-tall.psf 2>/dev/null || true
+        /usr/local/sbin/reader-brightness init >>/var/log/reader/display.log 2>&1 || true
         ;;
     *) exit 2 ;;
 esac

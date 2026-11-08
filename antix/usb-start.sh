@@ -23,4 +23,4 @@ done
 ip address replace 192.168.7.1/24 dev usb0 || exit 1
 ip link set usb0 up || exit 1
 echo 'USB: http://192.168.7.1' >/run/reader-usb-status
-exec busybox udhcpd -f /etc/reader/udhcpd.conf
+exec /usr/local/sbin/reader-usb-session

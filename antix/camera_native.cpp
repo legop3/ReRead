@@ -23,7 +23,7 @@ namespace {
 using Clock = std::chrono::steady_clock;
 using Time = Clock::time_point;
 struct PhotoJob {
-    bool flash = false, document = false, done = false;
+    bool flash = false, document = false, done = false, rotated = false;
     std::string path, preview_path, error;
     std::vector<uint16_t> raw;
     ReaderCameraPhoto result{};
@@ -38,11 +38,12 @@ class Engine {
     std::condition_variable wake_, frames_, complete_;
     std::thread hardware_, processing_;
     bool stopping_ = false, running_ = false, hardware_done_ = false;
-    Time lease_{};
+    Time lease_{}, jpeg_lease_{};
     std::shared_ptr<PhotoJob> requested_, photo_, processing_photo_;
     std::deque<std::vector<uint16_t>> queue_;
     std::deque<Time> capture_times_, display_times_;
-    std::vector<unsigned char> latest_;
+    std::vector<unsigned char> latest_, rgb_;
+    uint64_t jpeg_sequence_ = 0;
     uint64_t sequence_ = 0, received_ = 0, dropped_ = 0, damaged_ = 0, delivered_ = 0;
     std::string error_;
     int width_ = 0, height_ = 0;
@@ -179,8 +180,8 @@ class Engine {
                 try {
                     Image image = process_frame(job->raw, 2592, 1920, true, job->document);
                     job->raw.clear(); job->raw.shrink_to_fit();
-                    save(job->path, jpeg(image, 90, 0, true, true));
-                    save(job->preview_path, jpeg(image, 85, 960, true, true));
+                    save(job->path, jpeg(image, 90, 0, true, true, job->rotated));
+                    save(job->preview_path, jpeg(image, 85, 960, true, true, job->rotated));
                     std::lock_guard<std::mutex> lock(mutex_);
                     job->result.width = image.width; job->result.height = image.height;
                     job->done = true; complete_.notify_all();
@@ -190,9 +191,12 @@ class Engine {
             } else {
                 try {
                     Image image = process_frame(raw, 648, 480, false);
-                    auto compressed = jpeg(image, 75);
+                    bool encode;
+                    { std::lock_guard<std::mutex> lock(mutex_); encode = Clock::now() < jpeg_lease_; }
+                    auto compressed = encode ? jpeg(image, 75) : std::vector<unsigned char>();
                     std::lock_guard<std::mutex> lock(mutex_);
-                    latest_.swap(compressed); ++sequence_; ++delivered_;
+                    rgb_.swap(image.rgb); ++sequence_; ++delivered_;
+                    if(encode){latest_.swap(compressed); jpeg_sequence_ = sequence_;}
                     display_times_.push_back(Clock::now());
                     if (display_times_.size() > 32) display_times_.pop_front();
                     width_ = image.width; height_ = image.height; frames_.notify_all();
@@ -226,20 +230,28 @@ public:
         wake_.notify_all();
         if (processing_.joinable()) processing_.join();
     }
-    std::vector<unsigned char> frame(uint64_t after, uint64_t& sequence) {
+    std::vector<unsigned char> frame(uint64_t after, uint64_t& sequence, bool rgb = false, int* width = nullptr, int* height = nullptr) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (stopping_) throw std::runtime_error("Camera is stopping");
-        lease_ = Clock::now() + std::chrono::seconds(8); wake_.notify_all();
+        lease_ = Clock::now() + std::chrono::seconds(8);
+        if(!rgb) jpeg_lease_ = lease_;
+        wake_.notify_all();
         frames_.wait_for(lock, std::chrono::seconds(10), [&]{
-            return stopping_ || (!latest_.empty() && sequence_ != after) || !error_.empty();
+            return stopping_ || (rgb ? (!rgb_.empty() && sequence_ != after) : (!latest_.empty() && jpeg_sequence_ != after)) || !error_.empty();
         });
         if (stopping_) throw std::runtime_error("Camera is stopping");
-        if (latest_.empty()) throw std::runtime_error(error_.empty()?"Camera preview is starting":error_);
-        sequence = sequence_; return latest_;
+        if (rgb ? rgb_.empty() : latest_.empty()) throw std::runtime_error(error_.empty()?"Camera preview is starting":error_);
+        if(!error_.empty()) throw std::runtime_error(error_);
+        if((rgb ? sequence_ : jpeg_sequence_) == after)
+            throw std::runtime_error("No new camera preview frame");
+        sequence = rgb ? sequence_ : jpeg_sequence_;
+        if(width) *width = width_;
+        if(height) *height = height_;
+        return rgb ? rgb_ : latest_;
     }
-    ReaderCameraPhoto capture(bool flash, bool document, const char* path, const char* preview) {
+    ReaderCameraPhoto capture(bool flash, bool document, int rotation, const char* path, const char* preview) {
         auto job = std::make_shared<PhotoJob>();
-        job->flash = flash; job->document = document; job->path = path; job->preview_path = preview;
+        job->flash = flash; job->document = document; job->rotated = rotation == 180; job->path = path; job->preview_path = preview;
         std::unique_lock<std::mutex> lock(mutex_);
         if (stopping_) throw std::runtime_error("Camera is stopping");
         if (photo_ && !photo_->done) throw std::runtime_error("Camera is already taking a photo");
@@ -283,9 +295,18 @@ int reader_camera_frame(void* engine,uint64_t after,unsigned char** output,size_
         std::memcpy(*output,data.data(),data.size());*size=data.size();return 0;
     } catch (const std::exception& exception) {reread::error_message(error,error_size,exception);return -1;}
 }
-int reader_camera_capture(void* engine,int flash,int document,const char* path,const char* preview,
+int reader_camera_rgb_frame(void* engine,uint64_t after,unsigned char** output,size_t* size,
+    uint64_t* sequence,int* width,int* height,char* error,size_t error_size) {
+    try {
+        auto data=static_cast<reread::Engine*>(engine)->frame(after,*sequence,true,width,height);
+        *output=static_cast<unsigned char*>(std::malloc(data.size()));
+        if(!*output) throw std::bad_alloc();
+        std::memcpy(*output,data.data(),data.size());*size=data.size();return 0;
+    } catch(const std::exception& exception){reread::error_message(error,error_size,exception);return -1;}
+}
+int reader_camera_capture(void* engine,int flash,int document,int rotation,const char* path,const char* preview,
                           ReaderCameraPhoto* photo,char* error,size_t error_size) {
-    try {*photo=static_cast<reread::Engine*>(engine)->capture(flash,document,path,preview);return 0;}
+    try {*photo=static_cast<reread::Engine*>(engine)->capture(flash,document,rotation,path,preview);return 0;}
     catch(const std::exception& exception){reread::error_message(error,error_size,exception);return -1;}
 }
 void reader_camera_stats(void* engine,ReaderCameraStats* stats) {

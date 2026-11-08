@@ -1,14 +1,16 @@
 # Shared camera interface
 
-ReRead 0.4.0 uses a native C++ camera engine. It owns USB capture, focus and
+ReRead uses a native C++ camera engine. It owns USB capture, focus and
 exposure sequencing, flash, frame alignment, image processing and JPEG encoding.
 The Python service provides HTTP/JSON, firmware loading and file/job management.
-The web page, CLI and apps all share this one service, supervised by antiX/runit.
+The on-device Camera app and CLI share this service, supervised by antiX/runit.
 
-Open **http://192.168.7.1/#camera** for live preview, Photo/Document rendering,
-optional flash and full-resolution downloads. The development Reader delivered
-about 15 raw frames/sec and 12–13 processed previews/sec in the tested mode.
-Those measurements are not a claim about the sensor's maximum frame rate.
+Open **Camera** on the Reader's Home screen. OK/Select or Shoot takes a photo;
+Options changes flash, Photo/Document rendering and orientation. View toggles
+the last saved photo. Preview and photos default to 180° rotation for the
+bottom-facing camera pointed forward while holding the Reader away from you.
+Back returns Home. The USB web interface is reserved for management and file
+transfer; it does not operate the camera.
 
 Photos have unique filenames under `/var/lib/reader/files`. Settings and files
 survive package updates. The service keeps only the latest thumbnail/metadata
@@ -57,11 +59,19 @@ busy/paused. A completed job includes `photo.filename`, dimensions, size, time
 and `focus` fields (raw/status/gain/prelocked).
 
 GET `/live?after=<sequence>` waits up to ten seconds for a new JPEG and returns
-its `X-Frame` sequence header. Each request renews an eight-second preview lease;
-multiple viewers share one stream. A hidden/closed Camera page stops renewing
-its lease. The web equivalents are GET `/api/camera`, `/api/camera/live`,
-`/api/camera/preview` (last saved thumbnail), and POST `/api/camera/capture`.
-Downloads use the existing `/files/<filename>` route.
+its `X-Frame` sequence header. GET `/rgb?after=<sequence>` provides packed RGB888
+for local native apps, with `X-Width`, `X-Height` and `X-Frame`. This bypasses JPEG
+encoding and decoding for the on-device preview. Clients must check the exact
+`width * height * 3` body size and own their returned buffer. Each preview request
+renews an eight-second hardware lease. The engine only encodes live JPEGs when
+JPEG clients actually request them. Closing Camera, viewing the last photo, or
+idle dimming stops renewing the lease. Saved-photo downloads use management's
+`/files/<filename>` route.
+
+POST `/capture` additionally accepts `rotation: 0` or `180` (default 0 for API
+compatibility). Rotation is applied during native encoding, after stock's row
+and channel normalization, to both the full photo and saved thumbnail. Metadata
+records it; the Camera app displays the corresponding live rotation.
 
 ## Native implementation and lifecycle
 

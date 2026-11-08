@@ -38,7 +38,7 @@ def configure(root, base, build, kernel):
     policy.chmod(0o755)
     try:
         run('chroot', str(root), 'apt-get', 'install', '-y', '--no-install-recommends',
-            'dropbear-bin', 'chrony', 'alsa-utils', 'python3-usb', 'libstdc++6', 'libusb-1.0-0', 'libjpeg62-turbo', 'fxload')
+            'dropbear-bin', 'chrony', 'alsa-utils', 'python3-usb', 'libstdc++6', 'libusb-1.0-0', 'libjpeg62-turbo', 'fxload', 'libqt5network5t64', 'libqt5widgets5t64', 'libqt5gui5t64', 'fonts-dejavu-core')
     finally:
         if old_policy is None:
             policy.unlink()
@@ -58,6 +58,7 @@ def stage(root, base):
         p.chmod(mode)
 
     for source, target in [('usb-start.sh', 'usr/local/sbin/reader-usb'),
+                           ('usb-session.py', 'usr/local/sbin/reader-usb-session'),
                            ('web.py', 'usr/local/sbin/reader-web'),
                            ('web.html', 'usr/share/reader/web.html')]:
         p = root / target
@@ -75,18 +76,7 @@ pidfile /run/reader-udhcpd.pid
     # No router/DNS options: the USB link must not take over the host's Internet route.
     services = root / 'etc/runit/runsvdir/default'
     services.mkdir(parents=True, exist_ok=True)
-    runs = {
-        'reader-usb': 'exec /usr/local/sbin/reader-usb\n',
-        'reader-web': '''while ! ip -4 address show dev usb0 2>/dev/null | grep -q '192.168.7.1/24'; do sleep 2; done
-exec /usr/local/sbin/reader-web >>/var/log/reader/web.log 2>&1
-''',
-        'reader-ssh': '''while ! ip -4 address show dev usb0 2>/dev/null | grep -q '192.168.7.1/24'; do sleep 2; done
-mkdir -p /etc/dropbear
-if [ ! -f /etc/dropbear/dropbear_ed25519_host_key ]; then
-    dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key
-fi
-exec dropbear -F -E -p 192.168.7.1:22 -r /etc/dropbear/dropbear_ed25519_host_key >>/var/log/reader/ssh.log 2>&1
-'''}
+    runs = {'reader-usb': 'exec /usr/local/sbin/reader-usb\n'}
     for name, body in runs.items():
         write('/etc/sv/' + name + '/run', '#!/bin/sh\nmkdir -p /var/log/reader\n' + body, 0o755)
         link = services / name

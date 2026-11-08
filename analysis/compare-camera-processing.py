@@ -130,7 +130,7 @@ def main():
     def docker(command):run('docker','exec',args.container,'sh','-c',
                             'cd /work/build/antix/camera-oracle && '+command)
     docker('g++ -m32 -O2 -rdynamic -D_GLIBCXX_USE_CXX11_ABI=0 oracle.cpp -ldl -o oracle && '
-           'g++ -m32 -O2 -Wall -Wextra -Werror -std=c++17 -c /work/antix/camera_processing.cpp -o processing.o && '
+           'g++ -m32 -O3 -march=bonnell -Wall -Wextra -Werror -std=c++17 -c /work/antix/camera_processing.cpp -o processing.o && '
            'g++ -m32 -O2 -std=c++17 native.cpp processing.o -ljpeg -o native')
     cases=[]
     for mode,w,h in [('still',2592,1920),('live',648,480)]:

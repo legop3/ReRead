@@ -22,7 +22,15 @@ fi
 if [ -S /run/reader-camera.sock ]; then
     /usr/local/sbin/reader-camera suspend || true
 fi
-for service in reader reader-web reader-battery reader-camera; do
+# Management daemons now share the USB-session lifetime; retire old supervisors.
+for service in reader-web reader-ssh; do
+    if [ -L "/etc/runit/runsvdir/default/$service" ] && [ -p "/etc/sv/$service/supervise/control" ]; then
+        sv -w 5 down "/etc/sv/$service" || true
+    fi
+    rm -f "/etc/runit/runsvdir/default/$service"
+done
+ldconfig
+for service in reader reader-battery reader-camera; do
     if [ -p "/etc/sv/$service/supervise/control" ]; then
         restart_timeout=5
         [ "$service" != reader-camera ] || restart_timeout=45

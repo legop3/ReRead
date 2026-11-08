@@ -19,8 +19,10 @@ void reader_camera_shutdown(void* engine);
 void reader_camera_destroy(void* engine);
 int reader_camera_frame(void* engine, uint64_t after, unsigned char** jpeg,
                         size_t* size, uint64_t* sequence, char* error, size_t error_size);
+int reader_camera_rgb_frame(void* engine, uint64_t after, unsigned char** pixels,
+    size_t* size, uint64_t* sequence, int* width, int* height, char* error, size_t error_size);
 void reader_camera_free(void* bytes);
-int reader_camera_capture(void* engine, int flash, int document, const char* photo_path,
+int reader_camera_capture(void* engine, int flash, int document, int rotation, const char* photo_path,
                           const char* preview_path, ReaderCameraPhoto* photo,
                           char* error, size_t error_size);
 void reader_camera_stats(void* engine, ReaderCameraStats* stats);
