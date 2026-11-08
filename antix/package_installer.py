@@ -11,9 +11,9 @@ def package(system,packed,root_id):
     shutil.copy(BASE/'antix/install.sh',installer/'install');(installer/'install').chmod(0o755)
     (installer/'image-info').write_text(f'BUILD_ID={root_id}\n')
     files=image.boot_files('installer',installer,'ReRead automatic SSD installer')
-    (files/'reader').mkdir()
-    shutil.copy(packed,files/'reader/reader.img.gz')
-    (files/'reader/payload.id').write_text(root_id+'\n')
+    (files/'reread').mkdir()
+    shutil.copy(packed,files/'reread/reread.img.gz')
+    (files/'reread/payload.id').write_text(root_id+'\n')
     size=max(128,(sum(p.stat().st_size for p in files.rglob('*') if p.is_file())+MIB-1)//MIB+32)
     usb=image.disk('reread-installer-usb',size,files)
     version=(BUILD/'root/usr/share/reader/version').read_text().strip()
@@ -22,9 +22,11 @@ def package(system,packed,root_id):
               'system_image':system.name,'system_bytes':system.stat().st_size,
               'compressed_image':packed.name,'installer_usb_image':usb.name,
               'installer_bytes':usb.stat().st_size,'root_uuid':root_id,
-              'root_partition_mib':3072,'boot_partition_mib':63,
+              'root_partition_bytes':image.ROOT_BYTES,
+              'root_partition_mib':image.ROOT_BYTES/MIB,'boot_partition_mib':image.BOOT_MIB-1,
               'installer_mode':'automatic stream, sync, reboot',
-              'hardware_status':'SSD install, display, controls and sleep confirmed on Reader',
+              'boot_layout':'FAT mounted at /boot; antiX-based installer',
+              'hardware_status':'0.2.0 installer and hardware confirmed on Reader; 0.2.1 full-disk lean image needs physical retest',
               'usb_gadget_status':'reader2: DHCP, HTTP file transfers and SSH confirmed with Fedora',
               'wifi_status':'adapter discovery, scanning, saved network and HTTPS confirmed on Reader'}
     (OUT/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
@@ -34,6 +36,4 @@ def package(system,packed,root_id):
 if __name__=='__main__':
     previous=json.loads((OUT/'manifest.json').read_text())
     packed=OUT/previous['compressed_image']
-    if packed.name!='reread.img.gz':
-        renamed=OUT/'reread.img.gz';packed.rename(renamed);packed=renamed
     package(OUT/previous['system_image'],packed,previous['root_uuid'])

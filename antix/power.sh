@@ -17,6 +17,8 @@ case "$1" in
         sync
         echo mem > /sys/power/state || exit 1
         echo "$(date -Iseconds) resumed" >> /var/log/reader/power.log
+        /usr/local/sbin/reader-fan-reset >>/var/log/reader/fan.log 2>&1 || true
+        /usr/local/sbin/reader-audio init >>/var/log/reader/audio.log 2>&1 || true
         setfont -C /dev/tty1 /usr/share/reader/font-large.psf 2>/dev/null ||
             setfont -C /dev/tty1 /usr/share/reader/font-tall.psf 2>/dev/null || true
         ;;

@@ -1,3 +1,7 @@
+> Historical bring-up notes. The one-off distribution flashers mentioned below
+> have been removed. Build and install ReRead using `./make-usb.sh`; see
+> [current instructions](../antix/README.md).
+
 # Reader live boot tests
 
 ## antiX 26.1 i386 full
@@ -19,11 +23,11 @@ Candidate downloaded from `https://ftp.linux.cz/pub/linux/slax/Slax-12.x/slax-32
 
 ## antiX 26.1 Core i386: powered-hub retest
 
-Use Core, as requested by the owner: a console-only base without a GUI environment. The original full-edition attempt is historical; the current `write-test-usb.py` now targets **antiX-26.1_386-core.iso**.
+Use Core, as requested by the owner: a console-only base without a GUI environment. The original full-edition attempt was superseded by a test using **antiX-26.1_386-core.iso**.
 
 - Official download/checksum source: https://antixlinux.com/download/
 - ISO source: https://downloads.sourceforge.net/project/antix-linux/Final/antiX-26.1/antiX-26.1_386-core.iso
 - Expected SHA-256: `5e07ed85acba1d2c33a7e41b089e80ce203eeb11d81af8c830e64e2e058ead7e`.
-- Write from the project root: `sudo python3 analysis/write-test-usb.py`. The writer checks the exact authorized USB identity, capacity, unmounted status, ISO hash, and full ISO-length readback.
+- The retired `write-test-usb.py` checked the exact authorized USB identity, capacity, unmounted status, ISO hash, and full ISO-length readback.
 - Boot through the powered USB hub. Use the normal live entry without copy-to-RAM or installation. This test does not replace the installed SSD system.
 - Linux rejecting the Apple hub's USB power budget is a strong explanation for the earlier live-media discovery failure; this retest will check it. Core boot on the Reader remains untested.

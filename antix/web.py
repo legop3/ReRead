@@ -12,6 +12,7 @@ import tempfile
 from urllib.parse import unquote, urlsplit
 import reader_wifi as wifi
 import reader_manager as manager
+import reader_battery as battery
 
 FILES = Path('/var/lib/reader/files')
 PAGE = Path('/usr/share/reader/web.html')
@@ -57,6 +58,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, json.dumps(wifi.status()), 'application/json')
         if route == '/api/platform':
             return self.reply(200, json.dumps(manager.status()), 'application/json')
+        if route == '/api/battery':
+            return self.reply(200, json.dumps(battery.status()), 'application/json')
         if route.startswith('/files/'):
             try:
                 path = self.filename()

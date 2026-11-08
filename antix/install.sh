@@ -35,17 +35,16 @@ find_payload() {
         for disk in /sys/block/sd*; do
             [ -f "$disk/dev" ] || continue
             case "$(readlink -f "$disk/device")" in *usb*) ;; *) continue ;; esac
-            # This 2.6.27 kernel has no sysfs 'partition' attribute.
             for entry in "$disk"/"${disk##*/}"*; do
                 [ -f "$entry/dev" ] || continue
                 source=/dev/${entry##*/}
                 mount -t vfat -o ro "$source" /media/installer 2>>/tmp/storage.log || continue
                 marker=
-                if [ -f /media/installer/reader/payload.id ]; then
-                    read -r marker < /media/installer/reader/payload.id
+                if [ -f /media/installer/reread/payload.id ]; then
+                    read -r marker < /media/installer/reread/payload.id
                 fi
-                if [ "$marker" = "$BUILD_ID" ] && [ -f /media/installer/reader/reader.img.gz ]; then
-                    PAYLOAD=/media/installer/reader/reader.img.gz
+                if [ "$marker" = "$BUILD_ID" ] && [ -f /media/installer/reread/reread.img.gz ]; then
+                    PAYLOAD=/media/installer/reread/reread.img.gz
                     echo "Image found on $source (mounted read-only)."
                     return 0
                 fi
@@ -87,12 +86,12 @@ install_image() {
     echo 'INSTALLATION COMPLETE'
     echo 'Rebooting in 5 seconds. USB may now be removed.'
     sleep 5
-    /buttons --reboot
+    reboot -f
     echo 'Automatic reboot failed. Restart the Reader manually.'
     return 1
 }
 
-printf '\033[2J\033[HREADER AUTOMATIC INSTALLER\n'
+printf '\033[2J\033[HReRead AUTOMATIC INSTALLER\n'
 echo 'Installs from USB storage to the known internal Reader SSD.'
 install_image
 # Failures stop here; never retry a disk write without an explicit new command.

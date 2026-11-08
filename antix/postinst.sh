@@ -19,7 +19,7 @@ if [ -r /sys/module/iusbc/srcversion ]; then
     fi
 fi
 # Never reload USB networking during an update over that connection.
-for service in reader reader-web; do
+for service in reader reader-web reader-battery; do
     if [ -p "/etc/sv/$service/supervise/control" ]; then
         sv -w 5 restart "$service" || true
     fi

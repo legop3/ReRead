@@ -1,4 +1,8 @@
-# Prompt for ChatGPT Deep Research
+# Original research prompt
+
+Historical input from the first investigation, retained as a reference.
+ReRead now uses antiX Core; the alternatives and project ideas below are not
+the current product plan.
 
 Research repurposing the original 2009 Intel Reader assistive reading device. This is the handheld camera/OCR/text-to-speech appliance, not an Intel RealSense camera, ebook software, or a generic Intel card reader. I own one and have a full 4 GB dd image of its internal disk. USB boot already works. I want practical hobbyist possibilities, especially a physical-button camera that uploads images and plays spoken responses, plus USB gadget and speaker uses.
 

@@ -1,4 +1,4 @@
-"""Extract the small stock inputs needed by the compatibility installer."""
+"""Optional extraction of stock firmware for hardware research; not a ReRead build input."""
 from pathlib import Path
 import shutil
 import subprocess

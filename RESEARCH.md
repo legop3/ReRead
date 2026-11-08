@@ -6,9 +6,16 @@ The project target is a multipurpose, button-operated handheld with a small cust
 
 ## Current progress: 2026-11-07
 
-The owner subsequently booted antiX 26.1 Core i386 successfully through the powered hub. Its console was unreadable with the default font. The active build now migrates to native antiX runit startup and its 5.10.256 kernel, carrying the custom console font and verified button map into an SSD image. See [the antiX build](antix/README.md). Physical installed-image verification and custom camera/gadget support remain pending.
+The maintained product is **ReRead**, based on antiX Core i386 with normal runit,
+apt/dpkg, ALSA, evdev and standard Linux power interfaces. SSD boot, all controls,
+sleep, USB Ethernet/web/SSH, USB Wi-Fi, battery reporting and speaker playback
+have been verified on the Reader. Camera/flash integration remains future work.
+See [ReRead system notes](antix/README.md) for current behavior and limitations.
 
-The earlier stock-kernel proof established readable console output, SSD installation and a verified physical button map. It has been replaced by the single antiX build. The automatic installer streams the image once, flushes writes and reboots; full-image validation and readback passes have been removed for faster iteration. The powered USB hub resolves the observed USB power-budget rejection.
+The build and automatic installer use antiX only. The stock-kernel prototype and
+one-off live-distribution flashers are retired. The powered hub resolved the
+observed USB power-budget rejection. The evidence below remains a hardware
+reference; it is not a plan to keep or wrap the stock application.
 
 The measured map covers all 18 push buttons and Hold. Hold value 1 means unlocked; value 0 means locked. Initial Hold state reporting remains unchecked. See [the measured control map](analysis/button-map.md).
 
@@ -24,11 +31,11 @@ The measured map covers all 18 push buttons and Hold. Hold value 1 means unlocke
 | Application | dpkg status | `colbert-app` and `colbert-primary` **1.0.0-7978**. Internal project name: **Colbert**. |
 | Graphics | `etc/X11/xorg.conf` | Poulsbo `psb` X driver, 24-bit depth, unusual **962x544** internal display mode. |
 | Camera / flash | Camera library, udev helper, camera firmware | Custom Cypress FX2 USB plus FPGA path; high-level library functions survive as dynamic symbols. |
-| Speaker | Recorded HDA Intel initialization; audio library references GStreamer `alsasink` | ALSA playback is a promising entry point. Codec, mixer state, and amplifier behavior still need live inspection. |
-| USB device port | `iusbc.ko`, kernel config, `usb_client_helper` | Stock mass storage uses a real Linux USB gadget controller. Ethernet and serial gadget modules are also supplied. They have not been tested. |
+| Speaker | Normal HDA/IDT STAC9205 driver; stock library references GStreamer `alsasink` | [Speaker playback and physical volume control verified](analysis/audio.md); headphone routing and a useful microphone signal remain unverified. |
+| USB device port | `iusbc.ko`, kernel config, `usb_client_helper` | Stock mass storage uses a real Linux USB gadget controller. Ethernet and serial gadget modules are also supplied. The ported controller and Ethernet gadget now work on antiX; see [USB findings](analysis/usb-network-debug.md). |
 | Wi-Fi | Kernel config disables `WIRELESS_EXT`, `WLAN_PRE80211`, and `WLAN_80211` | A conventional USB Wi-Fi adapter is **not a plug-and-play addition to this stock kernel**. |
 | Other networking | `CONFIG_INET=y`; USB Ethernet host drivers and `g_ether.ko` included | USB Ethernet gadget to a host, or a supported wired USB Ethernet adapter, are better first candidates. |
-| Other hardware | `HmColbertFan`, `HmColbertWDT`, battery/ACPI log | Keep cooling, power handling, and watchdog behavior in scope when replacing the application. |
+| Other hardware | `HmColbertFan`, `HmColbertWDT`, battery/ACPI log | [Cooling investigation](analysis/cooling.md): ACPI temperature is hardcoded; changing sensors and fan state are available through the EC. [Battery status and protection](analysis/battery.md) now use standard Linux readings; watchdog policy remains separate work. |
 
 These are observations of files and recorded logs, not fresh measurements of the device.
 
@@ -83,9 +90,11 @@ REA evidence: `ev_fda1d2b2c2c3b65ffb18f8db62d838543451ab5a1088374c5a0de822eb51ab
 
 The recorded FPGA programming log reports version `0x58` already matching the supplied image and therefore no update. This is historical evidence, not an instruction to program it.
 
-Best initial camera experiment: get one image out using the existing Reader application, then locate its output file. A watcher could upload completed captures without replacing the camera stack. Next option: a tiny 32-bit C++ helper that uses the stock library. That requires recovering the exact ABI and matching old Boost/libstdc++ dependencies; the exported names alone are not enough to safely invent a callable interface.
-
-Longer term, port the userspace USB protocol or run the old libraries in a compatible 32-bit userspace on another kernel. Neither is proven yet.
+ReRead needs a capture interface for the custom FX2/FPGA path. The surviving
+library, firmware and exported names are protocol/ABI clues, not a working modern
+camera backend. Prefer a normal Linux media interface where practical; retain
+only hardware-specific code that is actually necessary. Capture, autofocus and
+flash remain unverified on antiX.
 
 ## Networking and the gadget port
 
@@ -102,34 +111,20 @@ CONFIG_USB_G_SERIAL=m
 CONFIG_USB_FILE_STORAGE=m
 ```
 
-`g_ether.ko`, `g_serial.ko`, `g_cdc.ko`, and `gadgetfs.ko` are present alongside `iusbc.ko`. This makes USB networking a credible first experiment: connect the mini-USB port to a computer, use an Ethernet gadget instead of mass storage, and have the computer forward traffic. Controller compatibility, gadget switching, addressing, and the host connection still require tests. Do not assume modern configfs/composite gadget recipes apply to this 2009 kernel.
+The stock modules provided the starting evidence. ReRead now uses the antiX
+kernel with the ported `iusbc` controller and standard `g_ether`, USB DHCP,
+HTTP file transfers and Dropbear SSH, verified with the owner's Fedora host.
+USB and Wi-Fi serve separate roles: USB management at `192.168.7.1`, generic
+USB Wi-Fi for the Reader's Internet link. The Wi-Fi path uses the distro's
+wpa_supplicant/dhcpcd, with no adapter IDs or network credentials embedded in
+ReRead. See [current networking notes](antix/README.md#usb-networking).
 
-The image's network configuration has static `eth0` address `192.168.0.2/24`, gateway `192.168.0.1`. That does not prove a network interface was actually active.
+## Product direction
 
-For eventual untethered use, either add Wi-Fi support to a compatible kernel or prove the custom hardware works on a newer 32-bit Linux system. Pick a Wi-Fi chipset after choosing that kernel and inspecting its drivers. No distribution or adapter has been validated here. Use a modern host/server for public API credentials and HTTPS initially rather than depending on this old Ubuntu installation for Internet-facing services.
-
-## Project ideas
-
-| Idea | Experience | First dependency |
-| --- | --- | --- |
-| **Connected shoot-and-speak camera** | Press Shoot, upload photo, hear a description, OCR result, translation, or custom response | One captured image plus a network path; server handles processing |
-| **Photo journal / instant upload camera** | Physical shutter, local queue, upload when connected, spoken success/failure | Watch completed stock image files before replacing UI |
-| **Talking status terminal** | Buttons select server status, messages, weather, or automation actions; speaker reads responses | Networking and audio; camera optional |
-| **Document capture station** | Photograph pages or receipts and send them to a server-side archive/OCR pipeline | Preserve autofocus/flash and stock capture initially |
-| **USB utility device** | A computer-connected serial console, Ethernet endpoint, or controlled file-transfer appliance | Validate the supplied gadget modules individually |
-
-The first two fit the physical hardware particularly well. A native full-screen interface with a few large choices fits better than making a modern browser the center of the project. Video streaming, webcam emulation, and complex composite gadgets are later possibilities, not established capabilities.
-
-## Where to start
-
-1. Keep this image and a second backup. Its SHA-256 is recorded below. It contains PC boot/storage contents; it is not a backup of every separate chip, such as the BIOS or camera EEPROM. Successful extraction does not prove a restore will boot.
-2. Boot the original software and collect live hardware details: `/proc/cpuinfo`, `/proc/meminfo`, `lspci -nnk`, `lsusb`, `lsmod`, `dmesg`, `/proc/asound/cards`, and `/proc/bus/input/devices`. From its X session, collect `xrandr --verbose` if available. Missing tools are fine; save the rest.
-3. Take one stock photo and find its finished image on the user-data partition. This tests the shortest path to a useful custom feature.
-4. Prepare a USB working copy of the stock environment and validate it with the internal disk left untouched. **This needs boot-script work first**: stock GRUB, initramfs, fstab, and USB helpers assume specific disk/partition names. Booting USB can change those names. Do not just write the image to USB and assume it will operate exclusively on USB.
-5. On that working copy, validate USB Ethernet gadget connectivity, then upload a captured file and play a returned WAV/MP3. Keep cooling and normal power control operating.
-6. Only after that loop works, choose whether to keep the stock capture UI plus an uploader, replace the UI while reusing the stock libraries, or port hardware support to a newer system.
-
-No flashing, EEPROM repair, kernel loading, gadget switching, or physical-disk writes were performed during this investigation.
+ReRead is a multipurpose handheld platform with installable applications,
+not a stock-app wrapper or a single-purpose upload appliance. Hardware findings
+here support that platform. Application concepts and the on-device launcher
+will be designed separately once the system features are in place.
 
 ## Image and extraction record
 
@@ -156,4 +151,4 @@ SHA-256: `7caaba050df8ca886834de5cab8ee451e9b4c41c27d708d45c876d7df8b38d51`
 - [2021 hardware-hacking thread](https://www.reddit.com/r/hardwarehacking/comments/rlpkkb/intel_reader_softwarehardware_hacking/): an owner reports F11 USB boot and imaging the disk; a commenter points to `Intel_Reader_1.02.zip` in a CTL Box folder. **Community lead only**. The linked Box folder was not accessible through the research tool; 1.02 availability is unverified.
 - [Historical discussion pointing to GPL sources](https://www.opennet.ru/openforum/vsluhforumID3/60832.html): identifies Intel Download Center ID **18112** and describes a roughly 681 MB source archive. This is an unverified archive-recovery lead, not confirmation the custom camera/FPGA code was released.
 
-The bounded search found product documentation, a source-release lead, and a hacking discussion, but no verified complete alternate-OS port. It does not establish that nobody has built one. A research prompt for following these leads is in `DEEP_RESEARCH_PROMPT.md`.
+The bounded search found product documentation, a source-release lead, and a hacking discussion, but no verified complete alternate-OS port. It does not establish that nobody has built one. A research prompt for following these leads is in [the original research prompt](analysis/original-research-prompt.md).

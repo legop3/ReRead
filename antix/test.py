@@ -1,15 +1,20 @@
 """Optional short SSD boot/input check; no installer verification passes."""
+import argparse
 import json
 import time
 from pathlib import Path
 from vm import VM
 BUILD=Path('/work/build/antix');OUT=Path('/work/out/antix')
 m=json.loads((OUT/'manifest.json').read_text())
-v=VM(['-drive',f'file={OUT / m["system_image"]},format=raw,if=ide,snapshot=on'],
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--image',type=Path,default=OUT/m['system_image'])
+args=parser.parse_args()
+v=VM(['-drive',f'file={args.image},format=raw,if=ide,snapshot=on'],
      'boot-test',build=BUILD,out=OUT,memory=512)
 try:
     v.expect('boot:');v.send('serial')
-    v.expect('READER BASE: antiX Core',timeout=180)
+    v.expect('ReRead base: antiX Core',timeout=180)
+    v.expect('/boot');v.expect('vfat')
     v.expect('Mapped: 19/19')
     v.monitor('sendkey up');v.expect('Code 103  UP');v.expect('RELEASED')
     for cycle in range(2):

@@ -23,6 +23,7 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
 </style>
 <header><h1>ReRead</h1><p id="summary">Connecting…</p></header>
 <main>
+<p id="battery-warning" role="status" hidden></p>
 <nav aria-label="Main menu">
  <a href="#overview" data-page="overview">Overview</a><a href="#files" data-page="files">Files</a>
  <a href="#apps" data-page="apps">Apps</a><a href="#updates" data-page="updates">Updates</a>
@@ -30,7 +31,7 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
 </nav>
 <div id="page-overview">
  <section><h2>Your ReRead</h2><dl><dt>Device</dt><dd id="device">—</dd><dt>Storage</dt><dd id="storage">—</dd>
- <dt>Wi-Fi</dt><dd id="overview-wifi">Checking…</dd><dt>USB address</dt><dd>192.168.7.1</dd><dt>Kernel</dt><dd id="kernel">—</dd></dl></section>
+ <dt>Battery</dt><dd id="battery">Checking…</dd><dt>Wi-Fi</dt><dd id="overview-wifi">Checking…</dd><dt>USB address</dt><dd>192.168.7.1</dd><dt>Kernel</dt><dd id="kernel">—</dd></dl></section>
  <p class="muted">Use <a href="#wifi">Wi-Fi</a> to get online, <a href="#files">Files</a> to transfer files, or <a href="#settings">Settings</a> for device and SSH settings.</p>
 </div>
 <div id="page-files" hidden>
@@ -86,6 +87,14 @@ async function refreshSystem(){const s=await get('/api/status');
  for(const f of s.files){const li=document.createElement('li'),a=document.createElement('a'),meta=document.createElement('span');
  a.textContent=f.name;a.href='/files/'+encodeURIComponent(f.name);a.download=f.name;meta.textContent=size(f.bytes);meta.className='muted';li.append(a,meta);$('files').append(li);}
 }
+async function refreshBattery(){const s=await get('/api/battery');
+ const level=s.capacity_percent===null?s.status:s.capacity_percent+'%';
+ $('battery').textContent=level+(s.external_power===true?' · External power · '+s.status:s.external_power===false&&s.present?' · On battery':'');
+ const warning=$('battery-warning');warning.hidden=true;
+ if(s.level==='critical'){warning.textContent='Battery critically low ('+level+'). Shutting down in '+s.shutdown_in_seconds+' seconds. Connect power to cancel.';warning.hidden=false;}
+ else if(s.level==='low'){warning.textContent='Battery low ('+level+'). Connect power.';warning.hidden=false;}
+ else if(!s.monitor_running){warning.textContent='Battery protection service is unavailable.';warning.hidden=false;}
+}
 function wifiDescription(s){if(!s.interface)return 'No Wi-Fi adapter detected.';if(s.error)return s.error;
  if(s.state==='COMPLETED')return s.address?'Connected to '+s.ssid+' · '+s.address:'Connected to '+s.ssid+' · Waiting for an IP address…';
  const states={SCANNING:'Scanning…',ASSOCIATING:'Connecting…',ASSOCIATED:'Authenticating…','4WAY_HANDSHAKE':'Authenticating…',GROUP_HANDSHAKE:'Authenticating…',INACTIVE:'Not connected.',DISCONNECTED:'Not connected.',INTERFACE_DISABLED:'Wi-Fi interface is disabled.'};
@@ -100,7 +109,7 @@ async function refreshWifi(){const s=await get('/api/wifi'),text=wifiDescription
 }
 async function navigate(){const next=location.hash.slice(1)||'overview';page=['overview','files','wifi','settings','apps','updates'].includes(next)?next:'overview';
  for(const a of document.querySelectorAll('nav a')){const active=a.dataset.page===page;if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');$('page-'+a.dataset.page).hidden=!active;}
- message('');try{await refreshSystem();if(page==='wifi'||page==='overview')await refreshWifi();if(page==='apps'||page==='updates')await refreshPlatform();$('package-operation').hidden=!['apps','updates'].includes(page);}catch(e){message(e.message,true);}}
+ message('');try{await refreshSystem();await refreshBattery();if(page==='wifi'||page==='overview')await refreshWifi();if(page==='apps'||page==='updates')await refreshPlatform();$('package-operation').hidden=!['apps','updates'].includes(page);}catch(e){message(e.message,true);}}
 $('networks').onchange=()=>{const n=networks[Number($('networks').value)];if($('networks').value===''||!n)return;$('ssid').value=n.ssid;$('security').value=n.security;updateSecurity();$('wifi-password').focus();};
 function updateSecurity(){const secure=$('security').value!=='open';$('wifi-password-field').hidden=!secure;$('wifi-password').required=secure;}
 $('security').onchange=updateSecurity;
@@ -130,5 +139,5 @@ async function installPackage(input,url){if(packageBusy)return message('A packag
 $('install-app').onsubmit=async e=>{e.preventDefault();try{await installPackage('app-package','/api/apps/install');}catch(e){message(e.message,true);}};
 $('install-platform').onsubmit=async e=>{e.preventDefault();try{await installPackage('platform-package','/api/updates/install');}catch(e){message(e.message,true);}};
 window.addEventListener('hashchange',navigate);navigate();
-setInterval(()=>{if(page==='wifi'||page==='overview')refreshWifi().catch(e=>message(e.message,true));if(page==='apps'||page==='updates')refreshPlatform().catch(()=>{reconnecting=true;message('Reconnecting to ReRead…');});},4000);
+setInterval(()=>{refreshBattery().catch(()=>{});if(page==='wifi'||page==='overview')refreshWifi().catch(e=>message(e.message,true));if(page==='apps'||page==='updates')refreshPlatform().catch(()=>{reconnecting=true;message('Reconnecting to ReRead…');});},4000);
 </script></html>

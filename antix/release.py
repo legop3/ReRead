@@ -15,7 +15,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
     if root.exists():
         shutil.rmtree(root)
     root.mkdir(parents=True)
-    module = build_module(build_dir / "root", base, build_dir, kernel)
+    module = build_module(build_dir / "base-root", base, build_dir, kernel)
     kernel_package_version = subprocess.run(
         ['dpkg-query', '--admindir=' + str(build_dir / 'root/var/lib/dpkg'), '-W', '-f=${Version}', 'linux-image-' + kernel],
         text=True, capture_output=True, check=True).stdout.strip()
@@ -33,11 +33,15 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
         path.write_text(text)
         path.chmod(mode)
 
-    subprocess.run(['gcc', '-m32', '-Os', '-nostdlib', '-static', '-fno-pie', '-no-pie',
-                    '-fno-stack-protector', '-fno-builtin', '-Wall', '-Wextra', '-Werror',
+    subprocess.run(['gcc', '-m32', '-Os', '-Wall', '-Wextra', '-Werror',
                     '-o', str(build_dir / 'buttons'), str(base / 'antix/buttons.c')], check=True)
     copy(build_dir / 'buttons', 'usr/local/bin/reader-buttons', 0o755)
+    subprocess.run(['gcc', '-m32', '-Os', '-Wall', '-Wextra', '-Werror',
+                    '-o', str(build_dir / 'fan-reset'), str(base / 'antix/fan-reset.c')], check=True)
+    copy(build_dir / 'fan-reset', 'usr/local/sbin/reader-fan-reset', 0o755)
     for source, name in [('power.sh', 'reader-power'), ('start-reader.sh', 'start-reader'),
+                         ('battery.py', 'reader_battery.py'),
+                         ('audio.py', 'reader-audio'),
                          ('manager.py', 'reader_manager.py'), ('update.py', 'reader-update')]:
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
     for font in ['font-large.psf', 'font-tall.psf']:
@@ -47,6 +51,9 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
     copy(module, 'lib/modules/' + kernel + '/extra/iusbc.ko')
     write('usr/share/reader/version', version + '\n')
     write('usr/share/reader/kernel-version', kernel + '\n')
+    write('etc/reader/power.json', '{"warning_percent":12,"critical_percent":6,"shutdown_delay_seconds":30}\n')
+    write('etc/sv/reader-battery/run', '#!/bin/sh\nmkdir -p /var/log/reader\nexec /usr/local/sbin/reader_battery.py >>/var/log/reader/battery.log 2>&1\n', 0o755)
+    (root / 'etc/runit/runsvdir/default/reader-battery').symlink_to('/etc/sv/reader-battery')
     write('etc/sv/reader/run', '#!/bin/sh\nexec /usr/local/sbin/start-reader\n', 0o755)
     (root / 'etc/runit/runsvdir/default/reader').symlink_to('/etc/sv/reader')
     write('DEBIAN/control', f'''Package: reread
@@ -55,12 +62,12 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: python3, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, linux-image-{kernel} (= {kernel_package_version})
+Depends: libc6 (>= 2.36), python3, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
 ''')
-    write('DEBIAN/conffiles', '/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n')
+    write('DEBIAN/conffiles', '/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/power.json\n')
     copy(base / 'antix/postinst.sh', 'DEBIAN/postinst', 0o755)
     output.mkdir(parents=True, exist_ok=True)
     package = output / ('reread_' + version + '_i386.deb')

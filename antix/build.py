@@ -1,4 +1,4 @@
-"""Build SSD-installed antiX Core and the existing automatic USB installer.
+"""Build SSD-installed antiX Core and its automatic USB installer.
 Run as root in intelreader-validator; inputs/outputs are regular workspace files.
 """
 import gzip
@@ -19,6 +19,7 @@ import image
 from gadget import configure as configure_gadget
 from package_installer import package
 from release import build as build_release
+from trim import runtime as trim_runtime
 run=image.run
 OUT.mkdir(parents=True,exist_ok=True)
 BUILD.mkdir(parents=True,exist_ok=True)
@@ -50,9 +51,11 @@ for name,major,minor,mode in [('null',1,3,0o666),('zero',1,5,0o666),('random',1,
     if p.exists() or p.is_symlink():p.unlink()
     os.mknod(p,stat.S_IFCHR|mode,os.makedev(major,minor))
 root_id=str(uuid.uuid4())
+boot_serial=uuid.uuid4().hex[:8]
+boot_id=boot_serial[:4].upper()+'-'+boot_serial[4:].upper()
 write('/etc/hostname','reread\n')
 write('/etc/reader-root-id',root_id+'\n')
-write('/etc/fstab',f'UUID={root_id} / ext3 defaults,noatime 0 1\n')
+write('/etc/fstab',f'UUID={root_id} / ext3 defaults,noatime 0 1\nUUID={boot_id} /boot vfat defaults,noatime,umask=0077 0 0\n')
 # Do not embed the live ISO's shared demo/root passwords in the installed image.
 shadow=root/'etc/shadow'
 shadow.write_text('\n'.join(':'.join([parts[0],'!',*parts[2:]]) if parts[0] in ('root','demo') else line
@@ -64,6 +67,8 @@ local_package = root/'tmp'/release.name
 shutil.copy(release, local_package)
 run('chroot',str(root),'dpkg','--force-confdef','--force-confold','-i','/tmp/'+release.name)
 local_package.unlink()
+# The cached base retains headers for later release builds; the runtime does not.
+trim_runtime(root)
 write('/etc/default/console-setup','ACTIVE_CONSOLES="/dev/tty[1-6]"\nCHARMAP="UTF-8"\nFONT="/usr/share/reader/font-large.psf"\n')
 # Include the tested Reader storage path and the same early large console font.
 write('/etc/initramfs-tools/modules','pata_sch\nata_piix\nsd_mod\next3\n')
@@ -87,9 +92,16 @@ case "$1" in prereqs) echo "$PREREQ"; exit 0 ;; esac
 run('chroot',str(root),'update-initramfs','-u','-k',KERNEL)
 files=BUILD/'system-files'
 if files.exists():shutil.rmtree(files)
-(files/'boot').mkdir(parents=True)
-shutil.copy(root/'boot'/('vmlinuz-'+KERNEL),files/'boot/kernel')
-shutil.copy(root/'boot'/('initrd.img-'+KERNEL),files/'boot/initrd.gz')
+# FAT is the actual /boot filesystem, so distro kernel/initramfs tools update it.
+# FAT has no symlinks; the bootloader names the tested kernel explicitly.
+files.mkdir(parents=True)
+for source in (root/'boot').iterdir():
+    if source.is_file() and not source.is_symlink():
+        shutil.move(source,files/source.name)
+    elif source.is_dir():
+        shutil.rmtree(source)
+    else:
+        source.unlink()
 (files/'syslinux.cfg').write_text(f'''DEFAULT normal
 PROMPT 1
 TIMEOUT 30
@@ -97,20 +109,19 @@ TOTALTIMEOUT 30
 ONTIMEOUT normal
 SERIAL 0 115200
 LABEL normal
- KERNEL /boot/kernel
- INITRD /boot/initrd.gz
+ KERNEL /vmlinuz-{KERNEL}
+ INITRD /initrd.img-{KERNEL}
  APPEND root=UUID={root_id} rootfstype=ext3 ro console=tty0 loglevel=3 i8042.dumbkbd=1
 LABEL serial
- KERNEL /boot/kernel
- INITRD /boot/initrd.gz
+ KERNEL /vmlinuz-{KERNEL}
+ INITRD /initrd.img-{KERNEL}
  APPEND root=UUID={root_id} rootfstype=ext3 ro console=ttyS0,115200 loglevel=3 i8042.dumbkbd=1
 ''')
 shutil.copy('/usr/lib/syslinux/modules/bios/ldlinux.c32',files/'ldlinux.c32')
-root_mib=3072
 rootfs=BUILD/'root-ext3.img'
-with rootfs.open('wb') as f:f.truncate(root_mib*MIB)
-run('mke2fs','-q','-F','-t','ext3','-m','1','-L','READERROOT','-U',root_id,'-d',str(root),str(rootfs))
-system=image.disk('reread',root_mib+64,files,rootfs)
+with rootfs.open('wb') as f:f.truncate(image.ROOT_BYTES)
+run('mke2fs','-q','-F','-t','ext3','-m','1','-L','REREADROOT','-U',root_id,'-d',str(root),str(rootfs))
+system=image.disk('reread',image.SSD_SECTORS*512//MIB,files,rootfs,boot_serial=boot_serial)
 packed=OUT/'reread.img.gz'
 with system.open('rb') as source,packed.open('wb') as dest:
     with gzip.GzipFile(filename='',mode='wb',fileobj=dest,mtime=0,compresslevel=1) as zipped:
