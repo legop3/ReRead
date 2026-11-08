@@ -41,11 +41,11 @@ find_payload() {
                 source=/dev/${entry##*/}
                 mount -t vfat -o ro "$source" /media/installer 2>>/tmp/storage.log || continue
                 marker=
-                if [ -f /media/installer/reader-poc/payload.id ]; then
-                    read -r marker < /media/installer/reader-poc/payload.id
+                if [ -f /media/installer/reader/payload.id ]; then
+                    read -r marker < /media/installer/reader/payload.id
                 fi
-                if [ "$marker" = "$IMAGE_GZ_SHA256" ] && [ -f /media/installer/reader-poc/reader-poc.img.gz ]; then
-                    PAYLOAD=/media/installer/reader-poc/reader-poc.img.gz
+                if [ "$marker" = "$BUILD_ID" ] && [ -f /media/installer/reader/reader.img.gz ]; then
+                    PAYLOAD=/media/installer/reader/reader.img.gz
                     echo "Image found on $source (mounted read-only)."
                     return 0
                 fi
@@ -60,10 +60,6 @@ find_payload() {
 }
 install_image() {
     find_payload || return 1
-    echo 'Checking USB image before writing...'
-    actual=$(sha256sum "$PAYLOAD"); actual=${actual%% *}
-    [ "$actual" = "$IMAGE_GZ_SHA256" ] || { echo 'IMAGE CHECK FAILED'; return 1; }
-    gzip -t "$PAYLOAD" || return 1
     # Select by identity, never by the order in which Linux found the drives.
     matches=0; chosen=
     for entry in /sys/block/*; do
@@ -74,17 +70,21 @@ install_image() {
     TARGET=$chosen
     target_ok || return 1
     echo "Automatically installing to $TARGET (SSDPAPS0004G1)."
-    echo 'Keep USB connected until INSTALLATION VERIFIED.'
+    echo 'Keep USB connected until INSTALLATION COMPLETE.'
     echo 'Writing from USB storage...'
-    gzip -dc "$PAYLOAD" | dd of="$TARGET" bs=1048576
-    status=$?; sync
-    [ "$status" = 0 ] || { echo 'WRITE FAILED'; return 1; }
-    echo 'Verifying internal-drive readback...'
-    actual=$(dd if="$TARGET" bs=1048576 count="$IMAGE_MIB" 2>/tmp/readback.log | sha256sum)
-    actual=${actual%% *}
-    [ "$actual" = "$IMAGE_SHA256" ] || { echo 'READBACK FAILED'; return 1; }
+    # Stream once. Check both processes without a separate checksum/readback pass.
+    mknod /tmp/reader-image.pipe p || return 1
+    gzip -dc "$PAYLOAD" > /tmp/reader-image.pipe &
+    inflater=$!
+    dd if=/tmp/reader-image.pipe of="$TARGET" bs=1048576
+    write_status=$?
+    wait "$inflater"
+    inflate_status=$?
+    rm -f /tmp/reader-image.pipe
+    sync
+    [ "$write_status" = 0 ] && [ "$inflate_status" = 0 ] || { echo 'WRITE FAILED'; return 1; }
     umount /media/installer || return 1
-    echo 'INSTALLATION VERIFIED'
+    echo 'INSTALLATION COMPLETE'
     echo 'Rebooting in 5 seconds. USB may now be removed.'
     sleep 5
     /buttons --reboot

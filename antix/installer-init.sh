@@ -1,17 +1,18 @@
 #!/bin/sh
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin HOME=/root
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
-mount -t tmpfs -o mode=0755 tmpfs /dev
-mknod /dev/console c 5 1
-mknod /dev/null c 1 3
-mknod /dev/tty0 c 4 0
-mknod /dev/tty1 c 4 1
+grep -q ' /proc proc ' /proc/mounts 2>/dev/null || mount -t proc proc /proc
+grep -q ' /sys sysfs ' /proc/mounts || mount -t sysfs sysfs /sys
+grep -q ' /dev tmpfs ' /proc/mounts || mount -t tmpfs -o mode=0755 tmpfs /dev
+for node in console null tty0 tty1; do
+    case "$node" in console) major=5; minor=1 ;; null) major=1; minor=3 ;; tty0) major=4; minor=0 ;; tty1) major=4; minor=1 ;; esac
+    [ -c "/dev/$node" ] || mknod "/dev/$node" c "$major" "$minor"
+done
 mkdir -p /dev/input /dev/pts /tmp /root
 mount -t devpts devpts /dev/pts
+mount -t tmpfs -o mode=1777 tmpfs /tmp
 exec </dev/console >/dev/console 2>&1
-echo 'Reader POC: starting...'
-for driver in ehci_hcd uhci_hcd usbhid hid evdev sd_mod ata_piix pata_sch fbcon vesafb; do
+echo 'Reader installer: starting...'
+for driver in ehci_hcd uhci_hcd usbhid hid evdev sd_mod button fbcon vesafb; do
     modprobe "$driver" >> /tmp/drivers.log 2>&1
 done
 if [ -f /install ]; then
@@ -38,8 +39,3 @@ if [ -f /install ]; then
         sleep 1
     done
 fi
-while :; do
-    /buttons
-    echo 'Button viewer stopped. Restarting...'
-    sleep 1
-done

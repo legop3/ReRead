@@ -1,58 +1,36 @@
-# Intel Reader Hack
+# ReRead
 
-Turning a 2009 Intel Reader into a multipurpose, button-operated Linux handheld. The goal is a small native interface for its physical controls, camera, speaker, and USB gadget port.
+A multipurpose, button-operated Linux handheld built on **antiX 26.1 Core 32-bit**. It starts a small native interface with no desktop. Buttons, Power-button sleep, USB Ethernet with DHCP, web file transfers and SSH work. The web interface has Overview, Files, Apps, Updates, Wi-Fi and Settings pages. Wi-Fi connects using a supported USB adapter and remembers one network. Camera and audio integration come later.
 
-The current proof of concept boots the stock kernel into a readable **BOOT OK** screen and displays button events. A separate USB installer writes the system to the internal SSD automatically, verifies the image, and reboots.
+SSD installation, boot, display, all 19 controls and sleep work on the Reader. The large console font accommodates its unusual display. Use a powered USB hub for installation.
 
-## Current status
+## Install or update
 
-| Component | Status |
-| --- | --- |
-| Internal boot and console display | Working on the Reader |
-| Physical controls | Some buttons register through Linux evdev; others need investigation |
-| Installation from USB storage | Working on the Reader with a powered USB hub |
-| Automatic reboot after installation | Tested in QEMU; Reader test pending |
-| Installed root filesystem | Small RAM filesystem; SSD-backed root is next |
-| Camera, flash, audio, and USB gadget functions | Stock support investigated; custom integration pending |
+ReRead is built from this repository as an installable OS and a versioned platform package. Fresh installs and later updates use the same `reread` package. Future applications use `reread-app-*` packages; the Apps page can install, update and remove them. No apps are bundled yet.
 
-The device examined here has an Atom Z520, approximately 512 MB RAM, and a 4 GB SSD. The proof uses its original 32-bit `2.6.27-4-lpia` kernel to retain a path to the device-specific hardware support.
+For an existing ReRead installation, upload `out/antix/reread_<version>_i386.deb` on the web **Updates** page. This updates the platform in place, preserving files, Wi-Fi settings, credentials and app data. App removal also retains app data and configuration. There is no hosted app store or automatic update feed yet.
 
-## Start here
+For a **fresh installation**, build the images using the [build instructions](antix/README.md#build), then flash the installer:
 
-- [POC build and installation instructions](poc/README.md)
-- [Hardware findings and project progress](RESEARCH.md)
+Connect the configured USB stick and run from this folder:
+
+```sh
+sudo python3 antix/write-usb.py
+```
+
+Boot the USB through the powered hub. Installation starts automatically: stream the OS onto the known Reader SSD, flush writes, then reboot after five seconds. Keep USB attached until **INSTALLATION COMPLETE**. There are no prompts, full-image scans, or readback checks. Booting this installer replaces the current SSD installation.
+
+The writer checks the USB identity to avoid writing to the wrong host disk. Both registered sticks are accepted; connect one at a time.
+
+## Project files
+
+- [Build and system notes](antix/README.md)
+- [Verified physical control map](analysis/button-map.md) and [raw measurements](buttons.md)
+- [Hardware research](RESEARCH.md)
 - [Display investigation](analysis/display-photo-notes.md)
-- [Earlier live-USB experiments](analysis/live-boot-tests.md)
-- [Original research prompt](DEEP_RESEARCH_PROMPT.md)
 
-**The installer automatically replaces the internal installation when booted.** It requires exactly one internal SSD matching the known Reader model and capacity. Keep your own stock disk backup. The USB-writing scripts are pinned to the original owner's USB stick; review the device identity and size checks before adapting them to another stick.
+`antix/` contains the only OS build, release packaging, installer, button interface, web management and font assets. `image-builder/Dockerfile` provides its build tools. Stock inputs, downloads, generated images and personal photos remain local under ignored directories. See [evidence requirements](evidence/README.md).
 
-The Apple keyboard's built-in USB hub caused Linux to reject the flash drive for exceeding its reported power budget. A powered USB hub resolved this on the tested Reader.
+The Reader has an Atom Z520, approximately 512 MB RAM and a 4 GB SSD. The installed OS uses antiX kernel `5.10.256-antix.1-486-smp`, normal runit startup and apt/dpkg. All 18 physical button labels were verified on the Reader during calibration. Hold pressed means unlocked; released means locked.
 
-## Folder layout
-
-| Path | Purpose |
-| --- | --- |
-| `poc/` | Active minimal system, installer, button viewer, and VM tests |
-| `analysis/` | Curated investigation notes and historical USB preparation scripts |
-| `image-builder/` | Historical desktop experiment; its Dockerfile and stock-extraction helper also support the current POC |
-| `evidence/` | Local stock dump and photos, excluded from version control |
-| `build/`, `out/` | Local working files and generated images, excluded from version control |
-| `downloads/`, `archive/` | Local downloads and earlier artifacts, excluded from version control |
-
-## Building
-
-This is a hardware research workspace, not a complete distribution or a turnkey image build from a fresh checkout. Builds need an owner-provided stock dump and extracted kernel, modules, and compatible utilities. Those files are deliberately excluded from version control. See [the build notes](poc/README.md#build) and [local evidence requirements](evidence/README.md).
-
-VM checks exercise installation, target refusal, checksums, reboot, and input display. They do not validate the Reader's camera, missing buttons, or other custom hardware.
-
-## Next steps
-
-1. Move the installed root filesystem onto the SSD and retain persistent settings and logs.
-2. Map the remaining physical controls.
-3. Build a small button-operated launcher.
-4. Integrate camera, audio, networking, and gadget functions as capabilities are proven.
-
-## Included materials
-
-Stock software, firmware dumps, personal photos, extracted filesystems, and generated disk images stay local. The console font assets derive from the kbd project; their provenance and upstream license are in [poc/assets/](poc/assets/README.md). A project-wide license has not been selected.
+The goal is a button-operated launcher with camera, speaker, network and gadget capabilities as their hardware support is established. The console font's provenance and license are in [antix/assets/](antix/assets/README.md). A project-wide license has not been selected.

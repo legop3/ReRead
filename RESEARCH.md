@@ -6,9 +6,11 @@ The project target is a multipurpose, button-operated handheld with a small cust
 
 ## Current progress: 2026-11-07
 
-The user installed and booted the minimal stock-kernel proof of concept on their Reader. The screen/button tester works, but only some physical buttons register through Linux evdev. The current build adds an automatic installer that streams the image from USB storage, checks the internal SSD identity, verifies the write, and reboots without confirmation prompts. The user confirmed USB-storage installation works with a powered USB hub; the Apple keyboard hub caused Linux to reject the stick for exceeding its reported power budget. The reboot update still needs a physical Reader test. See [poc/README.md](poc/README.md) for current artifacts, installation instructions, and test status.
+The owner subsequently booted antiX 26.1 Core i386 successfully through the powered hub. Its console was unreadable with the default font. The active build now migrates to native antiX runit startup and its 5.10.256 kernel, carrying the custom console font and verified button map into an SSD image. See [the antiX build](antix/README.md). Physical installed-image verification and custom camera/gadget support remain pending.
 
-The installed proof still uses a RAM root filesystem. Move that root onto the internal SSD before adding large applications; then finish mapping the controls and build a small launcher. Camera, audio, and networking remain hardware integration work.
+The earlier stock-kernel proof established readable console output, SSD installation and a verified physical button map. It has been replaced by the single antiX build. The automatic installer streams the image once, flushes writes and reboots; full-image validation and readback passes have been removed for faster iteration. The powered USB hub resolves the observed USB power-budget rejection.
+
+The measured map covers all 18 push buttons and Hold. Hold value 1 means unlocked; value 0 means locked. Initial Hold state reporting remains unchecked. See [the measured control map](analysis/button-map.md).
 
 ## What the dump establishes
 

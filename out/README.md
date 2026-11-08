@@ -1,3 +1,1 @@
-The active deliverables are in [poc/](poc/). See [the minimal proof-of-concept instructions](../poc/README.md).
-
-The abandoned desktop build is archived separately and is not the current installation target.
+Generated ReRead images and update packages are in `antix/`. See [build, installation and update instructions](../antix/README.md).

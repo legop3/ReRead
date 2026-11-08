@@ -1,4 +1,4 @@
-"""Write the verified test ISO only to the specifically authorized USB stick."""
+"""Write the verified antiX Core 32-bit test ISO only to the specifically authorized USB stick."""
 import hashlib
 import json
 import os
@@ -7,8 +7,8 @@ import stat
 import subprocess
 
 BASE = Path(__file__).resolve().parents[1]
-ISO = BASE / 'downloads/antiX-26.1_386-full.iso'
-EXPECTED = '6ec6f6522c69b4411d32f61e853709cdaf94df709c264b2a4d7de9724ce57fbc'
+ISO = BASE / 'downloads/antiX-26.1_386-core.iso'
+EXPECTED = '5e07ed85acba1d2c33a7e41b089e80ce203eeb11d81af8c830e64e2e058ead7e'
 USB = Path('/dev/disk/by-id/usb-_USB_Flash_Memory_00D0C9CCDF48ED8160007561-0:0')
 
 def digest_file(path):

@@ -1,5 +1,4 @@
-"""Write the built installer only to the USB stick authorized in this session."""
-import hashlib
+"""Write the built installer only to an authorized USB stick."""
 import json
 import os
 from pathlib import Path
@@ -7,22 +6,27 @@ import stat
 import subprocess
 
 BASE = Path(__file__).resolve().parents[1]
-USB = Path('/dev/disk/by-id/usb-_USB_Flash_Memory_00D0C9CCDF48ED8160007561-0:0')
-image = BASE / 'out/reader-installer-usb.img'
-manifest = json.loads((BASE / 'out/manifest.json').read_text())
-expected = manifest['installer_sha256']
+USB_DRIVES = {
+    '/dev/disk/by-id/usb-_USB_Flash_Memory_00D0C9CCDF48ED8160007561-0:0': 15610576896,
+    '/dev/disk/by-id/usb-_USB_DISK_3.0_0719079F1B2AD607-0:0': 15854469120,
+}
+output = BASE / 'out/antix'
+manifest = json.loads((output / 'manifest.json').read_text())
+image = output / manifest['installer_usb_image']
 
 if os.geteuid() != 0:
     raise SystemExit('Run with sudo. This writes only the specifically authorized USB stick.')
-with image.open('rb') as stream:
-    assert hashlib.file_digest(stream, 'sha256').hexdigest() == expected, 'Installer checksum mismatch'
+connected = [Path(path) for path in USB_DRIVES if Path(path).exists()]
+if len(connected) != 1:
+    raise SystemExit('Connect exactly one authorized USB stick; unplug the other if both are connected.')
+USB = connected[0]
 device = USB.resolve(strict=True)
 assert stat.S_ISBLK(device.stat().st_mode)
 tree = json.loads(subprocess.check_output([
     'lsblk', '-J', '-b', '-o', 'PATH,SIZE,TRAN,RM,MOUNTPOINTS', str(device)
 ]))['blockdevices'][0]
 assert tree['tran'] == 'usb' and tree['rm'], 'Not removable USB'
-assert int(tree['size']) == 15610576896, 'USB identity or size changed'
+assert int(tree['size']) == USB_DRIVES[str(USB)], 'USB identity or size changed'
 
 def unmounted(node):
     assert not any(node.get('mountpoints') or []), 'Unmount USB filesystems first'
@@ -46,16 +50,7 @@ try:
             if total % (256 * 1024 * 1024) == 0:
                 print(f'Written {total // (1024 * 1024)} MiB', flush=True)
     os.fsync(fd)
-    os.lseek(fd, 0, os.SEEK_SET)
-    check = hashlib.sha256()
-    remaining = image.stat().st_size
-    print('Verifying USB readback...', flush=True)
-    while remaining:
-        chunk = os.read(fd, min(4 * 1024 * 1024, remaining))
-        assert chunk, 'Unexpected end of device'
-        check.update(chunk)
-        remaining -= len(chunk)
-    assert check.hexdigest() == expected, 'USB readback mismatch'
 finally:
     os.close(fd)
-print('USB VERIFIED. Boot it on the Reader; Enter selects the stock-kernel installer.', flush=True)
+print('USB READY. Boot it on the Reader: automatic install, then reboot.', flush=True)
+print('Keep USB connected until INSTALLATION COMPLETE; it may be removed during the reboot countdown.', flush=True)

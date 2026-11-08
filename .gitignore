@@ -26,6 +26,7 @@
 *.vmdk
 *.vdi
 *.ko
+*.deb
 *.zip
 *.7z
 *.tar
@@ -44,6 +45,12 @@ venv/
 *.a
 *.so
 *.so.*
+# External kernel-module build products (normal builds use /build/).
+*.mod
+*.mod.c
+.*.cmd
+Module.symvers
+modules.order
 
 # Local credentials and environment overrides.
 .env
