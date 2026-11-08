@@ -158,7 +158,7 @@ platform-upgrade and app-management checks in a disposable chroot, including
 settings/data preservation and a web-server restart during installation. It
 uses synthetic data and never connects to a Reader.
 
-An optional end-to-end installer check is `python3 /work/antix/test-installer.py` inside the builder. It writes only a disposable virtual SSD, checks automatic reboot, and boots that SSD to check `/boot`, input and sleep. A direct VM boot/input and two-cycle suspend/resume check is `python3 /work/antix/test.py` inside the builder. Pass `--device /dev/kvm` to `docker run` for acceleration when available; QEMU otherwise uses software emulation. SSD installation, display, all 19 controls, and Power-button sleep have been confirmed on the Reader.
+An optional end-to-end installer check is `python3 /work/antix/test-installer.py` inside the builder. It writes only a disposable virtual SSD, checks automatic reboot, and boots that SSD to check `/boot`, input and sleep. A direct Qt framebuffer boot, card navigation, Camera/Back handoff and two-cycle VM suspend/resume check is `python3 /work/antix/test.py` inside the builder. Pass `--device /dev/kvm` to `docker run` for acceleration when available; QEMU otherwise uses software emulation. SSD installation, display, all 19 controls, and Power-button sleep have been confirmed on the Reader.
 
 ## Hardware and maintenance
 

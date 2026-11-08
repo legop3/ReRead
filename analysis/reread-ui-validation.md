@@ -81,6 +81,23 @@ legacy builder. The OS/payload build was therefore run using the already configu
 Qt development dependencies; the normal one-command entry point remains unchanged.
 A successful top-level Docker-image rebuild has not been demonstrated in this run.
 
+## Final-image virtual boot check
+
+The maintained optional `antix/test.py` now checks the Qt framebuffer UI instead
+of waiting for the retired console monitor's text. The final 0.5.1 SSD image
+booted under QEMU with 512 MiB RAM and a virtual USB keyboard, using a disposable
+snapshot. `/` mounted as ext3 and `/boot` as FAT. Home appeared, arrow input moved
+the selected card, OK opened Camera, and Back returned Home. With no camera
+hardware, Camera displayed its unavailable state without preventing return.
+Two power-button suspend/wake cycles passed in the VM; this did not suspend the
+physical Reader. The test also inspects the rendered selection borders, rather
+than relying on old console status strings.
+
+Evidence: `build/antix/ui-vm-check.log` and `ui-vm-*.ppm` screenshots. The Camera
+and final resumed Home screenshots were visually inspected. These virtual checks
+prove the final image's boot and UI handoff, not real camera capture, actual
+battery use or physical Reader wake behavior.
+
 ## Live checks still required
 
 A reboot was requested after the controller test. Once SSH returns, install the
