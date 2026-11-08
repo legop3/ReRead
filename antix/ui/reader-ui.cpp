@@ -377,7 +377,7 @@ void Screen::discover() {
   }
 }
 void Screen::dispatch(reader_button id, int value) {
-  if (id == READER_NONE)
+  if (id == READER_NONE || !isVisible())
     return;
   if (id == READER_HOLD) {
     locked = value == 0;

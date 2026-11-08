@@ -48,11 +48,47 @@ software disconnect for unattended tests without an independent recovery route.
 Physical cable reconnection is a separate behavior and has not been established
 by that failed software test.
 
-## Completion checks still in progress
+## Package and build checks
 
-The final one-command fresh installer build, final optimized local-preview rate,
-idle CPU measurement, app removal/reinstallation preservation, and USB-session
-process log readback are being completed. A reboot was requested after the USB
-controller test; these live checks resume when access returns. Power-button sleep
-worked before this UI change, but a fresh S3 test is intentionally deferred while
-the owner is away because timer wake is unreliable.
+The complete fresh-root build succeeded in the existing Debian builder. Both UI
+executables resolve all shared libraries inside that target root. A real upgrade
+to core 0.5.1 preserved an edited display conffile. Camera 0.1.1 was removed and
+reinstalled through dpkg; its desktop entry disappeared/reappeared and its data
+remained unchanged. The temporary verification files/settings were removed before
+packing the release. Local log: `build/antix/ui-final-release.log`.
+
+The final UI fixes were applied to that fresh prepared root through the same Debian
+packages, then the SSD image and installer were repacked with unchanged kernel,
+initramfs and boot UUIDs. The installer manifest records both the core and Camera
+packages. This is a UI-only update and does not require a new kernel/initramfs.
+
+Final artifacts were built and inspected:
+
+- `reread_0.5.1_i386.deb` (core) and `reread-app-camera_0.1.1_i386.deb` (app).
+- `reread.img.gz` and `reread-installer-usb.img`; the SSD image is exactly
+  4,004,388,864 bytes and its ext3 filesystem reports version 0.5.1.
+- `manifest.json` records core 0.5.1 and Camera 0.1.1. Library checksums match
+  between the compiled SDK, core package staging and installed target root.
+- The installer was built without writing any attached USB stick.
+
+Filesystem metadata gives approximately 1,875.5 MiB available before first boot
+and user files, of approximately 3,561.6 MiB usable filesystem capacity. This is
+an image measurement, not a new on-device fresh-install report.
+
+Docker's builder-image export stalled on this host through both BuildKit and the
+legacy builder. The OS/payload build was therefore run using the already configured
+`intelreader-validator` container. The maintained Dockerfile includes all required
+Qt development dependencies; the normal one-command entry point remains unchanged.
+A successful top-level Docker-image rebuild has not been demonstrated in this run.
+
+## Live checks still required
+
+A reboot was requested after the controller test. Once SSH returns, install the
+final 0.5.1 core and 0.1.1 Camera packages and check the final preview rate, queued
+button ownership, review-to-shoot recovery, idle CPU usage and USB-session process
+log. The last installed hardware version is the earlier 0.5.0 development build;
+final 0.5.1 hardware behavior is not yet claimed as validated.
+
+Power-button sleep worked before this UI change. Its helper and camera cleanup
+path are retained; a fresh S3 test is deferred while the owner is away because
+timer wake is unreliable.

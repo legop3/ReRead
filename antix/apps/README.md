@@ -27,7 +27,7 @@ without a shell. File/URL field codes are not passed: the current launcher start
 apps without a document. Use one entry per foreground application. Its desktop
 basename is the stable UI identity, e.g. `reread-camera`.
 
-Native applications use `Architecture: i386`, `Depends: reread (>= 0.5.0)` and
+Native applications use `Architecture: i386`, `Depends: reread (>= 0.5.1)` and
 their real dependencies. Code belongs in `/usr/lib/reread/apps/<id>/`, shared
 assets in `/usr/share/reread/apps/<id>/`. The launcher exports `READER_APP_ID`,
 `READER_APP_DATA_DIR=/var/lib/reader/apps/<desktop-basename>` and `XDG_DATA_HOME`

@@ -123,7 +123,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.5.0)
+Depends: reread (>= 0.5.1)
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
 """)

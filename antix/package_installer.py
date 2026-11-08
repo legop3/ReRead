@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import image
 
 BASE=Path('/work');BUILD=BASE/'build/antix';OUT=BASE/'out/antix';MIB=1024*1024
@@ -17,7 +18,10 @@ def package(system,packed,root_id):
     size=max(128,(sum(p.stat().st_size for p in files.rglob('*') if p.is_file())+MIB-1)//MIB+32)
     usb=image.disk('reread-installer-usb',size,files)
     version=(BUILD/'root/usr/share/reader/version').read_text().strip()
+    app_version=subprocess.check_output(['dpkg-query', '--admindir='+str(BUILD/'root/var/lib/dpkg'),
+        '-W', '-f=${Version}', 'reread-app-camera'], text=True).strip()
     manifest={'product':'ReRead','version':version,'update_package':f'reread_{version}_i386.deb',
+              'application_packages':[f'reread-app-camera_{app_version}_i386.deb'],
               'base':'antiX 26.1 Core i386','kernel':'5.10.256-antix.1-486-smp',
               'system_image':system.name,'system_bytes':system.stat().st_size,
               'compressed_image':packed.name,'installer_usb_image':usb.name,
@@ -26,9 +30,7 @@ def package(system,packed,root_id):
               'root_partition_mib':image.ROOT_BYTES/MIB,'boot_partition_mib':image.BOOT_MIB-1,
               'installer_mode':'automatic stream, sync, reboot',
               'boot_layout':'FAT mounted at /boot; antiX-based installer',
-              'hardware_status':'0.2.1 full-disk install confirmed on Reader; fresh root reports 2162.8 MiB free of 3561.6 MiB',
-              'usb_gadget_status':'reader2: DHCP, HTTP file transfers and SSH confirmed with Fedora',
-              'wifi_status':'adapter discovery, scanning, saved network and HTTPS confirmed on Reader'}
+              'hardware_validation':'See analysis/reread-ui-validation.md for device measurements and remaining checks.'}
     (OUT/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     (OUT/'SHA256SUMS').unlink(missing_ok=True)
     print(json.dumps(manifest,indent=2),flush=True)

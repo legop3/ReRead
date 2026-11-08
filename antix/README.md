@@ -86,6 +86,12 @@ The SSD image fills the known Reader SSD (4,004,388,864 bytes): a 1 MiB alignmen
 
 A fresh ReRead 0.2.1 installation was confirmed on the physical Reader: **2,162.8 MiB free of 3,561.6 MiB** after boot. The full SSD is allocated; the difference from raw capacity is the boot partition and filesystem overhead. Free space changes as packages, caches and user files accumulate.
 
+The 0.5.1 image has approximately **1,875.5 MiB available before first boot**,
+measured from its ext3 metadata. Qt, fonts and their distro graphics dependencies
+account for most of the increase from the earlier console-only baseline. No desktop
+session is installed or started. First boot, updates and personal files change
+the available space.
+
 Fresh images remove the live ISO's kernel headers, installer/template tools,
 memory tester, AMD graphics firmware and all-locales
 bundle using apt/dpkg. ReRead generates `en_US.UTF-8`; other locales can still

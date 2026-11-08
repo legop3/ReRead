@@ -29,7 +29,7 @@ int main(){
 }
 ''')
 subprocess.run(['docker','exec','intelreader-validator','sh','-c',
-    'cd /work/build/antix/orientation-check && g++ -m32 -std=c++17 -O2 check.cpp '
+    'cd /work/build/antix/orientation-check && g++ -m32 -std=c++17 -O3 -march=bonnell check.cpp '
     '/work/antix/camera_processing.cpp -ljpeg -o check && ./check'],check=True)
 colors=[(220,20,30),(10,210,40),(20,40,220),(230,210,20)]
 results=[]
