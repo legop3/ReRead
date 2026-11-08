@@ -53,7 +53,8 @@ Build using `g++ -fPIC app.cpp $(pkg-config --cflags --libs reread-ui)` in an i3
 build environment (the supplied builder uses `-m32`). The shared SDK keeps input,
 brightness recovery, volume, sleep, Hold and status chrome consistent.
 
-Button values are 1 pressed and 2 repeated; normal app actions should use value 1.
+Button values follow Linux evdev: 0 released, 1 pressed and 2 repeated. Ignore
+release for ordinary navigation; use value 1 for actions that must fire only once.
 IDs are semantic enums from `reader-keys.h`. Up/Down move focus, OK activates,
 Back returns within the app then exits from its root, Favorites exits to Home,
 Options opens app settings, and Guide explains controls. Provide useful footer

@@ -29,12 +29,14 @@ def request(action='status', **data):
     connection.sock.settimeout(60)
     try:
         connection.sock.connect(SOCKET)
-        method = 'GET' if action == 'status' or action.startswith('live?') else 'POST'
+        method = 'GET' if action == 'status' or action.startswith(('live?', 'rgb?')) else 'POST'
         connection.request(method, '/' + action, json.dumps(data) if method == 'POST' else None, {'Content-Type': 'application/json'})
         response = connection.getresponse()
         body = response.read()
         if response.status == 200 and response.getheader('Content-Type') == 'image/jpeg':
             return body, response.getheader('X-Frame')
+        if response.status == 200 and response.getheader('Content-Type') == 'application/x-reread-rgb':
+            return body, int(response.getheader('X-Frame')), int(response.getheader('X-Width')), int(response.getheader('X-Height'))
         result = json.loads(body)
         if response.status >= 400:
             raise RuntimeError(result.get('error', 'Camera request failed.'))

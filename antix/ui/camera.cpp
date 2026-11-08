@@ -29,6 +29,8 @@ class Camera : public Screen {
         [this](int code, QByteArray data,
                QMap<QByteArray, QByteArray> headers) {
           livePending = false;
+          if (review || idlePaused)
+            return;
           if (code == 200) {
             int width = headers.value("x-width").toInt();
             int height = headers.value("x-height").toInt();
@@ -47,8 +49,10 @@ class Camera : public Screen {
                               : QString(document ? "Document" : "Photo") +
                                     " · " + (flash ? "Flash on" : "Flash off") +
                                     " · " + QString::number(zoom) + "×";
-              if(previousSubtitle == subtitle) update(content());
-              else update();
+              if (previousSubtitle == subtitle)
+                update(content());
+              else
+                update();
             }
           } else if (!busy) {
             subtitle = "Camera unavailable · retrying";
@@ -62,7 +66,10 @@ class Camera : public Screen {
     if (busy)
       return;
     busy = true;
+    if (review)
+      frame = QImage();
     review = false;
+    live();
     subtitle = "Focusing and saving… Hold still.";
     update();
     cameraRequest(
@@ -83,6 +90,8 @@ class Camera : public Screen {
         this);
   }
   void button(reader_button id, int value) override {
+    if (value == 0)
+      return;
     if ((id == READER_BACK || id == READER_FAVORITES) && value == 1) {
       if (options) {
         options = false;
@@ -102,7 +111,7 @@ class Camera : public Screen {
       update();
       return;
     }
-    if (id == READER_GUIDE) {
+    if (id == READER_GUIDE && value == 1) {
       toast("OK / Shoot takes photo · Options changes flash and mode");
       return;
     }
@@ -124,8 +133,11 @@ class Camera : public Screen {
       return;
     }
     if (id == READER_ZOOM_IN || id == READER_ZOOM_OUT) {
-      zoom = qBound(1, zoom + (id == READER_ZOOM_IN ? 1 : -1), 3);
-      toast("Preview zoom " + QString::number(zoom) +
+      int next = qBound(1, zoom + (id == READER_ZOOM_IN ? 1 : -1), 3);
+      if (next == zoom)
+        return;
+      zoom = next;
+      toast("View zoom " + QString::number(zoom) +
             "× · photo keeps full frame");
       update();
       return;
@@ -172,7 +184,7 @@ class Camera : public Screen {
     if (!review && rotation)
       p.rotate(rotation);
     QRect source = frame.rect();
-    if (!review && zoom > 1)
+    if (zoom > 1)
       source = QRect(QPoint((frame.width() - frame.width() / zoom) / 2,
                             (frame.height() - frame.height() / zoom) / 2),
                      QSize(frame.width() / zoom, frame.height() / zoom));

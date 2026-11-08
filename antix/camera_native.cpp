@@ -195,6 +195,7 @@ class Engine {
                     { std::lock_guard<std::mutex> lock(mutex_); encode = Clock::now() < jpeg_lease_; }
                     auto compressed = encode ? jpeg(image, 75) : std::vector<unsigned char>();
                     std::lock_guard<std::mutex> lock(mutex_);
+                    error_.clear();
                     rgb_.swap(image.rgb); ++sequence_; ++delivered_;
                     if(encode){latest_.swap(compressed); jpeg_sequence_ = sequence_;}
                     display_times_.push_back(Clock::now());

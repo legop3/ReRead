@@ -8,6 +8,7 @@ class Launcher : public Screen {
   QList<App> apps;
   QString page = "home", information;
   int selected = 0;
+  qint64 lastAdjustment = 0;
   QStringList labels, details, files;
   QImage photo;
   QProcess *child = nullptr;
@@ -200,6 +201,11 @@ class Launcher : public Screen {
     child->start(executable, args);
   }
   void button(reader_button id, int value) override {
+    if (value == 0)
+      return;
+    if (value == 2 && id != READER_UP && id != READER_DOWN &&
+        id != READER_LEFT && id != READER_RIGHT)
+      return;
     if (id == READER_FAVORITES) {
       go("home");
       return;
@@ -244,6 +250,10 @@ class Launcher : public Screen {
     if (page == "settings" &&
         (id == READER_LEFT || id == READER_RIGHT || id == READER_OK) &&
         selected < 4) {
+      auto now = QDateTime::currentMSecsSinceEpoch();
+      if (value == 2 && now - lastAdjustment < 200)
+        return;
+      lastAdjustment = now;
       int direction = id == READER_LEFT ? -1 : 1;
       if (selected == 0)
         command("/usr/local/sbin/reader-brightness",

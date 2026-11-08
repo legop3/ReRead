@@ -67,7 +67,8 @@ void cameraRequest(
                    [finish] { finish(504, "Camera request timed out", {}); });
   QObject::connect(
       socket, &QLocalSocket::connected, socket, [socket, endpoint, body] {
-        bool get = body.isEmpty();
+        bool get = endpoint == "/status" || endpoint.startsWith("/live?") ||
+                   endpoint.startsWith("/rgb?");
         QByteArray bytes = QJsonDocument(body).toJson(QJsonDocument::Compact);
         socket->write(
             (get ? "GET " : "POST ") + endpoint.toUtf8() +
@@ -105,6 +106,30 @@ void cameraRequest(
   timer->start(30000);
   socket->connectToServer("/run/reader-camera.sock");
 }
+// Transient dimming never changes the saved level. Restore synchronously before
+// dispatching the waking key, so a simultaneous brightness adjustment starts at
+// the user's level rather than racing an asynchronous restore process.
+static bool transientBrightness(int percent) {
+  auto providers =
+      QDir("/sys/class/backlight").entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+  providers.removeAll("psb-bl");
+  providers.prepend("psb-bl");
+  for (const auto &provider : providers) {
+    QString path = "/sys/class/backlight/" + provider;
+    QFile maximum(path + "/max_brightness");
+    if (!maximum.open(QIODevice::ReadOnly))
+      continue;
+    int max = maximum.readAll().trimmed().toInt();
+    if (max <= 0)
+      continue;
+    QFile level(path + "/brightness");
+    if (level.open(QIODevice::WriteOnly))
+      return level.write(QByteArray::number(
+                             qMax(1, max * qBound(10, percent, 100) / 100)) +
+                         "\n") > 0;
+  }
+  return false;
+}
 Screen::Screen(const QString &name) : title(name) {
   prctl(PR_SET_PDEATHSIG, SIGTERM);
   setWindowFlags(Qt::FramelessWindowHint);
@@ -125,33 +150,38 @@ Screen::Screen(const QString &name) : title(name) {
     auto settings = readJson("/etc/reader/display.json");
     if (settings.value("idle_dim_seconds").toInt(120) == 0)
       return;
-    for (auto path : QDir("/sys/class/backlight")
-                         .entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-      if (path != "psb-bl")
-        continue;
-      QFile f("/sys/class/backlight/" + path + "/brightness");
-      if (f.open(QIODevice::WriteOnly)) {
-        f.write("10\n");
-        dimmed = true;
-        idleChanged(true);
-      }
-    }
+    dimmed = transientBrightness(10);
+    if (dimmed)
+      idleChanged(true);
   });
   auto batteryWatcher = new QFileSystemWatcher(this);
   const QString batteryPath = "/run/reader-battery.json";
   batteryWatcher->addPath(batteryPath);
+  auto displayedBattery = std::make_shared<QByteArray>();
   connect(batteryWatcher, &QFileSystemWatcher::fileChanged, this,
-          [this, batteryWatcher, batteryPath] {
+          [this, batteryWatcher, batteryPath, displayedBattery] {
             batteryWatcher->addPath(batteryPath);
-            if (isVisible())
-              update();
+            auto state = readJson(batteryPath);
+            QJsonObject visible;
+            for (const auto &key : {"capacity_percent", "external_power",
+                                    "level", "shutdown_in_seconds"})
+              visible[key] = state[key];
+            auto signature =
+                QJsonDocument(visible).toJson(QJsonDocument::Compact);
+            if (signature != *displayedBattery) {
+              *displayedBattery = signature;
+              if (isVisible())
+                update();
+            }
           });
   activity();
 }
 Screen::~Screen() {
   closeInputs();
   if (dimmed)
-    command("/usr/local/sbin/reader-brightness", {"init"});
+    transientBrightness(readJson("/etc/reader/display.json")
+                            .value("brightness_percent")
+                            .toInt(100));
 }
 QRect Screen::content() const {
   int margin = qBound(
@@ -201,10 +231,10 @@ void Screen::paintEvent(QPaintEvent *) {
   p.setPen(QColor("#31444f"));
   p.drawLine(c.left(), height() - 64, c.right(), height() - 64);
   text(p, QRect(c.left(), height() - 60, c.width(), 38),
-       locked             ? "Hold locked — slide switch to unlock"
+       locked                     ? "Hold locked — slide switch to unlock"
        : !batteryNotice.isEmpty() ? batteryNotice
-       : notice.isEmpty() ? hint
-                          : notice,
+       : notice.isEmpty()         ? hint
+                                  : notice,
        21, QColor("#aabfc9"));
 }
 void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
@@ -243,8 +273,10 @@ void Screen::toast(const QString &t) {
 void Screen::activity() {
   if (dimmed) {
     dimmed = false;
+    transientBrightness(readJson("/etc/reader/display.json")
+                            .value("brightness_percent")
+                            .toInt(100));
     idleChanged(false);
-    command("/usr/local/sbin/reader-brightness", {"init"});
   }
   int seconds =
       readJson("/etc/reader/display.json").value("idle_dim_seconds").toInt(120);
@@ -392,8 +424,7 @@ void Screen::dispatch(reader_button id, int value) {
     }
     return;
   }
-  if (value)
-    button(id, value);
+  button(id, value);
 }
 void Screen::keyPressEvent(QKeyEvent *e) {
   reader_button id = READER_NONE;
