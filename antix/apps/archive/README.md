@@ -11,7 +11,7 @@ From the repository root with the existing reread-builder Docker image:
     docker run --rm -v "$PWD:/work:z" reread-builder \
       python3 /work/antix/apps/archive/package.py
 
-The result is out/antix/reread-app-archive_0.5.0_i386.deb.
+The result is out/antix/reread-app-archive_0.6.0_i386.deb.
 The script builds only the app and its shared Qt libraries. It does not touch
 the operating-system package, installer, GitHub releases or APT workflows.
 Use ReRead's USB web interface, http://192.168.7.1, Apps, to upload/install
@@ -72,7 +72,7 @@ formats vary; restricted works may not be available without authentication.
 Metadata, search and thumbnails come from public Internet Archive endpoints.
 Large text and image files are capped to protect the Reader's 512 MB RAM.
 
-## Version 0.5.0 display policy
+## Version 0.6.0 display policy
 
 No persistent 'Internet Archive' header on any page. Only navigation/catalog
 pages show a compact physical-button hint footer. Image, reading and audio
@@ -80,3 +80,26 @@ screens use the whole 960 x 544 framebuffer without persistent header/footer.
 Automatic result pagination requests the next 24 items only when the cursor
 nears the end of the loaded batch; requests append instead of replacing existing
 results. Scrolling back doesn't reload previous pages.
+
+## Version 0.6.0 improvements
+
+- Zoomed images pan in the expected direction: Left moves the viewport left
+  through the image, Right moves it right, and likewise for Up/Down. Panning is
+  clamped to the actual image edges. The zoom scale now has 13 steps from
+  1x through 10x, including fine steps near fit-to-screen.
+- The text reader no longer wraps or allocates lines for an entire book at
+  once. It lays out only the current screen, remembers page offsets for
+  backward navigation, and uses bounded lookahead even for pathological very
+  long lines. Changing type size preserves the current text anchor.
+- The full-screen audio player now contains visible physical-button glyphs
+  for pause/play, ten-second skips, Back and Download, alongside an enlarged
+  title, cover artwork, elapsed time and progress bar.
+- Item artwork is shown in file rows; small image files receive individual
+  in-memory thumbnail previews when available. Thumbnail requests are
+  size- and concurrency-limited and never stored on disk.
+- Increased card title, file metadata and description text sizes.
+- Streamed MP3 only; no FFmpeg or video dependencies. Explicit downloads
+  still go to the shared Files directory.
+
+This version is committed for local testing; successful compilation and
+actual Reader performance still need verification on the device.
