@@ -252,7 +252,9 @@ class Archive : public Screen {
           }
           std::stable_sort(files.begin(),files.end(),[](const File&a,const File&b){
             auto priority=[](const File&f){if(isAudio(f.name))return 0;if(isText(f.name))return 1;
-             if(isImage(f.name))return 2;return 3;};
+             if(isImage(f.name))return 2;
+              return 3;
+            };
             return priority(a)<priority(b);
           });
           requestCover(itemId);
@@ -428,7 +430,8 @@ class Archive : public Screen {
       received+=chunk.size();update();
     });
     connect(r,&QNetworkReply::downloadProgress,this,[this](qint64,qint64 total){
-      if(total>0)expected=total;update();
+      if(total>0)expected=total;
+      update();
     });
     connect(r,&QNetworkReply::finished,this,[this,r]{
       if(transfer!=r){r->deleteLater();return;}
@@ -455,7 +458,8 @@ class Archive : public Screen {
   }
   void back(){
     if(page==DOWNLOADING){cancelDownload();return;}
-    if(api)abortApi();status.clear();
+    if(api)abortApi();
+    status.clear();
     if(page==HOME){close();return;}
     if(page==BROWSE){page=HOME;collectionId.clear();}
     else if(page==ITEM){page=BROWSE;requestVisibleCovers();}
