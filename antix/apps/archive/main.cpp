@@ -549,12 +549,11 @@ class Archive : public Screen {
     } else if(page==VIEW){
       if(imageZoom>1){imageX+=dx*90;imageY+=dy*90;}
     } else if(page==READER){
-      int lines=qMax(1,(safeArea().height()-120)/(fontSize+11));
+      int lines=qMax(1,(height()-62)/(fontSize+11));
       lineStart=qBound(0,lineStart+(dx+dy)*lines,qMax(0,bookLines.size()-lines));
     }
     update();
   }
-  int topBar() const {return 75;}
   void paintChrome(QPainter &p,const QRect &safe) {
     // Navigation hints only. Content itself is the page title; no repeated
     // app identity strip. Viewers use all pixels and skip this entirely.
