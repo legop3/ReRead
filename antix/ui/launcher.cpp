@@ -342,8 +342,7 @@ class Launcher : public Screen {
     else if (page == "power") {
       if (selected == 0) return;
       if (selected == 1) {
-        dispatch(READER_POWER, 1);
-        dispatch(READER_POWER, 0);
+        command("/usr/local/sbin/reader-power", {"suspend"});
       } else {
         title = selected == 2 ? "Rebooting…" : "Shutting down…";
         labels.clear();

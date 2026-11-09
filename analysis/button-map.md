@@ -4,9 +4,9 @@ Investigated 2026-11-07 from the owner's stock disk image. The SSD-root POC is n
 
 ## Hardware-calibrated map
 
-The owner's [raw readings](../buttons.md) supersede the static reconstruction below. Several controls emitted only `MSC_SCAN`; the earlier claim that all had usable key events was incomplete. The corrected viewer assigns every measured scan a unique Linux keycode, including replacing earlier incorrect assignments on the internal AT keyboard. USB keyboards are unaffected. Assignments are reapplied at boot without EC writes.
+The owner's [raw readings](../buttons.md) supersede the static reconstruction below. Several controls emitted only `MSC_SCAN`; the earlier claim that all had usable key events was incomplete. ReRead 0.9.0 applies the measured mapping through model-specific udev hwdb, replacing per-app assignments. Zoom uses Linux's actual Zoom In/Out codes (418/419), correcting the earlier 417/418 transport values. USB keyboards are unaffected. Assignments are reapplied at boot without EC writes.
 
-[`antix/reader-keys.h`](../antix/reader-keys.h) is the single code definition. Future applications should use its `READER_*` IDs for physical controls and treat Linux codes as transport values. These IDs describe the physical controls; an app may give them different actions. Values already defined in the enum should remain stable as controls are added. On the internal keyboard, scan and key lookups share that table. ACPI Power can also arrive independently as Linux code 116; applications should normalize that to `READER_POWER`.
+[`antix/reader-keys.h`](../antix/reader-keys.h) is the single code definition. Future applications should use its `READER_*` IDs for physical controls and treat Linux codes as transport values. These IDs describe the physical controls; an app may give them different actions. Values already defined in the enum should remain stable as controls are added. On the internal keyboard, scan and key lookups share that table. ACPI Power can also arrive independently as Linux code 116; elogind handles Power globally. Applications must not install competing Power handlers.
 
 | Physical control / stable ID | Measured scan | Previous displayed code | Corrected Linux code |
 | --- | --- | ---: | ---: |
@@ -21,9 +21,9 @@ The owner's [raw readings](../buttons.md) supersede the static reconstruction be
 | D-pad Right / `READER_RIGHT` | `0x6f` | scan only | 106 |
 | Center / `READER_OK` | `0x1c` | 28 | 28 |
 | Menu / `READER_OPTIONS` | `0x71` | scan only | 139 |
-| Minus / `READER_ZOOM_OUT` | `0x6a` | 151 | 418 |
+| Minus / `READER_ZOOM_OUT` | `0x6a` | 151 | 419 |
 | Two rectangles / `READER_VIEW_TOGGLE` | `0x6b` | 153 | 227 |
-| Plus / `READER_ZOOM_IN` | `0x69` | 146 | 417 |
+| Plus / `READER_ZOOM_IN` | `0x69` | 146 | 418 |
 | Record-like symbol / `READER_FAVORITES` | `0x68` | scan only | 156 |
 | Speed arrow / `READER_VOICE_SPEED` | `0x67` | scan only | 208 |
 | Question mark / `READER_GUIDE` | `0x01` | 1 | 138 |
@@ -32,9 +32,9 @@ The owner's [raw readings](../buttons.md) supersede the static reconstruction be
 
 The last three front-panel names follow the stock manual's physical layout; the measured symbols and scans are recorded alongside them. Both right-edge volume controls are now measured and retain their existing Linux keycodes. All 18 push buttons and the Hold slider have recorded scans.
 
-Hardware verification confirms Hold is reported as a maintained key: `EV_KEY` code 152, value **1 (pressed) = unlocked**, value **0 (released) = locked**. Treat this as switch state, not a toggle on each event. Initial state reporting at boot has not been checked. Hold is observed without enforcing a lock. Power press/release now requests suspend-to-RAM.
+Hardware verification confirms Hold is reported as a maintained key: `EV_KEY` code 152, value **1 (pressed) = unlocked**, value **0 (released) = locked**. Treat this as switch state, not a toggle on each event. Initial state reporting at boot has not been checked. Hold suppresses navigation and global volume. Elogind handles Power press/release and suspend-to-RAM independently of applications. See [migration and validation](linux-power-migration.md).
 
-The owner verified that all physical button labels are correct on the Reader. `Mapped: 19/19` reports successful ioctl assignments (including already-correct entries); `Bindings` counts entries changed during startup, not physical buttons. QEMU can verify these ioctls and ordinary keyboard/ACPI events, but cannot reproduce the custom Reader scans.
+The owner verified that all physical button labels are correct on the Reader. The earlier viewer's `Mapped: 19/19` reports successful ioctl assignments (including already-correct entries); `Bindings` counts entries changed during startup, not physical buttons. QEMU can verify these ioctls and ordinary keyboard/ACPI events, but cannot reproduce the custom Reader scans.
 
 Logs persist on SSD at `/var/log/reader/buttons.log` and `/var/log/reader/input-devices.log`. Reinstallation replaces them.
 

@@ -24,7 +24,7 @@ findmnt -n -o TARGET,SOURCE,FSTYPE /boot || true
 export QT_QPA_PLATFORM=linuxfb:fb=/dev/fb0
 export QT_QPA_FB_DISABLE_INPUT=1
 export QT_QPA_GENERIC_PLUGINS=
-export XDG_RUNTIME_DIR=/run/reread
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/reread}
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
-exec /usr/local/bin/reader-launcher >>/var/log/reader/ui.log 2>&1
+exec /usr/local/libexec/reader-session >>/var/log/reader/ui.log 2>&1

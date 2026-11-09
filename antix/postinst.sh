@@ -30,7 +30,28 @@ for service in reader-web reader-ssh; do
     rm -f "/etc/runit/runsvdir/default/$service"
 done
 ldconfig
-for service in reader reader-battery reader-camera; do
+live=no
+[ ! -p /etc/sv/reader/supervise/control ] || live=yes
+# Use one runit supervisor per daemon, retiring instances started by distro
+# maintainer scripts. Neither service needs a desktop session to operate.
+for service in elogind reader-hotkeys; do
+    link=/etc/runit/runsvdir/default/$service
+    if [ ! -L "$link" ]; then
+        distro=$service
+        [ "$service" != reader-hotkeys ] || distro=triggerhappy
+        if [ -x "/etc/init.d/$distro" ]; then
+            if [ "$live" = yes ]; then "/etc/init.d/$distro" stop || true; fi
+            update-rc.d "$distro" disable || true
+        fi
+        ln -s "/etc/sv/$service" "$link"
+    fi
+done
+udevadm hwdb --update
+if [ "$live" = yes ]; then
+    udevadm trigger --subsystem-match=input --action=change
+    udevadm settle
+fi
+for service in reader-hotkeys reader reader-battery reader-camera; do
     if [ -p "/etc/sv/$service/supervise/control" ]; then
         restart_timeout=5
         [ "$service" != reader-camera ] || restart_timeout=45

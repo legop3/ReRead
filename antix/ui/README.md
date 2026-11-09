@@ -19,7 +19,7 @@ packages and device administration. It does not run device applications.
 
 ## Controls and ownership
 
-`libreader-device.so.1` is an optional QtCore-only input/power adapter. It owns no
+`libreader-device.so.1` is an optional QtCore/QtDBus navigation/session adapter. It owns no
 renderer or app lifecycle. `libreader-ui.so.3` supplies optional drawing helpers:
 a safe content rectangle, selection list, notices and physical-button icons. Apps choose whether to
 show a compact header (`showHeader`), grouped icon/action controls (`controls`
@@ -35,20 +35,22 @@ own Linux input/rendering without either library. The Camera service client
 belongs to the Camera executable, not the shared drawing library. `reader-keys.h` is the stable semantic button enumeration; apps
 never depend on historical stock labels or raw scan codes.
 
-Only the foreground process grabs evdev and paints the framebuffer. The launcher
-hides and releases its input descriptors before starting an app with QProcess;
-on exit or launch failure it returns to Home and grabs input again. Apps exit on
-Back at their root or Favorites (Home). The launcher sets Linux's parent-death signal before exec,
-so an app does not remain orphaned after its launcher is terminated. No shell is
-involved in app execution. External USB arrow/Enter/Escape keys also work.
+Only the foreground process paints the framebuffer and handles navigation.
+Input devices are shared nonexclusively with the system services; apps must not
+use EVIOCGRAB to steal Power/volume events. Home closes its navigation readers
+while an app runs. On exit or launch failure it returns and reopens them. Apps
+exit on Back at their root or Favorites (Home). The launcher sets Linux's
+parent-death signal before exec so an app does not remain orphaned. No shell is
+involved in app execution. USB arrow/Enter/Escape keys also work.
 
-Power press/release suspends through `reader-power`; hardware long press remains
-the emergency power-off. Volume keys use ALSA via `reader-audio` in every app.
-Hold events lock ordinary controls (pressed means unlocked, released locked).
-The initial Hold switch state before its first event is not yet established.
-Guide supplies contextual help; Options opens an app's settings. UI work happens
-on input, service replies and infrequent status updates, not a constant animation
-loop. Apps should release busy resources when hidden or idle.
+Udev hwdb applies the model-specific control map. Zoom now uses Linux's actual
+Zoom In (418) and Zoom Out (419) codes; ReRead's semantic button IDs are stable.
+Elogind owns Power and automatic suspend, and triggerhappy owns global volume
+shortcuts through ALSA. Hold events lock ordinary controls (pressed unlocked,
+released locked); initial state before the first event is not yet established.
+Guide supplies contextual help; Options opens app settings. The helper observes
+central dim/Hold/audio state and login1's `PrepareForSleep` signal. There is no
+per-app suspend timer or mixer/power-button handler.
 
 ## App packaging and SDK
 
@@ -72,12 +74,24 @@ not overwrite the user's saved brightness. Any control restores that brightness.
 The camera releases its preview lease while dimmed; hardware closes after the
 lease expires. `auto_suspend_seconds` defaults to 0 (Off); Settings / Power offers
 Off, 2, 5, 10 or 30 minutes without button activity. It applies on battery and
-external power. Automatic sleep uses the same suspend-to-RAM helper as Power;
-wake with the physical Power button. A package operation holding the standard
-package flock defers automatic sleep for another interval. Timers stop while an
-app gives up foreground ownership and restart on activity, settings changes and
-resume. Apps using their own input without Device must implement their chosen
-idle policy, just as they handle system controls themselves.
+external power. The PAM-backed `reader-service` starts a tracked seat0 session
+using standard setsid/su; `reader-session` is the GUI-free framebuffer adapter.
+It monitors evdev activity, updates the console last-input timestamp used by
+elogind, and dims the Linux backlight. This is a tty session: elogind only accepts
+`SetIdleHint` for X11/Wayland/Mir. On idle-policy changes, the adapter restarts
+elogind because version 255 does not re-arm its idle timer on `ReloadConfig`;
+registered sessions and active inhibitor descriptors survive that restart.
+Elogind's configured `IdleAction`/`IdleActionSec` owns the actual sleep decision
+and respects standard inhibitors. The original per-app timers are removed.
+Activity tracking continues across app handoff and while an app uses no ReRead
+helper. Package jobs take a standard idle inhibitor for their lifetime.
+
+`reader-power suspend` now queues a login1 request. `PrepareForSleep(false)`
+marks completion after wake, not the CLI process exiting. Camera preparation
+and Reader-specific fan/audio/brightness restoration use the elogind sleep hook.
+A failed Camera preparation cancels suspend through elogind's hook cancellation
+support. Applications use ordinary inhibitors and lifecycle notifications,
+rather than installing hardware hooks. Wake with the physical Power button.
 
 Home uses Qt's standard icon-theme lookup: the small `reread` theme supplies
 system artwork and inherits `hicolor` for app icons. Camera owns its SVG in

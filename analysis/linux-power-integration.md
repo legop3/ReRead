@@ -2,9 +2,10 @@
 
 Investigated on 2026-11-09 against the running ReRead 0.8.0 Reader, its configured
 apt repositories, downloaded distribution packages and upstream documentation.
-This is an integration recommendation, not an implemented migration. No packages
-were installed and no running input or power services were changed. Downloads
-and extracted files on the Reader are confined to `/tmp/reread-power-research`.
+This records the initial investigation before changes. The subsequent ReRead
+0.9.0 migration and hardware results are documented in
+[Linux power migration](linux-power-migration.md). Downloads and extracted research
+files were confined to `/tmp/reread-power-research`.
 
 ## Recommended direction
 
@@ -107,9 +108,10 @@ Its supplied PAM profile is interactive-session-only. The Reader's current
 assumed to solve registration unchanged either.
 
 Register the handheld session through a normal PAM-backed startup path and
-verify tracking of Home and launched apps. The framebuffer session must report
-activity/idle through `SetIdleHint`. There is no X11/Wayland session manager here
-to do that automatically. A small session integration layer remains justified;
+verify tracking of Home and launched apps. The framebuffer session must report user activity. **Implementation correction:**
+elogind 255 accepts `SetIdleHint` only for X11/Wayland/Mir; for the real tty session,
+the adapter updates console atime, which elogind uses for idle detection. There
+is no desktop session manager here to do that automatically. A small session integration layer remains justified;
 it should report to login1 rather than invent another inhibitor protocol.
 Check the effect of concurrent SSH sessions on system-wide idle policy.
 [Idle policy](https://manpages.debian.org/trixie/elogind/logind.conf.5.en.html),

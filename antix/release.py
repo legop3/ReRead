@@ -42,6 +42,8 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
                     '-o', str(build_dir / 'fan-reset'), str(base / 'antix/fan-reset.c')], check=True)
     copy(build_dir / 'fan-reset', 'usr/local/sbin/reader-fan-reset', 0o755)
     for source, name in [('power.sh', 'reader-power'), ('start-reader.sh', 'start-reader'),
+                         ('reader-service.sh', 'reader-service'),
+                         ('volume-key.sh', 'reader-volume-key'),
                          ('battery.py', 'reader_battery.py'),
                          ('audio.py', 'reader-audio'),
                          ('brightness.py', 'reader-brightness'),
@@ -58,13 +60,21 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
     copy(base / 'antix/ui/reader-device.hpp', 'usr/include/reread/reader-device.hpp')
     write('usr/lib/i386-linux-gnu/pkgconfig/reread-device.pc', f"""prefix=/usr
 Name: ReRead device helpers
-Description: Optional QtCore-only Reader input and power integration
+Description: Optional QtCore/QtDBus Reader navigation and session integration
 Version: {version}
-Requires: Qt5Core
+Requires: Qt5Core Qt5DBus
 Libs: -L/usr/lib -lreader-device
 Cflags: -I/usr/include/reread
 """)
     copy(ui / 'reader-launcher', 'usr/local/bin/reader-launcher', 0o755)
+    copy(ui / 'reader-session', 'usr/local/libexec/reader-session', 0o755)
+    copy(base / 'antix/input/70-reread-keyboard.hwdb', 'usr/lib/udev/hwdb.d/70-reread-keyboard.hwdb')
+    copy(base / 'antix/input/reader-volume.conf', 'etc/triggerhappy/triggers.d/reader-volume.conf')
+    copy(base / 'antix/power-hardware.sh', 'etc/elogind/system-sleep/50-reread', 0o755)
+    write('etc/elogind/logind.conf.d/60-reread.conf', '[Login]\nHandlePowerKey=suspend\nHandlePowerKeyLongPress=ignore\nHandleLidSwitch=ignore\nKillUserProcesses=no\nIdleAction=ignore\n')
+    write('etc/elogind/sleep.conf.d/60-reread.conf', '[Sleep]\nAllowSuspend=yes\nAllowHibernation=no\nAllowSuspendThenHibernate=no\nAllowHybridSleep=no\nSuspendState=mem\nSuspendMode=deep\nAllowSuspendInterrupts=yes\n')
+    write('etc/sv/elogind/run', '#!/bin/sh\nmkdir -p /var/log/reader\nexec /usr/libexec/elogind >>/var/log/reader/elogind.log 2>&1\n', 0o755)
+    write('etc/sv/reader-hotkeys/run', '#!/bin/sh\nmkdir -p /var/log/reader\nexec /usr/sbin/thd --triggers /etc/triggerhappy/triggers.d/ --socket /run/thd.socket --deviceglob "/dev/input/event*" >>/var/log/reader/hotkeys.log 2>&1\n', 0o755)
     copy(base / 'antix/ui/reader-ui.hpp', 'usr/include/reread/reader-ui.hpp')
     copy(base / 'antix/reader-keys.h', 'usr/include/reread/reader-keys.h')
     write('usr/lib/i386-linux-gnu/pkgconfig/reread-ui.pc', f"""prefix=/usr
@@ -116,7 +126,7 @@ Cflags: -I/usr/include/reread
     write('etc/reader/power.json', '{"warning_percent":12,"critical_percent":6,"shutdown_delay_seconds":30}\n')
     write('etc/sv/reader-battery/run', '#!/bin/sh\nmkdir -p /var/log/reader\nexec /usr/local/sbin/reader_battery.py >>/var/log/reader/battery.log 2>&1\n', 0o755)
     (root / 'etc/runit/runsvdir/default/reader-battery').symlink_to('/etc/sv/reader-battery')
-    write('etc/sv/reader/run', '#!/bin/sh\nexec /usr/local/sbin/start-reader\n', 0o755)
+    write('etc/sv/reader/run', '#!/bin/sh\nexec /usr/local/sbin/reader-service\n', 0o755)
     (root / 'etc/runit/runsvdir/default/reader').symlink_to('/etc/sv/reader')
     write('DEBIAN/control', f'''Package: reread
 Version: {version}
@@ -124,7 +134,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: libqt5widgets5t64, libqt5gui5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-dbus, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Breaks: reread-app-camera (<< 0.3.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
@@ -147,7 +157,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.7.0), libqt5network5t64
+Depends: reread (>= 0.9.0), libqt5network5t64
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
 """)

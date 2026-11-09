@@ -41,7 +41,7 @@ See the [desktop-entry icon key](https://specifications.freedesktop.org/desktop-
 and [Linux icon-theme specification](https://specifications.freedesktop.org/icon-theme/).
 
 Native packages use `Architecture: i386` and declare their real dependencies.
-Apps choosing the new device helper need `Depends: reread (>= 0.7.0)`; apps
+Apps choosing the current device/session helper need `Depends: reread (>= 0.9.0)`; apps
 using neither helper can declare the earliest platform version they require. Code belongs in `/usr/lib/reread/apps/<id>/`, shared
 assets in `/usr/share/reread/apps/<id>/`. The launcher exports `READER_APP_ID`,
 `READER_APP_DATA_DIR=/var/lib/reader/apps/<desktop-basename>` and `XDG_DATA_HOME`
@@ -66,15 +66,13 @@ not daemonize; clean up their own worker processes on exit.
 
 There are two **optional** helpers for Qt applications:
 
-- `reread-device` / `reader-device.hpp`: a QtCore-only `ReRead::Device` object
-  that handles calibrated evdev input, Hold, volume, sleep/wake and idle dimming.
-  It owns no window and draws nothing. Register callbacks with `onButton`,
-  `onIdle`, `onHold`, `onNotice` and `onResume`; call `setActive(true)` only while
-  owning foreground input and `setActive(false)` when handing it back. Call
-  `activity()` for any additional input your own widgets receive.
-  It also applies the user's optional auto-suspend timeout; activity restarts
-  both idle timers. Auto-suspend uses the existing Linux sleep helper and defers
-  while a package operation holds the package lock.
+- `reread-device` / `reader-device.hpp`: a GUI-free QtCore/QtDBus
+  `ReRead::Device` object for foreground navigation and observing shared Hold,
+  dimming, volume notices and login1 sleep/wake events. It owns no window or
+  power policy. Register callbacks with `onButton`, `onIdle`, `onHold`,
+  `onNotice` and `onResume`; call `setActive(true)` only while foreground and
+  `setActive(false)` when handing back navigation. `activity()` reports any
+  additional user input to the framebuffer-session adapter.
 - `reread-ui` / `reader-ui.hpp`: optional Qt Widgets drawing helpers and a
   `Screen` widget, used by Home and Camera by choice. Lists, button glyphs,
   margins, headers, notices and rotation are conveniences, not an app format.
@@ -96,7 +94,9 @@ QApplication with `qputenv("QT_QPA_FB_DISABLE_INPUT", "1")`; the example and Cam
 do this. Home does not force that setting on independent applications. Apps using
 their own toolkit input or raw Linux evdev can ignore both optional libraries.
 They use the same button IDs/keycode table in `reader-keys.h` and existing system
-helpers below; handle system controls and release input/resources on exit.
+helpers below. Power, volume and automatic sleep work independently of the
+app. Release input/resources on exit; do not take EVIOCGRAB on shared keyboards
+or system input devices, which would block global controls.
 
 Button values follow Linux evdev: 0 released, 1 pressed and 2 repeated. Ignore
 release for ordinary navigation; use value 1 for actions that must fire only once.
@@ -107,7 +107,7 @@ animations or polling; use Qt socket notifiers, signals and timers only as neede
 Use Device's `onIdle` callback, or Screen's `idleChanged(bool)` when choosing
 that widget, to stop/restart expensive activity during dimming.
 
-Only one foreground app owns the framebuffer/input. The launcher releases them
+Only one foreground app renders the framebuffer and handles navigation. The launcher releases its navigation readers
 before starting an app and returns automatically when it exits, including crashes.
 Stop activity and close local-service requests on exit. Launch failures return to
 Home with feedback. The launcher terminates the main app on parent death rather than leaving input
@@ -117,10 +117,36 @@ grabs behind. An app must not start a second framebuffer renderer.
 
 Audio uses ALSA (`default:CARD=MID`); master volume uses `reader-audio`.
 Display brightness uses `reader-brightness`; power uses `reader-power`.
-Apps using their own input handling call `reader-audio up/down` for volume and
-`reader-power suspend` after a short Power release. Hold value 1 means unlocked,
-0 means locked; suppress ordinary keys while locked. These are Linux command
-interfaces, usable from any language, not requirements to link a UI library.
+Elogind handles Power and automatic suspend; triggerhappy handles volume keys
+through ALSA, independently of the foreground app. The calibrated scan mapping
+is supplied by udev hwdb. Apps must not run their own competing power/volume
+handlers. `reader-power suspend` queues a standard login1 request; it returns
+before wake. Use login1 `PrepareForSleep` notifications for lifecycle.
+
+Apps performing playback/downloads can hold a standard **idle** inhibitor to
+prevent automatic sleep while preserving manual Power sleep:
+
+```sh
+elogind-inhibit --what=idle --mode=block --who="My app" --why="Playback" my-player file.wav
+```
+
+Alternatively call `org.freedesktop.login1.Manager.Inhibit` on the system D-Bus
+and retain the returned file descriptor for the operation's lifetime. Closing it
+releases the inhibitor. Use a sleep **delay** inhibitor and `PrepareForSleep`
+when preparation must finish before suspend; delay has a configured time limit.
+This is the existing [login1 interface](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html),
+not an application-framework API.
+
+The PAM-managed framebuffer session updates its console input timestamp from
+raw evdev activity, which elogind uses for tty idle detection. Its
+small adapter handles transient Linux-backlight dimming and publishes optional
+UI state in `/run/reader-session.json`: `dimmed`, `locked`, `volume` and
+`notice_sequence`. The Qt helper observes this file and the standard sleep
+signal. Other toolkits may observe it directly. Hold value 1 means unlocked,
+0 means locked; suppress navigation while locked. Initial switch state before
+its first event remains unverified. Power bypasses Hold; global volume bindings
+respect it. Normal Linux interfaces remain available from any language.
+
 Battery state is `/run/reader-battery.json`, sampled by the existing Linux
 power-supply monitor. UI services do not emulate these Linux subsystems.
 

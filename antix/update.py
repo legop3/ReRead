@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
+import dbus
 import reader_manager as manager
 
 
@@ -61,7 +62,14 @@ def main():
             time.sleep(.02)
     job = dict(state='running', action=args.action, package=args.package, pid=os.getpid(), started=time.time())
     manager.write_job(job)
+    inhibitor = None
     try:
+        # An offline image/chroot has no system bus or running sleep policy.
+        # On a booted Reader, failure to acquire the inhibitor fails the job.
+        if Path('/run/dbus/system_bus_socket').exists():
+            login = dbus.Interface(dbus.SystemBus().get_object('org.freedesktop.login1', '/org/freedesktop/login1'),
+                                   'org.freedesktop.login1.Manager')
+            inhibitor = login.Inhibit('idle', 'ReRead package manager', 'Package operation in progress', 'block').take()
         if args.action == 'install':
             manager.package_info(args.value, 'platform' if args.package == 'reread' else 'app')
             if args.package != 'reread':
@@ -80,10 +88,12 @@ def main():
         else:
             service(args.package, args.action == 'enable')
         job.update(state='complete', message='Complete. Your files and settings were preserved.')
-    except (OSError, ValueError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, subprocess.SubprocessError, dbus.DBusException) as error:
         print(str(error), flush=True)
         job.update(state='failed', message='Operation failed. See the log below; files were not reset.')
     finally:
+        if inhibitor is not None:
+            os.close(inhibitor)
         if args.action == 'install' and Path(args.value).resolve().parent == manager.STAGING.resolve():
             Path(args.value).unlink(missing_ok=True)
         job['finished'] = time.time()

@@ -200,7 +200,7 @@ Fan control stays with the Reader's embedded controller. ReRead does not
 provide a fan-control daemon or change the firmware's temperature thresholds
 and fan curve. [fan-reset.c](fan-reset.c) reproduces the stock `HmColbertFan`
 reset: set fan mode to 1, set the target to 0, wait two seconds, restore mode 0.
-It runs once per boot and after wake through the normal Reader power helper.
+It runs once per boot and after wake through the Reader hardware hook in elogind's sleep lifecycle.
 The helper checks Intel Corporation / Colbert DMI identity before touching the
 stock SMI ports, and logs to `/var/log/reader/fan.log`. Service restarts do not
 repeat the boot reset. The binary is included in the regular ReRead package.
@@ -257,13 +257,21 @@ confirmed. See [audio findings](../analysis/audio.md).
 
 ## Sleep
 
-Press and release Power to suspend to RAM; press Power again to wake. Holding it retains the firmware's forced power-off behavior. The device helper consumes duplicate/wake events to avoid immediately sleeping again. The power helper selects `deep` when available, otherwise uses the supported `mem` default; `/var/log/reader/power.log` records suspend errors. Settings / Power provides Sleep now, Restart and Shut down.
+Power requests use elogind/login1 and the Linux suspend-to-RAM path. Press Power
+to sleep and again to wake; firmware long press retains forced shutoff. Settings /
+Power provides Sleep now, Restart and Shut down. Elogind selects deep sleep and
+runs Reader-specific Camera/fan/audio/backlight preparation and restoration via
+its hardware hook. A failed Camera preparation cancels sleep. Logs are
+`/var/log/reader/power.log` and `/var/log/reader/elogind.log`.
 
-Settings / Power also provides optional automatic sleep after 2, 5, 10 or 30
-minutes without button activity. It defaults to Off, applies on battery and AC,
-and uses the same Linux suspend path as the Power button. Activity resets the
-timeout; package operations defer automatic sleep. The saved value is
-`auto_suspend_seconds` in `/etc/reader/display.json`.
+Settings / Power also provides automatic sleep after 2, 5, 10 or 30 minutes
+without input, default Off, on battery and AC. `auto_suspend_seconds` is saved in
+`/etc/reader/display.json`; the PAM-managed framebuffer adapter reports activity
+to login1 and generates elogind's idle-action configuration. This works across
+apps, including apps that use no ReRead helper. Standard idle inhibitors keep
+playback/downloads or package operations awake. Global volume shortcuts run in
+triggerhappy; udev hwdb applies the calibrated control mapping. Apps share input
+nonexclusively and do not own the Power/volume policy.
 
 The owner confirmed deep sleep/wake, restored camera preview and USB management
 reconnection on the installed antiX system; see

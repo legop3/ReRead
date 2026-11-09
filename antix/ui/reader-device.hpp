@@ -8,11 +8,14 @@ QJsonObject readJson(const QString &path);
 void writeJson(const QString &path, const QJsonObject &value);
 void command(const QString &program, const QStringList &args,
              std::function<void(QByteArray)> done = {}, QObject *owner = nullptr);
-// Optional QtCore-only adapter to existing Linux input, backlight, ALSA and
-// power helpers. It owns no window, renderer, layout, camera or app registry.
+// Optional QtCore/QtDBus foreground input and session-state adapter. System
+// services own power policy, volume and dimming. This object owns no renderer.
 class Device : public QObject {
+  Q_OBJECT
   struct State;
   std::unique_ptr<State> state;
+private slots:
+  void sleepChanged(bool sleeping);
 public:
   explicit Device(QObject *parent = nullptr);
   ~Device() override;

@@ -39,14 +39,15 @@ services, interfaces and formats before building replacements; keep custom code
 focused on Reader-specific hardware support and the ReRead experience. Apps remain
 independent Linux programs with optional shared helpers.
 
-ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux evdev buttons, ACPI/power_supply battery readings, and wpa_supplicant networking. Native helpers use libc and normal Linux interfaces. Qt Widgets/LinuxFB provides the embedded UI. Reader-specific code covers its physical control map, display configuration, USB controller driver, camera USB/FPGA protocol and stock fan reset. The native camera engine uses libusb and libjpeg-turbo, with recovered stock image processing. The installer also uses antiX; no stock kernel or vendor executables are required.
+ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux evdev/udev buttons, elogind power policy and inhibitors, triggerhappy global hotkeys, ACPI/power_supply battery readings, and wpa_supplicant networking. Native helpers use libc and normal Linux interfaces. Qt Widgets/LinuxFB provides the embedded UI. Reader-specific code covers its physical control map, display configuration, USB controller driver, camera USB/FPGA protocol and stock fan reset. The native camera engine uses libusb and libjpeg-turbo, with recovered stock image processing. The installer also uses antiX; no stock kernel or vendor executables are required.
 
 ## Project files
 
 - [Build and system notes](antix/README.md)
 - [On-device UI and controls](antix/ui/README.md)
 - [Application contract and SDK](antix/apps/README.md)
-- [Standard Linux power/input integration research](analysis/linux-power-integration.md)
+- [Linux power/input migration and hardware validation](analysis/linux-power-migration.md)
+- [Initial Linux integration research](analysis/linux-power-integration.md)
 - [Shared camera interface and firmware input](antix/CAMERA.md)
 - [Verified physical control map](analysis/button-map.md) and [raw measurements](buttons.md)
 - [Hardware research](RESEARCH.md)
