@@ -84,6 +84,9 @@ class Archive : public Screen {
   QString category, collectionId, itemId, itemTitle, creator, itemDate, description, status;
   QString currentFile, currentFormat, bookText;
   int selected=0, gridStart=0, fileStart=0, searchPage=1, sortIndex=0;
+  int browseSelected=0, browseGridStart=0;
+  bool loadingMore=false, hasMore=false;
+  static constexpr int resultsPerPage=24;
   int imageZoom=1, imageX=0, imageY=0, fontSize=24, lineStart=0;
   QImage viewedImage;
   QStringList bookLines;
@@ -201,7 +204,9 @@ class Archive : public Screen {
     if(f.open(QIODevice::WriteOnly)){f.write(QJsonDocument(QJsonArray::fromStringList(favorites)).toJson(QJsonDocument::Compact));f.commit();}
   }
   void fetch(QUrl url,const QString &kind,int cap=3*1024*1024) {
-    abortApi();loaded=false;showStatus("Loading from archive.org...");
+    abortApi();loaded=false;
+    if(kind!="search" || !loadingMore)showStatus("Loading from archive.org...");
+    else update();
     QNetworkRequest req(url);req.setRawHeader("User-Agent","ReRead-Archive/0.2");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::NoLessSafeRedirectPolicy);
     auto r=network.get(req);api=r;
@@ -212,7 +217,15 @@ class Archive : public Screen {
       QString problem=r->errorString();
       bool ok=r->error()==QNetworkReply::NoError && bytes.size()<=cap;
       r->deleteLater();loaded=true;
-      if(!ok){showStatus("Unable to load: "+problem);return;}
+      if(!ok){
+        if(kind=="search" && loadingMore){
+          loadingMore=false;
+          --searchPage;
+          hasMore=false;
+          showStatus("Could not load more results. Press Down at the end to retry.");
+        } else showStatus("Unable to load: "+problem);
+        return;
+      }
       status.clear();
       if(kind=="image") {
         QBuffer buffer(&bytes);buffer.open(QIODevice::ReadOnly);
@@ -233,15 +246,23 @@ class Archive : public Screen {
         if(err.error!=QJsonParseError::NoError||!doc.isObject()){showStatus("Invalid Archive response");return;}
         auto root=doc.object();
         if(kind=="search") {
-          entries.clear();gridStart=0;selected=0;
-          for(auto entry:root.value("response").toObject().value("docs").toArray()){
-            auto o=entry.toObject();
+          auto response=root.value("response").toObject();
+          auto results=response.value("docs").toArray();
+          const int found=int(response.value("numFound").toDouble(0));
+          const bool append=loadingMore;
+          loadingMore=false;
+          if(!append){entries.clear();gridStart=0;selected=0;}
+          QSet<QString> seen;
+          for(const auto &e:entries)seen.insert(e.id);
+          for(const auto &raw:results){
+            auto o=raw.toObject();
             Entry e{value(o.value("identifier")),plain(value(o.value("title"))),
                     plain(value(o.value("creator"))),value(o.value("year")),value(o.value("mediatype"))};
-            if(e.id.isEmpty())continue;
+            if(e.id.isEmpty()||seen.contains(e.id))continue;
             if(e.title.isEmpty())e.title=e.id;
-            entries<<e;
+            seen.insert(e.id);entries<<e;
           }
+          hasMore=results.size()==resultsPerPage && (found<=0 || entries.size()<found);
           if(entries.isEmpty())status="Nothing found in this collection.";
           requestVisibleCovers();
         } else if(kind=="metadata") {
@@ -306,26 +327,43 @@ class Archive : public Screen {
     for(int i=gridStart;i<qMin(gridStart+6,entries.size()) && coverJobs.size()<4;++i)
       requestCover(entries[i].id);
   }
-  void search() {
-    page=BROWSE;selected=0;gridStart=0;entries.clear();abortCovers();thumbs.clear();failedCovers.clear();
-    if(category=="Favorites"){
-      loaded=true;status.clear();
-      for(const auto &id:favorites)entries<<Entry{id,id,"Saved item","",""};
-      requestVisibleCovers();update();return;
-    }
+  void fetchSearchPage() {
     QString type=types.value(sections.indexOf(category),"audio");
     QString query=collectionId.isEmpty()?"mediatype:"+type:"collection:"+collectionId;
     QUrl url("https://archive.org/advancedsearch.php");
     QUrlQuery q;
     q.addQueryItem("q",query);q.addQueryItem("output","json");
-    for(const auto &f:{"identifier","title","creator","year","mediatype"})q.addQueryItem("fl[]",f);
-    q.addQueryItem("rows","24");q.addQueryItem("page",QString::number(searchPage));
+    for(const auto &f:{"identifier","title","creator","year","mediatype"})
+      q.addQueryItem("fl[]",f);
+    q.addQueryItem("rows",QString::number(resultsPerPage));
+    q.addQueryItem("page",QString::number(searchPage));
     q.addQueryItem("sort[]",sortIndex==0?"downloads desc":"publicdate desc");
     url.setQuery(q);fetch(url,"search");
+  }
+  void maybeLoadMore() {
+    if(page!=BROWSE || category=="Favorites" || api || loadingMore || !hasMore)
+      return;
+    if(selected<entries.size()-6)return;
+    loadingMore=true;
+    ++searchPage;
+    fetchSearchPage();
+  }
+  void search() {
+    abortApi();abortCovers();
+    page=BROWSE;selected=0;gridStart=0;entries.clear();
+    thumbs.clear();failedCovers.clear();
+    searchPage=1;loadingMore=false;hasMore=false;loaded=false;status.clear();
+    if(category=="Favorites"){
+      loaded=true;
+      for(const auto &id:favorites)entries<<Entry{id,id,"Saved item","",""};
+      requestVisibleCovers();update();return;
+    }
+    fetchSearchPage();
   }
   void openItem(int index) {
     if(index<0||index>=entries.size())return;
     const auto e=entries[index];itemId=e.id;itemTitle=e.title;creator=e.creator;itemDate=e.date;
+    browseSelected=selected;browseGridStart=gridStart;
     description.clear();files.clear();selected=0;page=ITEM;requestCover(itemId);
     fetch(QUrl("https://archive.org/metadata/"+QString::fromUtf8(QUrl::toPercentEncoding(itemId))),"metadata",12*1024*1024);
   }
@@ -479,7 +517,10 @@ class Archive : public Screen {
     status.clear();
     if(page==HOME){close();return;}
     if(page==BROWSE){page=HOME;collectionId.clear();}
-    else if(page==ITEM){page=BROWSE;requestVisibleCovers();}
+    else if(page==ITEM){
+      page=BROWSE;selected=browseSelected;gridStart=browseGridStart;
+      requestVisibleCovers();
+    }
     else if(page==FILES||page==INFO){page=ITEM;}
     else if(page==VIEW||page==READER||page==PLAYER){stopAudio();page=FILES;}
     else if(page==DOWNLOAD_CONFIRM)page=downloadReturn;
@@ -498,6 +539,9 @@ class Archive : public Screen {
       if(selected>=gridStart+6)gridStart=(selected/3-1)*3;
       gridStart=qMax(0,gridStart);
       requestVisibleCovers();
+      if(api==nullptr && !loadingMore && !hasMore &&
+         status.startsWith("Could not load more"))hasMore=true;
+      maybeLoadMore();
     } else if(page==FILES){
       selected=qBound(0,selected+dx+dy,qMax(0,files.size()-1));
       if(selected<fileStart)fileStart=selected;
@@ -771,9 +815,6 @@ protected:
       else if(page==FILES&&selected>=0&&selected<files.size()){selectedFile=files[selected];downloadSelected();}
       else if(page==VIEW||page==READER||page==PLAYER)downloadSelected();
       return;
-    }
-    if(key==READER_PLAY&&state==1&&page==BROWSE&&category!="Favorites"){
-      ++searchPage;search();return;
     }
     if(key!=READER_OK||state!=1||api)return;
     if(page==HOME){
