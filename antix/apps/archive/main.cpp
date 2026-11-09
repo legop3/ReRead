@@ -556,24 +556,15 @@ class Archive : public Screen {
   }
   int topBar() const {return 75;}
   void paintChrome(QPainter &p,const QRect &safe) {
-    // A compact identity strip, not a desktop website's navigation bar.
-    const int headerHeight=46;
-    p.fillRect(QRect(safe.x(),safe.y(),safe.width(),headerHeight),QColor("#282828"));
-    txt(p,QRect(safe.x()+14,safe.y()+3,350,39),"Internet Archive",27,Qt::white,
-        Qt::AlignLeft|Qt::AlignVCenter,true);
-    QString crumb=page==HOME?"Explore":page==BROWSE?category:
-      page==ITEM?"Item details":page==FILES?"Files":page==VIEW?"Image":
-      page==READER?"Reading":page==PLAYER?"Now playing":
-      page==INFO?"About this item":"Download";
-    txt(p,QRect(safe.right()-350,safe.y()+4,333,38),crumb,19,QColor("#d4d4d4"),
-        Qt::AlignRight|Qt::AlignVCenter);
+    // Navigation hints only. Content itself is the page title; no repeated
+    // app identity strip. Viewers use all pixels and skip this entirely.
     const int bottom=safe.bottom()-41;
     p.fillRect(QRect(safe.x(),bottom,safe.width(),42),QColor("#f1f1f1"));
     p.setPen(QPen(QColor("#dedede")));p.drawLine(safe.x(),bottom,safe.right(),bottom);
     using Hint=QPair<reader_button,QString>;
     QList<Hint> hints;
     if(page==HOME)hints={{READER_UP,"Move"},{READER_OK,"Open"},{READER_BACK,"Exit"}};
-    else if(page==BROWSE)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_PLAY,"Next page"},{READER_OPTIONS,"Sort"}};
+    else if(page==BROWSE)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_OPTIONS,"Sort"},{READER_BACK,"Back"}};
     else if(page==ITEM)hints={{READER_UP,"Action"},{READER_OK,"Select"},{READER_BACK,"Results"}};
     else if(page==FILES)hints={{READER_OK,"Open"},{READER_OPTIONS,"Download"},{READER_BACK,"Item"}};
     else if(page==VIEW)hints={{READER_ZOOM_IN,"Zoom"},{READER_UP,"Pan"},{READER_OPTIONS,"Download"},{READER_BACK,"Files"}};
@@ -601,8 +592,9 @@ class Archive : public Screen {
 protected:
   void draw(QPainter &p,const QRect &r) override {
     p.fillRect(r,bg);
-    paintChrome(p,r);
-    QRect area=r.adjusted(12,54,-12,-49);
+    const bool immersive=page==VIEW || page==READER || page==PLAYER;
+    if(!immersive)paintChrome(p,r);
+    QRect area=immersive?rect():r.adjusted(8,8,-8,-48);
     if(page==HOME) {
       const QStringList sub={
         "Music, radio & recordings","Books, magazines & documents",
@@ -638,7 +630,7 @@ protected:
           Qt::AlignLeft|Qt::AlignVCenter,true);
       QString sort=sortIndex==0?"Popular":"Recent";
       txt(p,QRect(area.right()-189,area.y()+3,180,36),
-          sort+" · Page "+QString::number(searchPage),18,muted,
+          sort+" · "+QString::number(entries.size())+(loadingMore?" · Loading...":""),18,muted,
           Qt::AlignRight|Qt::AlignVCenter);
       p.setPen(QPen(outline));p.drawLine(area.x(),area.y()+45,area.right(),area.y()+45);
       int gap=12;
@@ -703,7 +695,7 @@ protected:
       }
       if(files.isEmpty())txt(p,area,loaded?"No files listed":"Loading files...",22,muted,Qt::AlignCenter);
     } else if(page==VIEW) {
-      QRect view=area.adjusted(3,0,-3,0);
+      QRect view=area;
       p.fillRect(view,QColor("#323232"));
       if(viewedImage.isNull())txt(p,view,status.isEmpty()?"Loading image...":status,
           23,Qt::white,Qt::AlignCenter);
@@ -713,13 +705,12 @@ protected:
         QRect dest(QPoint(0,0),size);dest.moveCenter(view.center()+QPoint(imageX,imageY));
         p.save();p.setClipRect(view);p.setRenderHint(QPainter::SmoothPixmapTransform);
         p.drawImage(dest,viewedImage);p.restore();
-        txt(p,QRect(view.right()-115,view.top()+8,100,28),
-            QString::number(imageZoom)+"× zoom",17,Qt::white,Qt::AlignRight);
+
       }
     } else if(page==READER) {
-      QRect paper=area.adjusted(8,0,-8,0);
+      QRect paper=area;
       p.fillRect(paper,QColor("#fffdf6"));
-      QRect pageRect=paper.adjusted(45,13,-45,-20);
+      QRect pageRect=paper.adjusted(44,32,-44,-30);
       QFont f=p.font();f.setFamily("DejaVu Serif");f.setPixelSize(fontSize);p.setFont(f);
       p.setPen(QColor("#222222"));
       int step=fontSize+11,visible=qMax(1,pageRect.height()/step);
@@ -731,7 +722,7 @@ protected:
       if(bookLines.isEmpty())
         txt(p,pageRect,status.isEmpty()?"Loading text...":status,22,muted,Qt::AlignCenter);
     } else if(page==PLAYER) {
-      QRect cover(area.x()+35,area.y()+22,area.height()-44,area.height()-44);
+      QRect cover(area.x()+24,area.y()+24,area.height()-48,area.height()-48);
       p.fillRect(cover,QColor("#eaeaea"));
       if(!thumbs.value(itemId).isNull())imageIn(p,cover.adjusted(7,7,-7,-7),thumbs.value(itemId),true);
       else icon(p,cover.adjusted(65,65,-65,-65),"Audio",accent);
