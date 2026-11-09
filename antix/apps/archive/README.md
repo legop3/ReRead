@@ -1,58 +1,57 @@
 # Internet Archive for ReRead
 
-Independent ReRead foreground app. Uses Archive.org public advanced-search,
-item metadata, and file endpoints. There is no keyboard, account, or on-device
-download management. Supported source formats are streamed from the network.
-Favorites save only Archive item identifiers.
+Standalone, button-operated Internet Archive browser, with an original visual
+Qt interface designed for the Intel Reader (960 x 544).
 
-## Build a local test package
+## Build locally
 
-From the **repository root** on your development computer, with the existing
-`reread-builder` Docker image (see `antix/README.md`):
+From the repository root with the existing reread-builder Docker image:
 
-```sh
-docker run --rm -v "$PWD:/work:z" reread-builder \
-  python3 /work/antix/apps/archive/package.py
-```
+    git pull
+    docker run --rm -v "$PWD:/work:z" reread-builder \
+      python3 /work/antix/apps/archive/package.py
 
-Output: `out/antix/reread-app-archive_0.1.0_i386.deb`.
+The result is out/antix/reread-app-archive_0.2.0_i386.deb.
+The script builds only the app and its shared Qt libraries. It does not touch
+the operating-system package, installer, GitHub releases or APT workflows.
+Use ReRead's USB web interface, http://192.168.7.1, Apps, to upload/install
+the .deb, or copy it to the device and run reader-update install FILE.deb.
 
-This builds *only* the app and its locally required UI SDK libraries, without building Home or the launcher. It does
-not build the firmware, platform package or installer, and does not publish
-anything. It also does not touch any GitHub workflow or APT repository files.
+## Navigation
 
-Connect the Reader via USB, open its management web interface at
-`http://192.168.7.1`, and upload the output .deb on the **Apps** page.
-Or copy the file to the Reader and run
-`reader-update install /path/to/reread-app-archive_0.1.0_i386.deb`.
-Dependencies (including `ffmpeg`) must be obtainable from configured APT
-sources; the Reader needs working internet access for those packages.
+Home shows six graphical tiles: Audio, Books, Images, Software, Collections
+and Favorites. Browse results display cover thumbnails, title and creator
+in a six-card gallery, with arrow-key navigation. Play loads the next set of
+results. Options switches between popular and recent ordering.
 
-## Controls
+The item page shows a large cover, title, creator and description, with
+actions for files, favorites and details. Collections can be opened to browse
+their contents. The file list shows the format, size and type of each file.
 
-Up/Down: browse, or scroll text. OK: select an item/file or stop playback.
-Back: return to previous screen; on Home returns to ReRead.
-Favorites hardware key: return to ReRead Home. System Power, Hold, and Volume
-remain managed by ReRead.
+Image viewer: full-screen fit, Zoom In/Out and arrow-key pan.
+Text reader: paper-style pages, Up/Down to turn pages, Zoom In/Out for
+font size. Reads plain-text derivatives, not PDF/EPUB/scanned-page images yet.
+Audio player: cover art, title, progress and elapsed time, Play/OK pause,
+Left/Right ten-second seek, Back to return.
 
-Browse Videos, Audio, Books & texts, Images, Software, Live music and Favorites.
-Items are discovered by public Archive search, ordered by download count.
-The item page shows files, favorite toggle, and description. The file viewer
-supports JPEG/PNG/WebP, UTF-8 plain text, and FFmpeg-supported audio/video
-streams. Compatible playback is subject to the device's CPU and file codecs.
+Options on a highlighted file or an open viewer shows a download confirmation.
+Downloads are opt-in, stream directly to Files / Internet Archive and preserve
+128 MiB of free storage. Interrupted or canceled downloads are discarded.
+Names are sanitized and existing files are not overwritten. No media is
+saved during ordinary browsing. Images/text/thumbnails have RAM limits.
+Only a small favorites JSON file persists automatically.
 
-## Data and limits
+## Audio runtime
 
-No media is saved to disk. Images and text are fetched with hard response size
-limits (12 MiB image, 6 MiB text); audio is streamed by FFmpeg to ALSA.
-Video uses two FFmpeg streams (audio via ALSA and low-rate video via a JPEG
-pipe into the framebuffer), so performance on the Atom Z520 is *unverified*.
-Documents such as PDF, EPUB and scanned page images are not yet rendered; use
-Archive-provided text derivatives where available. Unsupported types show a
-message instead of downloading. In-memory limits protect device RAM.
+FFmpeg is no longer a required package dependency, and video is removed.
+If FFmpeg is already installed on the Reader, the audio player streams
+through ALSA without saving a media file. Otherwise it reports that an audio
+decoder is unavailable, and the file can still be explicitly downloaded.
+A lightweight native audio backend can replace this in a future iteration.
 
-Favorites are the **only** persistent data, saved as a small JSON file under
-the app data directory. Browsing does not write cache files. The app has no
-account login; borrow-only or restricted Archive items may not be playable.
+## Testing notes
 
-This is an initial hardware-test build, not a fully validated media player.
+This version is not yet validated on the physical Reader. Public items and
+formats vary; restricted works may not be available without authentication.
+Metadata, search and thumbnails come from public Internet Archive endpoints.
+Large text and image files are capped to protect the Reader's 512 MB RAM.
