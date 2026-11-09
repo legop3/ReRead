@@ -11,7 +11,7 @@ From the repository root with the existing reread-builder Docker image:
     docker run --rm -v "$PWD:/work:z" reread-builder \
       python3 /work/antix/apps/archive/package.py
 
-The result is out/antix/reread-app-archive_0.2.0_i386.deb.
+The result is out/antix/reread-app-archive_0.3.0_i386.deb.
 The script builds only the app and its shared Qt libraries. It does not touch
 the operating-system package, installer, GitHub releases or APT workflows.
 Use ReRead's USB web interface, http://192.168.7.1, Apps, to upload/install
@@ -43,11 +43,20 @@ Only a small favorites JSON file persists automatically.
 
 ## Audio runtime
 
-FFmpeg is no longer a required package dependency, and video is removed.
-If FFmpeg is already installed on the Reader, the audio player streams
-through ALSA without saving a media file. Otherwise it reports that an audio
-decoder is unavailable, and the file can still be explicitly downloaded.
-A lightweight native audio backend can replace this in a future iteration.
+No FFmpeg or video support. MP3 files stream over Qt HTTPS into a
+dedicated worker using the small libmpg123 decoder and ReRead's existing ALSA
+speaker output. No audio data is saved to the Reader's disk, and memory
+buffers are bounded. MP3 playback, pause/resume and approximate ten-second
+network seeking are supported. Seek precision varies with the source file
+and its bitrate. Unsupported formats remain downloadable, but do not play.
+
+The only extra audio libraries required are libmpg123-0t64 and libasound2t64.
+The app does not install or execute the mpg123 command-line player. Existing
+FFmpeg libraries from older installations are not removed by an upgrade.
+
+The on-screen footer uses ReRead's physical button drawings, not text labels
+standing in for button icons. The remainder of the application keeps its
+custom Archive artwork-first gallery, detail, image and reading interfaces.
 
 ## Testing notes
 
