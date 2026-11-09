@@ -27,7 +27,7 @@ without a shell. File/URL field codes are not passed: the current launcher start
 apps without a document. Use one entry per foreground application. Its desktop
 basename is the stable UI identity, e.g. `reread-camera`.
 
-Native applications use `Architecture: i386`, `Depends: reread (>= 0.5.1)` and
+Native applications use `Architecture: i386`, `Depends: reread (>= 0.6.0)` and
 their real dependencies. Code belongs in `/usr/lib/reread/apps/<id>/`, shared
 assets in `/usr/share/reread/apps/<id>/`. The launcher exports `READER_APP_ID`,
 `READER_APP_DATA_DIR=/var/lib/reader/apps/<desktop-basename>` and `XDG_DATA_HOME`
@@ -45,7 +45,8 @@ services, touch raw hardware already owned by a service, or reset global setting
 Use Qt Widgets with the installed `reread-ui` SDK. Subclass `ReRead::Screen` and
 implement `draw(QPainter&, const QRect&)` and `button(reader_button, int)`.
 The rectangle is already inset for the bezel. Call `text` / `list` or draw normal
-Qt content in that rectangle. Set `title`, `subtitle`, `hint` and use `toast` for
+Qt content in that rectangle. Choose `showHeader`, `showControls` and `controlsOverlay`; set `title`,
+provide `controls` as button-ID/action pairs and use `toast` for
 short feedback. A plain QApplication event loop is enough; no application server
 or desktop session is required. See `antix/ui/camera.cpp` for a complete app.
 
@@ -57,8 +58,7 @@ Button values follow Linux evdev: 0 released, 1 pressed and 2 repeated. Ignore
 release for ordinary navigation; use value 1 for actions that must fire only once.
 IDs are semantic enums from `reader-keys.h`. Up/Down move focus, OK activates,
 Back returns within the app then exits from its root, Favorites exits to Home,
-Options opens app settings, and Guide explains controls. Provide useful footer
-hints. Power, volume and Hold belong to the shared system layer. Avoid idle
+Options opens app settings, and Guide explains controls. Provide useful grouped button-icon/action hints when they help. Power, volume and Hold belong to the shared system layer. Avoid idle
 animations or polling; use Qt socket notifiers, signals and timers only as needed.
 Override `idleChanged(bool)` to stop/restart expensive activity during dimming.
 
@@ -83,8 +83,8 @@ eight-second hardware lease. POST `/capture` accepts
 `{"flash":false,"mode":"photo","rotation":180}`; mode can be `document`,
 rotation is 0 or 180. Poll GET `/status` only while waiting for that job. Photos
 are atomically saved in Files. Stop preview requests when leaving or idle;
-streaming powers down after the lease expires. The camera app displays the same
-180° orientation that it saves. Global sleep pauses camera ownership safely.
+streaming powers down after the lease expires. In inverted mode the camera app rotates its entire UI by 180 degrees; the
+preview has an additional image rotation and saved JPEG orientation is explicit. Global sleep pauses camera ownership safely.
 
 ## Optional background services
 

@@ -86,7 +86,7 @@ The SSD image fills the known Reader SSD (4,004,388,864 bytes): a 1 MiB alignmen
 
 A fresh ReRead 0.2.1 installation was confirmed on the physical Reader: **2,162.8 MiB free of 3,561.6 MiB** after boot. The full SSD is allocated; the difference from raw capacity is the boot partition and filesystem overhead. Free space changes as packages, caches and user files accumulate.
 
-The 0.5.1 image has approximately **1,875.5 MiB available before first boot**,
+The 0.6.1 image has approximately **1,875.4 MiB available before first boot**,
 measured from its ext3 metadata. Qt, fonts and their distro graphics dependencies
 account for most of the increase from the earlier console-only baseline. No desktop
 session is installed or started. First boot, updates and personal files change
@@ -107,7 +107,7 @@ does not repartition or purge an existing system.
 
 ## Build
 
-The host needs Docker and Python 3. Run the entry point from the repository
+The host needs Docker with its Buildx plugin and Python 3. Run the entry point from the repository
 root as your normal user with Docker access. It builds/caches the tools in
 [the Dockerfile](../image-builder/Dockerfile) and uses a temporary container with
 only this workspace mounted at `/work`; no host disks are exposed to the builder.
@@ -125,7 +125,9 @@ camera firmware file is included in the platform package.
 ./make-usb.sh --build-only    # Build release files, without writing USB
 ```
 
-Docker caches the builder image between runs. The workspace mount uses shared
+A dedicated Buildx builder named `reread` caches the tool image between runs.
+It avoids the embedded Docker builder export stall seen on the development host;
+it does not replace your default builder or restart other containers. The workspace mount uses shared
 SELinux labeling (`:z`) so it can coexist with a development container.
 
 Outputs in `out/antix/`:

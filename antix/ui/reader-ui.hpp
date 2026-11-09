@@ -34,7 +34,14 @@ protected:
   virtual void button(reader_button, int) = 0;
 
 public:
-  QString title, subtitle, hint, notice;
+  struct Control { reader_button button; QString action; };
+  QList<Control> controls;
+  // Each app chooses its own chrome. Safety notices remain available without it.
+  bool showHeader = true, showControls = true, controlsOverlay = false;
+  int orientation = 0;
+  QString title, subtitle, notice;
+  QRect safeArea() const;
+  void buttonIcon(QPainter &, const QRect &, reader_button);
   Screen(const QString &name);
   ~Screen() override;
   QRect content() const;

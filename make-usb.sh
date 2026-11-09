@@ -23,7 +23,12 @@ command -v python3 >/dev/null || { echo 'Python 3 is required.' >&2; exit 1; }
 }
 
 echo 'Preparing the ReRead builder...'
-docker build -t reread-builder image-builder
+# Keep this project's cache separate from Docker's embedded builder.
+# Its containerd exporter can stall on the host used for Reader development.
+if ! docker buildx inspect reread >/dev/null 2>&1; then
+    docker buildx create --name reread --driver docker-container >/dev/null
+fi
+docker buildx build --builder reread --load -t reread-builder image-builder
 # Shared SELinux labeling permits use alongside the optional development container.
 echo 'Building the SSD image, installer and update package...'
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/build.py

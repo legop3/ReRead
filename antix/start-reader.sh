@@ -5,6 +5,7 @@ console=/dev/tty1
 case " $(cat /proc/cmdline) " in *' console=ttyS0,'*) console=/dev/ttyS0 ;; esac
 exec <"$console" >"$console" 2>&1
 mkdir -p /var/lib/reader /var/log/reader
+modprobe reader_backlight 2>>/var/log/reader/display.log || true
 /usr/local/sbin/reader-brightness init >>/var/log/reader/display.log 2>&1 || true
 /usr/local/sbin/reader-audio init >>/var/log/reader/audio.log 2>&1 || true
 setfont -C /dev/tty1 /usr/share/reader/font-large.psf 2>/var/log/reader/font.log ||

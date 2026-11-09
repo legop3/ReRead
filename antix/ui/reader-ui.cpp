@@ -114,6 +114,8 @@ static bool transientBrightness(int percent) {
       QDir("/sys/class/backlight").entryList(QDir::Dirs | QDir::NoDotAndDotDot);
   providers.removeAll("psb-bl");
   providers.prepend("psb-bl");
+  providers.removeAll("reader-panel");
+  providers.prepend("reader-panel");
   for (const auto &provider : providers) {
     QString path = "/sys/class/backlight/" + provider;
     QFile maximum(path + "/max_brightness");
@@ -183,11 +185,56 @@ Screen::~Screen() {
                             .value("brightness_percent")
                             .toInt(100));
 }
+QRect Screen::safeArea() const { return rect().adjusted(14, 14, -14, -14); }
 QRect Screen::content() const {
-  int margin = qBound(
-      20, readJson("/etc/reader/display.json").value("safe_margin").toInt(28),
-      60);
-  return rect().adjusted(margin, 96, -margin, -78);
+  return safeArea().adjusted(0, showHeader ? 56 : 0, 0,
+      showControls && !controlsOverlay && !controls.isEmpty() ? -56 : 0);
+}
+// Simple vector glyphs follow the symbols on the physical Reader controls.
+// They are drawn in code so they stay crisp at the panel's unusual scale.
+void Screen::buttonIcon(QPainter &p, const QRect &r, reader_button id) {
+  p.save();
+  p.translate(r.center());
+  p.scale(r.width() / 32.0, r.height() / 32.0);
+  p.setPen(QPen(QColor("#eef3f8"), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  p.setBrush(Qt::NoBrush);
+  switch (id) {
+  case READER_BACK: {
+    QPolygonF arrow; arrow << QPointF(10,10) << QPointF(-9,-9)
+                         << QPointF(-9,3) << QPointF(-9,-9) << QPointF(3,-9);
+    p.drawPolyline(arrow); break;
+  }
+  case READER_OPTIONS:
+    p.drawRoundedRect(QRectF(-12,-11,24,22),2,2);
+    for (int y : {-6,0,6}) p.drawLine(-7,y,7,y);
+    break;
+  case READER_VIEW_TOGGLE:
+    p.drawRect(QRectF(-13,-10,18,15));
+    p.drawRect(QRectF(-5,-3,18,15)); break;
+  case READER_OK:
+    p.drawEllipse(QRectF(-11,-11,22,22));
+    p.setBrush(QColor("#eef3f8")); p.drawEllipse(QRectF(-3,-3,6,6)); break;
+  case READER_SHOOT:
+    p.drawRoundedRect(QRectF(-13,-8,26,18),3,3);
+    p.drawEllipse(QRectF(-5,-5,10,10)); p.drawLine(-6,-12,5,-12); break;
+  case READER_UP: case READER_DOWN: case READER_LEFT: case READER_RIGHT: {
+    if (id == READER_DOWN) p.rotate(180);
+    if (id == READER_LEFT) p.rotate(-90);
+    if (id == READER_RIGHT) p.rotate(90);
+    p.drawLine(0,11,0,-10); p.drawLine(0,-10,-7,-3); p.drawLine(0,-10,7,-3); break;
+  }
+  case READER_ZOOM_IN: case READER_ZOOM_OUT:
+    p.drawLine(-10,0,10,0);
+    if (id == READER_ZOOM_IN) p.drawLine(0,-10,0,10);
+    break;
+  case READER_GUIDE:
+    { auto f=p.font(); f.setPixelSize(29); p.setFont(f);
+      p.drawText(QRect(-16,-16,32,32),Qt::AlignCenter,"?"); } break;
+  case READER_PLAY:
+    p.drawLine(-10,0,10,0); p.drawLine(10,0,3,-7); p.drawLine(10,0,3,7); break;
+  default: break;
+  }
+  p.restore();
 }
 void Screen::text(QPainter &p, const QRect &r, const QString &t, int size,
                   QColor color) {
@@ -199,43 +246,59 @@ void Screen::text(QPainter &p, const QRect &r, const QString &t, int size,
 }
 void Screen::paintEvent(QPaintEvent *) {
   QPainter p(this);
+  if (orientation == 180) {
+    p.translate(width(), height());
+    p.rotate(180);
+  }
   p.fillRect(rect(), QColor("#101820"));
   p.setRenderHint(QPainter::Antialiasing);
-  QRect c = content();
-  text(p, QRect(c.left(), 22, width() / 2, 46), title, 34);
+  QRect safe = safeArea();
   auto battery = readJson("/run/reader-battery.json");
-  QString status = (battery.value("external_power").toBool() ? "AC · " : "") +
-                   QString::number(battery.value("capacity_percent").toInt()) +
-                   "%   " + QTime::currentTime().toString("HH:mm");
-  auto f = p.font();
-  f.setPixelSize(23);
-  p.setFont(f);
-  p.setPen(QColor("#aabfc9"));
-  p.drawText(QRect(width() / 2, 22, width() / 2 - c.left(), 46),
-             Qt::AlignRight | Qt::AlignVCenter, status);
-  if (!subtitle.isEmpty())
-    text(p, QRect(c.left(), 66, c.width(), 26), subtitle, 20,
-         QColor("#aabfc9"));
-  draw(p, c);
-  QString batteryNotice;
-  const QString level = battery.value("level").toString();
-  if (level == "critical" || level == "warning") {
-    batteryNotice = level == "critical" ? "Critical battery — connect power"
-                                        : "Low battery — connect power";
-    if (!battery.value("shutdown_in_seconds").isNull())
-      batteryNotice +=
-          " · shutdown in " +
-          QString::number(battery.value("shutdown_in_seconds").toInt()) + "s";
+  if (showHeader) {
+    text(p, QRect(safe.left(), safe.top(), safe.width()/2, 42), title, 32);
+    auto f = p.font(); f.setPixelSize(22); p.setFont(f);
+    p.setPen(QColor("#aabfc9"));
+    QString status = (battery.value("external_power").toBool() ? "AC · " : "") +
+        QString::number(battery.value("capacity_percent").toInt()) +
+        "%   " + QTime::currentTime().toString("HH:mm");
+    p.drawText(QRect(safe.center().x(), safe.top(), safe.width()/2, 42),
+               Qt::AlignRight | Qt::AlignVCenter, status);
   }
-
-  p.setPen(QColor("#31444f"));
-  p.drawLine(c.left(), height() - 64, c.right(), height() - 64);
-  text(p, QRect(c.left(), height() - 60, c.width(), 38),
-       locked                     ? "Hold locked — slide switch to unlock"
-       : !batteryNotice.isEmpty() ? batteryNotice
-       : notice.isEmpty()         ? hint
-                                  : notice,
-       21, QColor("#aabfc9"));
+  draw(p, content());
+  if (showControls && !controls.isEmpty()) {
+    int total = 0;
+    QFont f = p.font(); f.setPixelSize(21); p.setFont(f);
+    QFontMetrics metrics(f);
+    for (const auto &control : controls) total += 58 + metrics.horizontalAdvance(control.action) + 16;
+    int x = safe.left();
+    // Explicit icon/action groups replace ambiguous runs of button names.
+    // Apps choose these groups, whether to show them and whether they overlay.
+    double scale = qMin(1.0, double(safe.width()) / qMax(1,total));
+    p.save(); p.translate(x, safe.bottom()-43); p.scale(scale,scale);
+    x = 0;
+    for (const auto &control : controls) {
+      int w = 58 + metrics.horizontalAdvance(control.action);
+      p.setPen(Qt::NoPen); p.setBrush(QColor(16,24,32,225));
+      p.drawRoundedRect(QRect(x,0,w,42),7,7);
+      buttonIcon(p,QRect(x+9,6,30,30),control.button);
+      text(p,QRect(x+48,0,w-52,42),control.action,21);
+      x += w+16;
+    }
+    p.restore();
+  }
+  QString warning;
+  const QString level = battery.value("level").toString();
+  if (level == "critical" || level == "low" || level == "warning") {
+    warning = level == "critical" ? "Critical battery — connect power" : "Low battery — connect power";
+    if (!battery.value("shutdown_in_seconds").isNull())
+      warning += " · shutdown in " + QString::number(battery.value("shutdown_in_seconds").toInt()) + "s";
+  }
+  QString message = locked ? "Hold locked — slide switch to unlock" : !warning.isEmpty() ? warning : notice;
+  if (!message.isEmpty()) {
+    QRect box(safe.left(),safe.top()+52,safe.width(),48);
+    p.fillRect(box,QColor(16,24,32,240));
+    text(p,box.adjusted(12,0,-12,0),message,23,QColor("#eef3f8"));
+  }
 }
 void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
                   const QStringList &details, int selected) {
@@ -423,6 +486,12 @@ void Screen::dispatch(reader_button id, int value) {
               });
     }
     return;
+  }
+  if (orientation == 180) {
+    if (id == READER_UP) id = READER_DOWN;
+    else if (id == READER_DOWN) id = READER_UP;
+    else if (id == READER_LEFT) id = READER_RIGHT;
+    else if (id == READER_RIGHT) id = READER_LEFT;
   }
   button(id, value);
 }

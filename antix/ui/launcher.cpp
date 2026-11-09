@@ -12,7 +12,15 @@ class Launcher : public Screen {
   QStringList labels, details, files;
   QImage photo;
   QProcess *child = nullptr;
+  void selectionControls() {
+    if (page == "settings")
+      controls = selected < 3
+          ? QList<Control>{{READER_LEFT,"Less"},{READER_RIGHT,"More"},{READER_BACK,"Home"}}
+          : QList<Control>{{READER_OK,"Open"},{READER_BACK,"Home"}};
+  }
   void refresh() {
+    showHeader = true;
+    controlsOverlay = false;
     labels.clear();
     details.clear();
     title = page == "home"       ? "ReRead"
@@ -21,7 +29,7 @@ class Launcher : public Screen {
             : page == "power"    ? "Power"
                                  : "About ReRead";
     subtitle = "";
-    hint = "↑↓ Navigate   OK Select   Options Settings";
+    controls = {{READER_OK,"Open"},{READER_OPTIONS,"Settings"}};
     if (page == "home") {
       apps.clear();
       for (const auto &file : QDir("/usr/share/applications")
@@ -74,10 +82,10 @@ class Launcher : public Screen {
         details << QString::number(info.size() / 1024) + " KiB · " +
                        info.lastModified().toString("dd MMM HH:mm");
       }
-      hint = "↑↓ Browse   OK Open image   Back Home";
+      controls = {{READER_OK,"Open"},{READER_BACK,"Home"}};
     } else if (page == "settings") {
       int brightness = 100;
-      QFile f("/sys/class/backlight/psb-bl/brightness");
+      QFile f("/sys/class/backlight/reader-panel/brightness");
       if (f.open(QIODevice::ReadOnly))
         brightness = f.readAll().trimmed().toInt();
       auto config = readJson("/etc/reader/display.json");
@@ -85,7 +93,6 @@ class Launcher : public Screen {
       labels << "Brightness"
              << "Volume"
              << "Idle dim"
-             << "Screen margin"
              << "Connections"
              << "About ReRead"
              << "Power";
@@ -98,12 +105,10 @@ class Launcher : public Screen {
               << (idle ? QString::number(idle) +
                              " seconds · Left / Right to change"
                        : "Off · Left / Right to change")
-              << QString::number(config.value("safe_margin").toInt(28)) +
-                     " pixels · Left / Right to adjust"
               << "Wi-Fi and USB information"
               << "Version, storage and application information"
               << "Sleep, reboot or shut down";
-      hint = "↑↓ Navigate   ←→ Adjust   Back Home";
+      controls = {{READER_LEFT,"Less"},{READER_RIGHT,"More"},{READER_BACK,"Home"}};
     } else if (page == "power") {
       labels << "Sleep"
              << "Reboot"
@@ -111,10 +116,10 @@ class Launcher : public Screen {
       details << "Wake with the power button"
               << "Restart ReRead"
               << "Turn the Reader off";
-      hint = "↑↓ Navigate   OK Select   Back Cancel";
+      controls = {{READER_OK,"Select"},{READER_BACK,"Cancel"}};
     } else if (page == "connections") {
       title = "Connections";
-      hint = "Back Settings";
+      controls = {{READER_BACK,"Settings"}};
       information = "Checking Wi-Fi…";
       command(
           "/usr/bin/python3",
@@ -146,9 +151,10 @@ class Launcher : public Screen {
           " MiB\nApps use standard Debian packages and Linux "
           "processes.\nPower: short press sleeps. Volume keys work in every "
           "app.\nFavorites returns to Home. Back returns one screen.";
-      hint = "Back Settings";
+      controls = {{READER_BACK,"Settings"}};
     }
     selected = qBound(0, selected, qMax(0, labels.size() - 1));
+    selectionControls();
     update();
   }
   void go(const QString &destination) {
@@ -244,12 +250,13 @@ class Launcher : public Screen {
     if (id == READER_UP || id == READER_DOWN) {
       selected = qBound(0, selected + (id == READER_DOWN ? 1 : -1),
                         qMax(0, labels.size() - 1));
+      selectionControls();
       update();
       return;
     }
     if (page == "settings" &&
         (id == READER_LEFT || id == READER_RIGHT || id == READER_OK) &&
-        selected < 4) {
+        selected < 3) {
       auto now = QDateTime::currentMSecsSinceEpoch();
       if (value == 2 && now - lastAdjustment < 200)
         return;
@@ -262,16 +269,14 @@ class Launcher : public Screen {
       if (selected == 1)
         command("/usr/local/sbin/reader-audio", {direction < 0 ? "down" : "up"},
                 [this](QByteArray) { refresh(); });
-      if (selected >= 2) {
+      if (selected == 2) {
         auto config = readJson("/etc/reader/display.json");
-        if (selected == 2) {
+        {
           QList<int> choices{0, 30, 60, 120, 300};
           int i = choices.indexOf(config.value("idle_dim_seconds").toInt(120));
           config["idle_dim_seconds"] =
               choices[qBound(0, i + direction, choices.size() - 1)];
-        } else
-          config["safe_margin"] = qBound(
-              20, config.value("safe_margin").toInt(28) + direction * 4, 60);
+        }
         writeJson("/etc/reader/display.json", config);
         refresh();
       }
@@ -287,7 +292,7 @@ class Launcher : public Screen {
     } else if (page == "files")
       openPhoto();
     else if (page == "settings")
-      go(selected == 4 ? "connections" : selected == 5 ? "about" : "power");
+      go(selected == 3 ? "connections" : selected == 4 ? "about" : "power");
     else if (page == "power") {
       if (selected == 0) {
         dispatch(READER_POWER, 1);
@@ -315,9 +320,11 @@ class Launcher : public Screen {
     }
     photo = loaded;
     page = "image";
+    showHeader = false;
+    controlsOverlay = true;
     title = "Photo";
     subtitle = files.value(selected);
-    hint = "←→ Previous / Next   Back Files";
+    controls = {{READER_LEFT,"Previous"},{READER_RIGHT,"Next"},{READER_BACK,"Files"}};
     update();
   }
   void draw(QPainter &p, const QRect &r) override {

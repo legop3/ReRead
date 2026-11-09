@@ -4,8 +4,8 @@ ReRead uses Qt 5 Widgets on the LinuxFB platform plugin. Qt paints straight to
 Linux `/dev/fb0`; there is no desktop, X server, Wayland compositor, browser, or
 GPU requirement. The Reader exposes a 960 × 544, 32-bit framebuffer with a
 4096-byte stride. Qt handles that layout. Use large pixel fonts and keep all
-controls inside `Screen::content()`: the default 28-pixel margin accounts for
-the overlapping bezel. Settings can adjust it from 20 to 60 pixels.
+controls inside `Screen::content()`: a fixed 14-pixel inset on all four sides accounts for the overlapping bezel.
+It is not a user preference.
 
 The home screen launches installed applications, browses photos/files, and opens
 system settings. The web interface is for file transfers, network provisioning,
@@ -13,8 +13,15 @@ packages and device administration. It does not run device applications.
 
 ## Controls and ownership
 
-`libreader-ui.so.1` supplies the consistent header, safe content rectangle,
-footer hints, selection list, transient notices and physical-button transport.
+`libreader-ui.so.2` supplies a safe content rectangle, selection list, transient
+notices, vector physical-button icons and input transport. Apps choose whether to
+show a compact header (`showHeader`), grouped icon/action controls (`controls`
+and `showControls`), or overlay controls on their own content (`controlsOverlay`).
+There is no mandatory header, subtitle row or footer bar. Camera uses a full
+preview with small overlays; Home and Settings use the compact system header.
+Set `orientation=180` to rotate the entire screen, including overlays, and reverse
+the D-pad directions to follow the rotated display. Saved camera JPEG rotation
+is separate from screen orientation.
 Apps subclass `ReRead::Screen`, implement `draw` and `button`, then run a normal
 Qt event loop. `reader-keys.h` is the stable semantic button enumeration; apps
 never depend on historical stock labels or raw scan codes.
@@ -48,16 +55,17 @@ one-command USB build includes both. Apps can be updated separately afterward.
 
 ## Display and idle policy
 
-`reader-brightness` uses Linux backlight sysfs, preferring `psb-bl`. It restores
+`reader-brightness` uses Linux backlight sysfs, preferring `reader-panel`. It restores
 the saved brightness at boot and wake. `/etc/reader/display.json` holds
-`brightness_percent` (10–100), `safe_margin` (20–60) and `idle_dim_seconds`
+`brightness_percent` (10–100) and `idle_dim_seconds`
 (0 disables dimming; 120 seconds by default). Idle dimming is transient: it does
 not overwrite the user's saved brightness. Any control restores that brightness.
 The camera releases its preview lease while dimmed; hardware closes after the
 lease expires. Automatic suspend is deliberately not enabled: manual power-button
 sleep is available, and unattended timer wake is unreliable on this device.
 
-USB management is started only while the kernel UDC reports `configured`.
+USB management requires an active USB Ethernet carrier as well as a configured
+gadget. The legacy UDC can leave its configured state stale after disconnect.
 `reader-usb-session` listens to Linux netlink carrier changes, with a slow fallback,
 and owns web, Dropbear SSH and DHCP child lifetimes. Wi-Fi remains independent.
 The camera's native acquisition workers block while unused; a running app must
@@ -66,3 +74,8 @@ explicitly request preview frames or a photo to power up streaming.
 Qt references: [embedded Linux](https://doc.qt.io/qt-6/embedded-linux.html),
 [Linux device input](https://doc.qt.io/qt-6/inputs-linux-device.html). Qt 5 is used
 because Debian supplies its maintained i386 packages for this Reader's CPU.
+
+The 0.6.0 SDK uses SONAME 2. Upgrade core and Camera 0.2.0 together when
+moving from the initial UI prototype. The core package declares a conflict
+with the old Camera binary instead of letting it start with an incompatible
+SDK. Future apps should declare the minimum core version for their SDK.

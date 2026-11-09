@@ -51,8 +51,8 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
     ui = build_dir / 'ui'
     subprocess.run([str(base / 'antix/ui/build.sh'), str(ui)], check=True)
-    copy(ui / 'libreader-ui.so.1', 'usr/lib/libreader-ui.so.1', 0o755)
-    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.1')
+    copy(ui / 'libreader-ui.so.2', 'usr/lib/libreader-ui.so.2', 0o755)
+    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.2')
     copy(ui / 'reader-launcher', 'usr/local/bin/reader-launcher', 0o755)
     copy(base / 'antix/ui/reader-ui.hpp', 'usr/include/reread/reader-ui.hpp')
     copy(base / 'antix/reader-keys.h', 'usr/include/reread/reader-keys.h')
@@ -64,7 +64,7 @@ Requires: Qt5Widgets Qt5Network
 Libs: -L/usr/lib -lreader-ui
 Cflags: -I/usr/include/reread
 """)
-    write('etc/reader/display.json', '{"brightness_percent":100,"safe_margin":28,"idle_dim_seconds":120}\n')
+    write('etc/reader/display.json', '{"brightness_percent":100,"idle_dim_seconds":120}\n')
     native_camera = build_dir / 'libreader-camera.so'
     subprocess.run(['g++', '-m32', '-std=c++17', '-O3', '-march=bonnell',
                     '-Wall', '-Wextra', '-Werror', '-fPIC', '-shared', '-pthread',
@@ -88,6 +88,13 @@ Cflags: -I/usr/include/reread
     copy(base / 'antix/assets/COPYING', 'usr/share/doc/reread/font-COPYING')
     copy(base / 'antix/iusbc/COPYING', 'usr/share/doc/reread/iusbc-COPYING')
     copy(module, 'lib/modules/' + kernel + '/extra/iusbc.ko')
+    backlight = build_dir / 'backlight'
+    backlight.mkdir(exist_ok=True)
+    for name in ('reader_backlight.c', 'Makefile'):
+        shutil.copy(base / 'antix/backlight' / name, backlight / name)
+    subprocess.run(['make', '-C', str(build_dir / 'module-headers'),
+                    'M=' + str(backlight), 'ARCH=x86', 'modules'], check=True)
+    copy(backlight / 'reader_backlight.ko', 'lib/modules/' + kernel + '/extra/reader_backlight.ko')
     write('usr/share/reader/version', version + '\n')
     write('usr/share/reader/kernel-version', kernel + '\n')
     write('etc/reader/power.json', '{"warning_percent":12,"critical_percent":6,"shutdown_delay_seconds":30}\n')
@@ -102,6 +109,7 @@ Maintainer: ReRead contributors
 Section: admin
 Priority: optional
 Depends: libqt5network5t64, libqt5widgets5t64, libqt5gui5t64, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Breaks: reread-app-camera (<< 0.2.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
@@ -123,7 +131,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.5.1)
+Depends: reread (>= 0.6.0)
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
 """)

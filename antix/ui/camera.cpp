@@ -1,13 +1,54 @@
 #include "reader-ui.hpp"
 using namespace ReRead;
 class Camera : public Screen {
-  QImage frame;
+  QImage frame, reviewFrame;
   QTimer capturePoll;
   quint64 sequence = 0;
   bool idlePaused = false, livePending = false, busy = false, flash = false,
        document = false, options = false, review = false;
   int option = 0, zoom = 1, rotation = 180;
-  QString job;
+  QString job, cameraError;
+  void chrome() {
+    orientation = rotation;
+    showHeader = false;
+    controlsOverlay = true;
+    if (options)
+      controls = {{READER_OK,"Change"},{READER_BACK,"Camera"}};
+    else if (review)
+      controls = {{READER_OK,"Shoot"},{READER_VIEW_TOGGLE,"Live view"},{READER_BACK,"Camera"}};
+    else
+      controls = {{READER_OK,"Shoot"},{READER_OPTIONS,"Settings"},
+                  {READER_VIEW_TOGGLE,"Last photo"},{READER_BACK,"Home"}};
+  }
+  void returnToLive() {
+    review = false;
+    reviewFrame = QImage();
+    zoom = 1;
+    chrome();
+    live();
+    update();
+  }
+  void lastPhoto() {
+    auto latest = readJson("/var/lib/reader/camera/latest.json");
+    QString name = latest.value("filename").toString();
+    if (name.isEmpty() || QFileInfo(name).fileName() != name) {
+      toast("No photos yet");
+      return;
+    }
+    QImageReader reader("/var/lib/reader/files/" + name);
+    reader.setAutoTransform(true);
+    reader.setScaledSize(reader.size().scaled(safeArea().size(),Qt::KeepAspectRatio));
+    auto image = reader.read();
+    if (image.isNull()) {
+      toast("Last photo is no longer available. Check Files.");
+      return;
+    }
+    reviewFrame = image;
+    review = true;
+    zoom = 1;
+    chrome();
+    update();
+  }
   void saveSettings() {
     writeJson(
         qEnvironmentVariable("READER_APP_DATA_DIR",
@@ -21,7 +62,7 @@ class Camera : public Screen {
       live();
   }
   void live() {
-    if (review || idlePaused || livePending)
+    if (review || options || idlePaused || livePending)
       return;
     livePending = true;
     cameraRequest(
@@ -29,7 +70,7 @@ class Camera : public Screen {
         [this](int code, QByteArray data,
                QMap<QByteArray, QByteArray> headers) {
           livePending = false;
-          if (review || idlePaused)
+          if (review || options || idlePaused)
             return;
           if (code == 200) {
             int width = headers.value("x-width").toInt();
@@ -44,18 +85,11 @@ class Camera : public Screen {
             if (!image.isNull()) {
               sequence = headers.value("x-frame").toULongLong();
               frame = image;
-              QString previousSubtitle = subtitle;
-              subtitle = busy ? "Focusing and saving…"
-                              : QString(document ? "Document" : "Photo") +
-                                    " · " + (flash ? "Flash on" : "Flash off") +
-                                    " · " + QString::number(zoom) + "×";
-              if (previousSubtitle == subtitle)
-                update(content());
-              else
-                update();
+              cameraError.clear();
+              update();
             }
           } else if (!busy) {
-            subtitle = "Camera unavailable · retrying";
+            cameraError = "Camera unavailable · retrying";
             update();
           }
           QTimer::singleShot(code == 200 ? 0 : 2000, this, [this] { live(); });
@@ -66,10 +100,7 @@ class Camera : public Screen {
     if (busy)
       return;
     busy = true;
-    if (review)
-      frame = QImage();
-    review = false;
-    live();
+    returnToLive();
     subtitle = "Focusing and saving… Hold still.";
     update();
     cameraRequest(
@@ -93,13 +124,18 @@ class Camera : public Screen {
     if (value == 0)
       return;
     if ((id == READER_BACK || id == READER_FAVORITES) && value == 1) {
+      if (id == READER_FAVORITES) {
+        if (busy) toast("Finishing photo before leaving…");
+        else qApp->quit();
+        return;
+      }
       if (options) {
         options = false;
+        live();
+        chrome();
         update();
       } else if (review) {
-        review = false;
-        live();
-        update();
+        returnToLive();
       } else if (busy)
         toast("Finishing photo before leaving…");
       else
@@ -108,6 +144,8 @@ class Camera : public Screen {
     }
     if (id == READER_OPTIONS && value == 1) {
       options = !options;
+      if (!options) live();
+      chrome();
       update();
       return;
     }
@@ -128,6 +166,7 @@ class Camera : public Screen {
         if (option == 2)
           rotation = rotation ? 0 : 180;
         saveSettings();
+        chrome();
         update();
       }
       return;
@@ -143,19 +182,8 @@ class Camera : public Screen {
       return;
     }
     if (id == READER_VIEW_TOGGLE && value == 1 && !busy) {
-      if (review) {
-        review = false;
-        live();
-      } else {
-        QImage image("/var/lib/reader/camera/preview.jpg");
-        if (!image.isNull()) {
-          frame = image;
-          review = true;
-          subtitle = "Last photo";
-        } else
-          toast("No photos yet");
-      }
-      update();
+      if (review) returnToLive();
+      else lastPhoto();
       return;
     }
     if (value == 1 && (id == READER_OK || id == READER_SHOOT))
@@ -170,11 +198,12 @@ class Camera : public Screen {
            option);
       return;
     }
-    if (frame.isNull()) {
-      text(p, r, "Starting camera…\nAim at your subject. OK takes a photo.");
+    const QImage &image = review ? reviewFrame : frame;
+    if (image.isNull()) {
+      text(p, r, cameraError.isEmpty() ? "Starting camera…" : cameraError);
       return;
     }
-    QSize size = frame.size().scaled(r.size(), Qt::KeepAspectRatio);
+    QSize size = image.size().scaled(r.size(), Qt::KeepAspectRatio);
     QRect target(QPoint(r.center().x() - size.width() / 2,
                         r.center().y() - size.height() / 2),
                  size);
@@ -183,15 +212,21 @@ class Camera : public Screen {
     p.translate(target.center());
     if (!review && rotation)
       p.rotate(rotation);
-    QRect source = frame.rect();
+    QRect source = image.rect();
     if (zoom > 1)
-      source = QRect(QPoint((frame.width() - frame.width() / zoom) / 2,
-                            (frame.height() - frame.height() / zoom) / 2),
-                     QSize(frame.width() / zoom, frame.height() / zoom));
+      source = QRect(QPoint((image.width() - image.width() / zoom) / 2,
+                            (image.height() - image.height() / zoom) / 2),
+                     QSize(image.width() / zoom, image.height() / zoom));
     p.drawImage(QRect(-target.width() / 2, -target.height() / 2, target.width(),
                       target.height()),
-                frame, source);
+                image, source);
     p.restore();
+    QString status = review ? "Last photo" : QString(document ? "Document" : "Photo") +
+        " · " + (flash ? "Flash on" : "Flash off");
+    p.fillRect(QRect(r.left(),r.top(),320,36),QColor(16,24,32,220));
+    text(p,QRect(r.left()+10,r.top(),305,36),status,21);
+    if (!cameraError.isEmpty() && !review)
+      text(p,r,cameraError,23);
     if (busy) {
       p.fillRect(QRect(r.left() + 12, r.top() + 12, 380, 42),
                  QColor(16, 24, 32, 220));
@@ -209,7 +244,7 @@ public:
     flash = settings.value("flash").toBool();
     document = settings.value("document").toBool();
     rotation = settings.value("rotation").toInt(180);
-    hint = "OK Shoot   Options Settings   View Last photo   Back Home";
+    chrome();
     subtitle = "Starting camera…";
     connect(&capturePoll, &QTimer::timeout, this, [this] {
       capturePoll.stop();

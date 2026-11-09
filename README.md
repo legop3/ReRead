@@ -1,10 +1,10 @@
 # ReRead
 
-A multipurpose handheld platform for the Intel Reader, built on **antiX 26.1 Core 32-bit**. ReRead runs a button-operated Qt framebuffer interface with Home, Files, Settings and separately packaged applications. There is no desktop or browser on the device. Large text and adjustable safe margins account for the overlapping bezel.
+A multipurpose handheld platform for the Intel Reader, built on **antiX 26.1 Core 32-bit**. ReRead runs a button-operated Qt framebuffer interface with Home, Files, Settings and separately packaged applications. There is no desktop or browser on the device. Large text and a fixed safe inset on every side account for the overlapping bezel.
 
 The first app is **Camera**: live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
 
-Power-button sleep, stock fan behavior, battery monitoring, ALSA speaker audio and physical volume control use normal Linux services. Settings provides brightness, sound, idle dimming, screen margins, connection information and power options. USB Ethernet supplies DHCP, SSH and a management web interface for files, Wi-Fi provisioning, apps and updates. Management daemons run only while connected to a USB host; camera streaming stops when no app needs it. Use a powered USB hub for installation.
+Power-button sleep, stock fan behavior, battery monitoring, ALSA speaker audio and physical volume control use normal Linux services. Settings provides brightness, sound, idle dimming, connection information and power options. USB Ethernet supplies DHCP, SSH and a management web interface for files, Wi-Fi provisioning, apps and updates. Management daemons run only while connected to a USB host; camera streaming stops when no app needs it. Use a powered USB hub for installation.
 
 ## Install or update
 

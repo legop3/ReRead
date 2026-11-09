@@ -15,14 +15,14 @@ STEP_PERCENT = 10
 
 
 def provider():
-    """Use the Reader's native 100-step driver, with a generic fallback."""
+    """Prefer the Reader panel driver, with standard Linux fallbacks."""
     choices = []
     for path in BACKLIGHTS.iterdir():
         try:
             maximum = int((path / 'max_brightness').read_text())
             kind = (path / 'type').read_text().strip()
             if maximum > 0 and (path / 'brightness').exists():
-                rank = 0 if path.name == 'psb-bl' else {'raw': 1, 'platform': 2, 'firmware': 3}.get(kind, 4)
+                rank = -1 if path.name == 'reader-panel' else (0 if path.name == 'psb-bl' else {'raw': 1, 'platform': 2, 'firmware': 3}.get(kind, 4))
                 choices.append((rank, path.name, path, maximum))
         except (OSError, ValueError):
             continue

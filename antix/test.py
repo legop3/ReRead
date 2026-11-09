@@ -32,8 +32,8 @@ def accent(picture, row):
     width, height, pixels = picture
     # Selected-row border inside the safe content area, away from clock/alerts.
     return sum(pixels[(y * width + x) * 3:(y * width + x) * 3 + 3] == b'\x38\xc9\xbb'
-               for y in range(95 + row * 84, 100 + row * 84)
-               for x in range(60, width - 60))
+               for y in range(69 + row * 84, 74 + row * 84)
+               for x in range(30, width - 30))
 
 
 def wait_screen(name, predicate, timeout=90):
@@ -61,7 +61,8 @@ try:
     vm.monitor('sendkey ret')
     # With no physical camera, the app still opens and presents its unavailable
     # state; only the real Reader can validate acquisition, focus and flash.
-    wait_screen('ui-vm-camera-app', lambda frame: accent(frame, 0) == 0)
+    wait_screen('ui-vm-camera-app', lambda frame: accent(frame, 0) == 0
+                and frame[2].count(b'\xee\xf3\xf8') > 100)
     vm.monitor('sendkey esc')
     wait_screen('ui-vm-returned-home', lambda frame: accent(frame, 0) > 100)
     for cycle in range(2):

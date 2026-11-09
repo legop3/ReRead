@@ -13,7 +13,15 @@ import time
 
 
 def connected():
-    return any(path.read_text().strip() == 'configured' for path in Path('/sys/class/udc').glob('*/state'))
+    # The legacy Poulsbo UDC can retain a stale "configured" state after
+    # disconnect. g_ether's carrier follows its actual function connection.
+    try:
+        carrier = Path('/sys/class/net/usb0/carrier').read_text().strip() == '1'
+        configured = any(path.read_text().strip() == 'configured'
+                         for path in Path('/sys/class/udc').glob('*/state'))
+        return carrier and configured
+    except OSError:
+        return False
 
 
 def main():
