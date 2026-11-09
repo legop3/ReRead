@@ -1,0 +1,53 @@
+name: Publish APT repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reread-apt-repository
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - name: Install archive tools
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends apt-utils gnupg
+      - name: Collect stable release packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 repository/download.py --repo "$GITHUB_REPOSITORY" --output build/repository/packages
+      - name: Sign and build repository
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APT_SIGNING_KEY"
+          export GNUPGHOME
+          GNUPGHOME=$(mktemp -d)
+          trap 'gpgconf --kill gpg-agent; rm -rf "$GNUPGHOME"' EXIT
+          printf '%s' "$APT_SIGNING_KEY" | gpg --batch --import
+          python3 repository/build.py build/repository/packages --output build/repository/site --key "$(cat repository/key-fingerprint)"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/repository/site
+      - name: Deploy repository
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://legop3.github.io/ReRead/apt
+Suites: stable
+Components: main
+Architectures: i386
+Signed-By: /usr/share/keyrings/reread-archive-keyring.asc

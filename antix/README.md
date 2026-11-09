@@ -13,7 +13,9 @@ identity and installed apps are not part of its payload.
 Camera updates use the separate `reread-app-camera_<version>_i386.deb` on **Apps**.
 To add Camera to an older installation, update the core first, then install that app package.
 
-For ordinary updates, open **Updates** in the USB web interface and select
+For online updates and app installation, use the [signed APT repository](../repository/README.md).
+The source and public key are included starting with ReRead 0.11.0.
+For a local package upload, open **Updates** in the USB web interface and select
 `reread_<version>_i386.deb`. The update installs in place without formatting or
 replacing the root filesystem. Wi-Fi settings, uploaded files, app data,
 hostname, passwords, SSH host keys and authorized keys remain in place.
@@ -37,8 +39,8 @@ App removal uses non-purging dpkg removal and refuses broken dependencies.
 The kernel package is pinned by an exact dependency to the hardware-tested
 kernel/driver pair. This initial update format updates the ReRead platform and
 apps, not the FAT bootloader or a different kernel ABI. Those require a future
-tested boot-update release. The antiX userspace remains apt-managed. There is
-no hosted release feed/app store yet: upload locally built release packages.
+tested boot-update release. The antiX userspace remains apt-managed; the ReRead
+APT archive supplies platform and app packages through GitHub Pages.
 
 ## Maintenance boundaries
 
@@ -52,8 +54,8 @@ versions and declare the ReRead version they require.
 This is an early platform, not a complete appliance update system. Updates are
 in-place package transactions without automatic rollback or protection against
 a power failure mid-update. Changes to the bootloader or kernel ABI still need a tested update
-and recovery path. Repository-hosted release discovery can be added later
-without changing the package format. The foreground launcher discovers standard `.desktop` entries; the shared Qt SDK defines
+and recovery path. Online package discovery in the web UI remains to be added;
+the archive already uses APT's package format. The foreground launcher discovers standard `.desktop` entries; the shared Qt SDK defines
 display, physical input and lifecycle behavior. See [UI notes](ui/README.md).
 
 ## Installation
