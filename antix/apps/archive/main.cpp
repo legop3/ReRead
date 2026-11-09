@@ -566,136 +566,207 @@ class Archive : public Screen {
 protected:
   void draw(QPainter &p,const QRect &r) override {
     p.fillRect(r,bg);
-    const QRect safe=r;
-    paintChrome(p,safe);
-    QRect body=safe.adjusted(8,61,-8,-54);
+    paintChrome(p,r);
+    QRect area=r.adjusted(18,60,-18,-47);
     if(page==HOME) {
-      txt(p,QRect(body.x()+10,body.y(),body.width(),38),"Explore the collections",27,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
-      int top=body.y()+49, gap=13, cellW=(body.width()-gap*2)/3,cellH=(body.height()-58-gap)/2;
+      // Matches the structure of archive.org's landing/catalog pages:
+      // intro, category icons, and featured collections.
+      txt(p,QRect(area.x()+12,area.y()+3,area.width()-24,45),
+          "A digital library of millions of free items",27,ink,
+          Qt::AlignLeft|Qt::AlignVCenter,true);
+      txt(p,QRect(area.x()+12,area.y()+49,area.width()-24,30),
+          "Explore books, music, historical photographs, software and collections.",17,muted);
+      p.setPen(QPen(outline));p.drawLine(area.x()+10,area.y()+91,area.right()-10,area.y()+91);
+      QStringList sub={"Sound recordings and radio","Books and documents",
+                       "Photos and illustrations","Historic computer software",
+                       "Browse curated archives","Items saved for later"};
+      const QColor tiles[]={
+        QColor("#2775ae"),QColor("#f3ad36"),QColor("#71569b"),
+        QColor("#71a65c"),QColor("#888888"),QColor("#bd7161")};
+      const int top=area.y()+110, gap=14, cell=(area.width()-gap*5)/6;
       for(int i=0;i<6;++i) {
-        QRect c(body.x()+(i%3)*(cellW+gap),top+(i/3)*(cellH+gap),cellW,cellH);
-        round(p,c,i==selected?QColor("#334b5c"):panel);
-        if(i==selected){p.setBrush(Qt::NoBrush);p.setPen(QPen(accent,3));p.drawRoundedRect(c.adjusted(1,1,-1,-1),13,13);}
-        icon(p,QRect(c.x()+19,c.y()+20,80,80),sections[i]);
-        txt(p,QRect(c.x()+111,c.y()+20,c.width()-124,42),sections[i],25,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
-        QString sub=QStringList{"Recordings & radio","Books & magazines","Photography & art","Historical programs","Curated archives","Your saved items"}[i];
-        txt(p,QRect(c.x()+111,c.y()+62,c.width()-124,48),sub,17,muted);
+        QRect tile(area.x()+i*(cell+gap),top,cell,173);
+        p.fillRect(tile,Qt::white);
+        p.setPen(QPen(i==selected?QColor("#116aa5"):outline,i==selected?3:1));
+        p.drawRect(tile.adjusted(1,1,-2,-2));
+        QRect image(tile.x()+5,tile.y()+5,tile.width()-10,94);
+        p.fillRect(image,tiles[i]);
+        icon(p,QRect(image.center().x()-29,image.center().y()-29,58,58),sections[i],Qt::white);
+        txt(p,QRect(tile.x()+8,tile.y()+107,tile.width()-16,26),
+            sections[i],19,QColor("#1769aa"),Qt::AlignCenter,true);
+        txt(p,QRect(tile.x()+8,tile.y()+137,tile.width()-16,29),
+            sub[i],12,muted,Qt::AlignCenter);
       }
+      txt(p,QRect(area.x()+10,area.bottom()-44,area.width()-20,35),
+          "Internet Archive     ·     Browse using the Reader's directional keys",17,muted);
     } else if(page==BROWSE) {
-      txt(p,QRect(body.x()+4,body.y(),body.width(),33),
-          (collectionId.isEmpty()?category:"Collection: "+category)+
-          (sortIndex==0?"    ·    Most downloaded":"    ·    Recently added"),21,muted);
-      if(entries.isEmpty())txt(p,body,status.isEmpty()?"Nothing here yet":status,25,muted,Qt::AlignCenter);
-      int top=body.y()+39,gap=11,cw=(body.width()-2*gap)/3,ch=(body.height()-45-gap)/2;
+      // Archive catalog layout: narrow sidebar + sort bar + compact cover grid.
+      int side=183, gap=15;
+      QRect aside(area.x(),area.y(),side,area.height());
+      QRect catalog(area.x()+side+gap,area.y(),area.width()-side-gap,area.height());
+      txt(p,QRect(aside.x()+4,aside.y()+2,aside.width()-8,39),
+          category,25,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
+      p.setPen(QPen(outline));p.drawLine(aside.right(),aside.y(),aside.right(),aside.bottom());
+      txt(p,QRect(aside.x()+7,aside.y()+52,aside.width()-15,28),
+          "BROWSE",15,muted,Qt::AlignLeft|Qt::AlignVCenter,true);
+      int y=aside.y()+89;
+      for(int i=0;i<sections.size();++i) {
+        bool on=category==sections[i];
+        if(on)p.fillRect(QRect(aside.x()+4,y-2,aside.width()-13,35),QColor("#e3edf6"));
+        txt(p,QRect(aside.x()+12,y,aside.width()-24,29),
+            sections[i],17,on?accent:QColor("#4e4e4e"));
+        y+=38;
+      }
+      txt(p,QRect(catalog.x()+3,catalog.y()+1,catalog.width()-6,36),
+          collectionId.isEmpty()?category+" Archive":category,26,ink,
+          Qt::AlignLeft|Qt::AlignVCenter,true);
+      p.fillRect(QRect(catalog.x(),catalog.y()+43,catalog.width(),35),QColor("#eeeeee"));
+      txt(p,QRect(catalog.x()+12,catalog.y()+44,catalog.width()-24,33),
+          QString("SORT BY     %1        PAGE %2").arg(sortIndex==0?"MOST DOWNLOADED":"RECENTLY ADDED")
+            .arg(searchPage),15,QColor("#555555"));
+      int gapX=10, cw=(catalog.width()-2*gapX)/3;
+      int top=catalog.y()+89;
+      int cardHeight=(catalog.bottom()-top-10-9)/2;
       for(int i=gridStart;i<qMin(gridStart+6,entries.size());++i){
-        int j=i-gridStart;QRect c(body.x()+(j%3)*(cw+gap),top+(j/3)*(ch+gap),cw,ch);
+        int j=i-gridStart;
+        QRect box(catalog.x()+(j%3)*(cw+gapX),top+(j/3)*(cardHeight+9),cw,cardHeight);
         const Entry &e=entries[i];
-        card(p,c,e.title,e.creator.isEmpty()?(e.date.isEmpty()?e.kind:e.date):e.creator,
+        card(p,box,e.title,e.creator.isEmpty()?e.date:e.creator,
              thumbs.value(e.id),i==selected,e.kind);
       }
-      txt(p,QRect(body.right()-175,body.y(),170,30),
-          QString("%1–%2 / %3").arg(entries.isEmpty()?0:gridStart+1)
-            .arg(qMin(gridStart+6,entries.size())).arg(entries.size()),16,accent,Qt::AlignRight);
+      if(entries.isEmpty())txt(p,QRect(catalog.x(),top,catalog.width(),130),
+          status.isEmpty()?"No items available":status,20,muted,Qt::AlignCenter);
+      txt(p,QRect(catalog.right()-90,catalog.y()+3,86,30),
+          QString("%1 items").arg(entries.size()),15,muted,Qt::AlignRight);
     } else if(page==ITEM) {
-      QRect cover(body.x()+12,body.y()+12,245,body.height()-22);
-      round(p,cover,panel);
-      if(!thumbs.value(itemId).isNull())imageIn(p,cover.adjusted(8,8,-8,-8),thumbs.value(itemId),false);
-      else icon(p,QRect(cover.center().x()-50,cover.center().y()-50,100,100),"Collections");
-      int x=cover.right()+25,w=body.right()-x-5;
-      txt(p,QRect(x,body.y()+9,w,75),itemTitle,29,ink,Qt::AlignLeft|Qt::AlignTop,true);
-      txt(p,QRect(x,body.y()+93,w,30),creator+(itemDate.isEmpty()?"":"  ·  "+itemDate),20,muted);
-      txt(p,QRect(x,body.y()+133,w,80),fitText(description,19,w*3),19,muted,Qt::AlignLeft|Qt::AlignTop);
-      QStringList actions={collectionId.isEmpty()&&
-          std::any_of(entries.begin(),entries.end(),[this](const Entry &e){return e.id==itemId&&e.kind=="collection";})
-          ?"Browse collection":"Browse files",favorites.contains(itemId)?"Remove favorite":"Add favorite","About this item"};
+      QRect left(area.x()+7,area.y()+9,235,area.height()-20);
+      QRect right(left.right()+22,area.y()+2,area.right()-left.right()-28,area.height()-5);
+      p.fillRect(left,QColor("#eeeeee"));
+      if(!thumbs.value(itemId).isNull())
+        imageIn(p,left.adjusted(8,8,-8,-8),thumbs.value(itemId),false);
+      else icon(p,QRect(left.center().x()-45,left.center().y()-45,90,90),"Collections",muted);
+      txt(p,QRect(right.x(),right.y()+5,right.width(),76),itemTitle,30,ink,
+          Qt::AlignLeft|Qt::AlignTop,true);
+      txt(p,QRect(right.x(),right.y()+87,right.width(),28),
+          creator+(itemDate.isEmpty()?"":"  ·  "+itemDate),18,muted);
+      p.setPen(QPen(outline));p.drawLine(right.x(),right.y()+126,right.right(),right.y()+126);
+      QStringList actions={"Browse available files",
+        favorites.contains(itemId)?"Remove from favorites":"Add to favorites","About this item"};
+      int y=right.y()+143;
       for(int i=0;i<actions.size();++i){
-        QRect b(x,body.y()+230+i*48,w-4,41);
-        round(p,b,i==selected?QColor("#4d5755"):panel,7);
-        txt(p,b.adjusted(15,0,-12,0),(i==selected?"›  ":"   ")+actions[i],21,i==selected?accent:ink);
+        QRect row(right.x(),y+i*47,right.width()-3,42);
+        if(i==selected)p.fillRect(row,QColor("#e3edf6"));
+        p.setPen(QPen(i==selected?accent:outline));
+        p.drawRect(row.adjusted(0,0,-1,-1));
+        txt(p,row.adjusted(15,0,-10,0),
+            QString(i==selected?"›  ":"   ")+actions[i],20,
+            i==selected?accent:ink);
       }
-      if(!loaded)txt(p,QRect(x,body.bottom()-29,w,25),"Loading item details...",17,muted);
+      txt(p,QRect(right.x()+1,right.y()+298,right.width()-4,70),
+          fitText(description,17,right.width()*3),17,muted,Qt::AlignLeft|Qt::AlignTop);
     } else if(page==FILES) {
-      txt(p,QRect(body.x()+7,body.y(),body.width(),39),fitText(itemTitle,24,body.width()-15),24,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
-      int top=body.y()+46,step=58,visible=qMax(1,(body.bottom()-top)/step);
-      for(int i=fileStart;i<qMin(files.size(),fileStart+visible);++i) {
-        QRect row(body.x()+4,top+(i-fileStart)*step,body.width()-8,step-5);
-        round(p,row,i==selected?QColor("#3b5063"):panel,8);
-        icon(p,QRect(row.x()+7,row.y()+5,45,43),
+      txt(p,QRect(area.x()+4,area.y(),area.width()-8,39),
+          fitText(itemTitle,25,area.width()-12),25,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
+      p.fillRect(QRect(area.x(),area.y()+47,area.width(),32),QColor("#eeeeee"));
+      txt(p,QRect(area.x()+10,area.y()+47,area.width()-20,32),
+          "DOWNLOAD OPTIONS                                          FILE TYPE / SIZE",15,muted);
+      int top=area.y()+84,step=57,visible=qMax(1,(area.bottom()-top)/step);
+      for(int i=fileStart;i<qMin(files.size(),fileStart+visible);++i){
+        QRect row(area.x(),top+(i-fileStart)*step,area.width(),step-2);
+        p.fillRect(row,i==selected?QColor("#e2edf6"):QColor(i%2?"#ffffff":"#f6f6f6"));
+        icon(p,QRect(row.x()+9,row.y()+5,45,43),
              isAudio(files[i].name)?"Audio":isText(files[i].name)?"Books":
-             isImage(files[i].name)?"Images":"Software",i==selected?accent:muted);
-        txt(p,QRect(row.x()+62,row.y()+4,row.width()-280,26),
-            fitText(files[i].name,21,row.width()-285),21,ink);
-        txt(p,QRect(row.x()+62,row.y()+30,row.width()-280,20),
-            fitText(files[i].format,15,row.width()-285),15,muted);
-        txt(p,QRect(row.right()-205,row.y(),190,row.height()),human(files[i].size),18,muted,Qt::AlignRight|Qt::AlignVCenter);
+             isImage(files[i].name)?"Images":"Software",
+             i==selected?accent:muted);
+        txt(p,QRect(row.x()+65,row.y()+2,row.width()-310,27),
+            fitText(files[i].name,20,row.width()-315),20,QColor("#1769aa"));
+        txt(p,QRect(row.x()+65,row.y()+30,row.width()-310,19),
+            fitText(files[i].format,15,row.width()-315),15,muted);
+        txt(p,QRect(row.right()-210,row.y(),197,row.height()),
+            human(files[i].size),18,muted,Qt::AlignRight|Qt::AlignVCenter);
       }
-      if(files.isEmpty())txt(p,body,loaded?"No available files":"Loading file list...",23,muted,Qt::AlignCenter);
-      txt(p,QRect(body.right()-130,body.y()+6,122,32),QString::number(files.size())+" files",17,accent,Qt::AlignRight);
+      if(files.isEmpty())txt(p,area,loaded?"No files listed":"Loading files...",22,muted,Qt::AlignCenter);
     } else if(page==VIEW) {
-      QRect view=body.adjusted(0,5,0,-5);
-      if(viewedImage.isNull())txt(p,view,status.isEmpty()?"Loading image...":status,22,muted,Qt::AlignCenter);
+      QRect view=area.adjusted(3,0,-3,0);
+      p.fillRect(view,QColor("#323232"));
+      if(viewedImage.isNull())txt(p,view,status.isEmpty()?"Loading image...":status,
+          23,Qt::white,Qt::AlignCenter);
       else {
-        QSize sz=viewedImage.size();sz.scale(view.size(),Qt::KeepAspectRatio);
-        sz*=imageZoom;
-        QRect dest(QPoint(0,0),sz);dest.moveCenter(view.center()+QPoint(imageX,imageY));
+        QSize size=viewedImage.size();
+        size.scale(view.size(),Qt::KeepAspectRatio);size*=imageZoom;
+        QRect dest(QPoint(0,0),size);dest.moveCenter(view.center()+QPoint(imageX,imageY));
         p.save();p.setClipRect(view);p.setRenderHint(QPainter::SmoothPixmapTransform);
         p.drawImage(dest,viewedImage);p.restore();
-        round(p,QRect(view.right()-110,view.y()+8,99,32),QColor("#25384b"));
-        txt(p,QRect(view.right()-102,view.y()+10,88,28),QString::number(imageZoom)+"× zoom",18,ink,Qt::AlignCenter);
+        txt(p,QRect(view.right()-115,view.top()+8,100,28),
+            QString::number(imageZoom)+"× zoom",17,Qt::white,Qt::AlignRight);
       }
     } else if(page==READER) {
-      round(p,body,QColor("#e7dfcb"));
-      QRect pageRect=body.adjusted(38,14,-38,-16);
+      QRect paper=area.adjusted(8,0,-8,0);
+      p.fillRect(paper,QColor("#fffdf6"));
+      QRect pageRect=paper.adjusted(45,13,-45,-20);
       QFont f=p.font();f.setFamily("DejaVu Serif");f.setPixelSize(fontSize);p.setFont(f);
-      p.setPen(QColor("#25313d"));
+      p.setPen(QColor("#222222"));
       int step=fontSize+11,visible=qMax(1,pageRect.height()/step);
-      for(int i=0;i<visible&&lineStart+i<bookLines.size();++i)
+      for(int i=0;i<visible && lineStart+i<bookLines.size();++i)
         p.drawText(pageRect.left(),pageRect.top()+fontSize+i*step,bookLines[lineStart+i]);
-      txt(p,QRect(pageRect.right()-165,pageRect.bottom()-17,160,20),
+      txt(p,QRect(pageRect.right()-175,pageRect.bottom()-19,170,20),
           QString("%1 / %2").arg(qMin(lineStart+visible,bookLines.size())).arg(bookLines.size()),
-          15,QColor("#536373"),Qt::AlignRight);
+          14,muted,Qt::AlignRight);
       if(bookLines.isEmpty())
-        txt(p,pageRect,status.isEmpty()?"Loading text...":status,24,QColor("#334355"),Qt::AlignCenter);
+        txt(p,pageRect,status.isEmpty()?"Loading text...":status,22,muted,Qt::AlignCenter);
     } else if(page==PLAYER) {
-      QRect cover(body.x()+26,body.y()+20,body.height()-40,body.height()-40);
-      round(p,cover,panel);
-      if(!thumbs.value(itemId).isNull())imageIn(p,cover.adjusted(8,8,-8,-8),thumbs.value(itemId),true);
-      else icon(p,cover.adjusted(70,70,-70,-70),"Audio");
-      int x=cover.right()+35,w=body.right()-x-8;
-      txt(p,QRect(x,body.y()+20,w,80),fitText(currentFile,28,w*2),28,ink,Qt::AlignLeft|Qt::AlignTop,true);
-      txt(p,QRect(x,body.y()+102,w,34),fitText(itemTitle,20,w),20,muted);
+      QRect cover(area.x()+35,area.y()+22,area.height()-44,area.height()-44);
+      p.fillRect(cover,QColor("#eaeaea"));
+      if(!thumbs.value(itemId).isNull())imageIn(p,cover.adjusted(7,7,-7,-7),thumbs.value(itemId),true);
+      else icon(p,cover.adjusted(65,65,-65,-65),"Audio",accent);
+      int x=cover.right()+34,w=area.right()-x-15;
+      txt(p,QRect(x,area.y()+18,w,61),fitText(currentFile,26,w*2),26,ink,
+          Qt::AlignLeft|Qt::AlignVCenter,true);
+      txt(p,QRect(x,area.y()+85,w,29),fitText(itemTitle,18,w),18,muted);
+      txt(p,QRect(x,area.y()+135,w,36),audio?paused?"PAUSED":"PLAYING":"STOPPED",19,accent);
       int progress=qMax(0,elapsed());
-      txt(p,QRect(x,body.y()+163,w,40),audio?paused?"PAUSED":"NOW PLAYING":"STOPPED",20,accent,Qt::AlignLeft|Qt::AlignVCenter,true);
-      QRect bar(x,body.y()+220,w,11);round(p,bar,QColor("#395165"),5);
-      if(audioDuration>0)round(p,QRect(bar.x(),bar.y(),int(bar.width()*qMin(1.0,double(progress)/audioDuration)),bar.height()),accent,5);
-      txt(p,QRect(x,body.y()+241,w,32),clockString(progress)+"     /     "+(audioDuration?clockString(audioDuration):"--:--"),21,ink);
-      txt(p,QRect(x,body.y()+295,w,35),"⏯  Pause / resume     ◀▶  ±10 sec",19,muted);
-      if(!status.isEmpty())txt(p,QRect(x,body.y()+340,w,30),status,17,accent);
+      QRect bar(x,area.y()+193,w,9);p.fillRect(bar,QColor("#d0d0d0"));
+      if(audioDuration>0)p.fillRect(QRect(bar.x(),bar.y(),
+        int(bar.width()*qMin(1.0,double(progress)/audioDuration)),bar.height()),accent);
+      txt(p,QRect(x,area.y()+215,w,30),
+          clockString(progress)+" / "+(audioDuration?clockString(audioDuration):"--:--"),19,muted);
+      if(!status.isEmpty())txt(p,QRect(x,area.y()+260,w,52),status,16,accent);
     } else if(page==DOWNLOAD_CONFIRM||page==DOWNLOADING) {
-      QRect box=body.adjusted(90,44,-90,-46);round(p,box,panel);
-      QString title=page==DOWNLOAD_CONFIRM?"Save this file?":"Downloading";
-      txt(p,QRect(box.x()+26,box.y()+22,box.width()-52,48),title,30,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
-      txt(p,QRect(box.x()+26,box.y()+79,box.width()-52,65),downloadFile.name,22,ink);
-      txt(p,QRect(box.x()+26,box.y()+145,box.width()-52,35),
+      QRect dialog=area.adjusted(120,35,-120,-35);
+      p.fillRect(dialog,Qt::white);
+      p.setPen(QPen(outline));p.drawRect(dialog.adjusted(0,0,-1,-1));
+      p.fillRect(QRect(dialog.x(),dialog.y(),dialog.width(),45),QColor("#eeeeee"));
+      txt(p,QRect(dialog.x()+18,dialog.y()+3,dialog.width()-36,38),
+          page==DOWNLOAD_CONFIRM?"Download file":"Downloading file",25,ink);
+      txt(p,QRect(dialog.x()+22,dialog.y()+66,dialog.width()-44,60),downloadFile.name,21,ink);
+      txt(p,QRect(dialog.x()+22,dialog.y()+137,dialog.width()-44,34),
           page==DOWNLOAD_CONFIRM?human(downloadFile.size):
-          human(received)+" / "+human(expected),21,muted);
+          human(received)+" / "+human(expected),19,muted);
       if(page==DOWNLOAD_CONFIRM)
-        txt(p,QRect(box.x()+26,box.y()+210,box.width()-52,80),
-            "Saves to Files / Internet Archive. Browsing never saves media.",20,muted);
+        txt(p,QRect(dialog.x()+22,dialog.y()+188,dialog.width()-44,65),
+            "Save to Files / Internet Archive. No files are stored by browsing.",18,muted);
       else {
-        QRect bar=box.adjusted(26,223,-26,-77);bar.setHeight(16);round(p,bar,outline,6);
-        if(expected>0)round(p,QRect(bar.x(),bar.y(),int(bar.width()*qMin(1.0,double(received)/expected)),bar.height()),accent,6);
+        QRect bar(dialog.x()+22,dialog.y()+212,dialog.width()-44,13);
+        p.fillRect(bar,QColor("#dddddd"));
+        if(expected>0)p.fillRect(QRect(bar.x(),bar.y(),
+          int(bar.width()*qMin(1.0,double(received)/expected)),bar.height()),accent);
       }
     } else if(page==INFO) {
-      txt(p,body,description.isEmpty()?"No description provided.":description,24,ink,Qt::AlignLeft|Qt::AlignTop);
+      txt(p,QRect(area.x()+14,area.y()+10,area.width()-28,36),
+          "ABOUT THIS ITEM",24,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
+      p.setPen(QPen(outline));p.drawLine(area.x()+14,area.y()+55,area.right()-14,area.y()+55);
+      txt(p,area.adjusted(18,70,-18,-4),
+          description.isEmpty()?"No description provided.":description,22,ink,
+          Qt::AlignLeft|Qt::AlignTop);
     }
-    if(!status.isEmpty() && page!=VIEW && page!=READER && page!=PLAYER &&
-       page!=DOWNLOAD_CONFIRM && page!=DOWNLOADING){
-      round(p,QRect(body.x()+10,body.bottom()-42,body.width()-20,36),QColor("#314258"),7);
-      txt(p,QRect(body.x()+20,body.bottom()-42,body.width()-40,36),
-          fitText(status,17,body.width()-40),17,accent);
+    if(!status.isEmpty()&&page!=VIEW&&page!=READER&&page!=PLAYER&&
+       page!=DOWNLOAD_CONFIRM&&page!=DOWNLOADING) {
+      QRect note(area.x()+4,area.bottom()-30,area.width()-8,30);
+      p.fillRect(note,QColor("#fff3de"));
+      txt(p,note.adjusted(8,0,-8,0),fitText(status,15,note.width()-16),15,QColor("#804d16"));
     }
   }
+
   void button(reader_button key,int state) override {
     if(state!=1 && state!=2)return;
     if(key==READER_FAVORITES&&state==1){stopAudio();close();return;}
