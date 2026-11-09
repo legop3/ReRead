@@ -67,7 +67,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: net
 Priority: optional
-Depends: reread (>= 0.13.0), libqt5network5t64
+Depends: reread (>= 0.13.0), libqt5network5t64, libmpg123-0t64, libasound2t64
 Description: Internet Archive browser for ReRead
  Browse audio, texts and image collections with artwork and physical controls.
  Stream media in memory, or explicitly download selected files.
