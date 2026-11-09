@@ -6,6 +6,8 @@
 #include <QSaveFile>
 #include <QElapsedTimer>
 #include <cmath>
+#include <algorithm>
+#include <memory>
 #include <csignal>
 #include <unistd.h>
 using namespace ReRead;
@@ -75,7 +77,7 @@ class Archive : public Screen {
   QNetworkReply *api=nullptr, *transfer=nullptr;
   QMap<QString,QImage> thumbs;
   QList<QNetworkReply*> coverJobs;
-  QSet<QString> coverPending;
+  QSet<QString> coverPending, failedCovers;
   QList<Entry> entries;
   QList<File> files;
   QStringList favorites;
@@ -260,7 +262,7 @@ class Archive : public Screen {
     });
   }
   void requestCover(const QString &id) {
-    if(id.isEmpty()||thumbs.contains(id)||coverPending.contains(id)||coverJobs.size()>=4)return;
+    if(id.isEmpty()||thumbs.contains(id)||failedCovers.contains(id)||coverPending.contains(id)||coverJobs.size()>=4)return;
     coverPending.insert(id);
     QNetworkRequest req(coverUrl(id));
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -277,6 +279,7 @@ class Archive : public Screen {
           if(!img.isNull()){thumbs[id]=img;if(thumbs.size()>32)thumbs.erase(thumbs.begin());}
         }
       }
+      if(!thumbs.contains(id))failedCovers.insert(id);
       r->deleteLater();requestVisibleCovers();update();
     });
   }
@@ -287,7 +290,7 @@ class Archive : public Screen {
       requestCover(entries[i].id);
   }
   void search() {
-    page=BROWSE;selected=0;gridStart=0;entries.clear();abortCovers();thumbs.clear();
+    page=BROWSE;selected=0;gridStart=0;entries.clear();abortCovers();thumbs.clear();failedCovers.clear();
     if(category=="Favorites"){
       loaded=true;status.clear();
       for(const auto &id:favorites)entries<<Entry{id,id,"Saved item","",""};
