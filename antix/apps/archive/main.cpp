@@ -174,9 +174,9 @@ class Archive : public Screen {
       icon(p,QRect(cover.center().x()-29,cover.center().y()-29,58,58),symbol,QColor("#858585"));
     }
     txt(p,QRect(r.x()+9,r.bottom()-57,r.width()-18,34),
-        fitText(name,18,r.width()-22),18,QColor("#135c96"),Qt::AlignLeft|Qt::AlignVCenter,true);
+        fitText(name,22,r.width()-22),22,QColor("#135c96"),Qt::AlignLeft|Qt::AlignVCenter,true);
     txt(p,QRect(r.x()+9,r.bottom()-27,r.width()-18,18),
-        fitText(sub,14,r.width()-22),14,QColor("#777777"));
+        fitText(sub,18,r.width()-22),18,QColor("#777777"));
   }
 
   int elapsed() const {return audioOffset+(audio && !paused && audioTimer.isValid()?int(audioTimer.elapsed()/1000):0);}
@@ -734,7 +734,7 @@ protected:
         txt(p,QRect(box.x()+12,box.bottom()-60,box.width()-24,34),
             sections[i],25,QColor("#1769aa"),Qt::AlignLeft|Qt::AlignVCenter,true);
         txt(p,QRect(box.x()+12,box.bottom()-29,box.width()-24,23),
-            fitText(sub[i],17,box.width()-24),17,muted);
+            fitText(sub[i],19,box.width()-24),19,muted);
       }
     } else if(page==BROWSE) {
       // Full-width covers: the small display has no room for a website sidebar.
@@ -780,17 +780,17 @@ protected:
         p.setPen(QPen(i==selected?accent:outline));
         p.drawRect(row.adjusted(0,0,-1,-1));
         txt(p,row.adjusted(15,0,-10,0),
-            QString(i==selected?"›  ":"   ")+actions[i],20,
+            QString(i==selected?"›  ":"   ")+actions[i],23,
             i==selected?accent:ink);
       }
       txt(p,QRect(right.x()+1,right.y()+298,right.width()-4,70),
-          fitText(description,17,right.width()*3),17,muted,Qt::AlignLeft|Qt::AlignTop);
+          fitText(description,20,right.width()*3),20,muted,Qt::AlignLeft|Qt::AlignTop);
     } else if(page==FILES) {
       txt(p,QRect(area.x()+4,area.y(),area.width()-8,39),
           fitText(itemTitle,25,area.width()-12),25,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
       p.fillRect(QRect(area.x(),area.y()+47,area.width(),32),QColor("#eeeeee"));
       txt(p,QRect(area.x()+10,area.y()+47,area.width()-20,32),
-          "Files and available formats",15,muted);
+          "Files and available formats",19,muted);
       int top=area.y()+84,step=57,visible=qMax(1,(area.bottom()-top)/step);
       for(int i=fileStart;i<qMin(files.size(),fileStart+visible);++i){
         QRect row(area.x(),top+(i-fileStart)*step,area.width(),step-2);
@@ -808,11 +808,11 @@ protected:
                i==selected?accent:muted);
         }
         txt(p,QRect(row.x()+65,row.y()+2,row.width()-310,27),
-            fitText(files[i].name,20,row.width()-315),20,QColor("#1769aa"));
+            fitText(files[i].name,23,row.width()-315),23,QColor("#1769aa"));
         txt(p,QRect(row.x()+65,row.y()+30,row.width()-310,19),
-            fitText(files[i].format,15,row.width()-315),15,muted);
+            fitText(files[i].format,18,row.width()-315),18,muted);
         txt(p,QRect(row.right()-210,row.y(),197,row.height()),
-            human(files[i].size),18,muted,Qt::AlignRight|Qt::AlignVCenter);
+            human(files[i].size),20,muted,Qt::AlignRight|Qt::AlignVCenter);
       }
       if(files.isEmpty())txt(p,area,loaded?"No files listed":"Loading files...",22,muted,Qt::AlignCenter);
     } else if(page==VIEW) {
