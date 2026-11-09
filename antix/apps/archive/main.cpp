@@ -775,22 +775,48 @@ protected:
             "Page "+QString::number(bookPage+1),18,muted,Qt::AlignRight);
       }
     } else if(page==PLAYER) {
-      QRect cover(area.x()+24,area.y()+24,area.height()-48,area.height()-48);
-      p.fillRect(cover,QColor("#eaeaea"));
-      if(!thumbs.value(itemId).isNull())imageIn(p,cover.adjusted(7,7,-7,-7),thumbs.value(itemId),true);
-      else icon(p,cover.adjusted(65,65,-65,-65),"Audio",accent);
-      int x=cover.right()+34,w=area.right()-x-15;
-      txt(p,QRect(x,area.y()+18,w,61),fitText(currentFile,26,w*2),26,ink,
-          Qt::AlignLeft|Qt::AlignVCenter,true);
-      txt(p,QRect(x,area.y()+85,w,29),fitText(itemTitle,18,w),18,muted);
-      txt(p,QRect(x,area.y()+135,w,36),audio?paused?"Paused":"Playing":"Stopped",19,accent);
+      p.fillRect(area,QColor("#f7f7f5"));
+      const int coverSide=qMin(area.height()-92,area.width()/2-55);
+      QRect cover(area.x()+24,area.y()+26,coverSide,coverSide);
+      p.fillRect(cover,QColor("#dedede"));
+      p.setPen(QPen(outline));p.drawRect(cover.adjusted(0,0,-1,-1));
+      if(!thumbs.value(itemId).isNull())
+        imageIn(p,cover.adjusted(6,6,-6,-6),thumbs.value(itemId),false);
+      else icon(p,cover.adjusted(coverSide/4,coverSide/4,-coverSide/4,-coverSide/4),"Audio",muted);
+      int x=cover.right()+29,w=area.right()-x-20;
+      txt(p,QRect(x,area.y()+29,w,64),fitText(currentFile,29,w*2),29,ink,
+          Qt::AlignLeft|Qt::AlignTop,true);
+      txt(p,QRect(x,area.y()+102,w,47),fitText(itemTitle,23,w),23,muted);
       int progress=qMax(0,elapsed());
-      QRect bar(x,area.y()+193,w,9);p.fillRect(bar,QColor("#d0d0d0"));
-      if(audioDuration>0)p.fillRect(QRect(bar.x(),bar.y(),
-        int(bar.width()*qMin(1.0,double(progress)/audioDuration)),bar.height()),accent);
-      txt(p,QRect(x,area.y()+215,w,30),
-          clockString(progress)+" / "+(audioDuration?clockString(audioDuration):"--:--"),19,muted);
-      if(!status.isEmpty())txt(p,QRect(x,area.y()+260,w,52),status,16,accent);
+      txt(p,QRect(x,area.y()+159,w,33),audio?(paused?"Paused":"Playing"):"Stopped",
+          23,accent,Qt::AlignLeft|Qt::AlignVCenter,true);
+      QRect bar(x,area.y()+214,w,13);
+      p.fillRect(bar,QColor("#c7c7c7"));
+      if(audioDuration>0)
+        p.fillRect(QRect(bar.x(),bar.y(),int(bar.width()*qMin(1.0,double(progress)/audioDuration)),
+                         bar.height()),QColor("#1769aa"));
+      txt(p,QRect(x,area.y()+233,w,35),
+          clockString(progress)+" / "+(audioDuration?clockString(audioDuration):"--:--"),
+          23,ink);
+      const int controlY=area.y()+298;
+      const int cell=qMin(121,(w-16)/3);
+      const reader_button keys[3]={READER_LEFT,READER_PLAY,READER_RIGHT};
+      const QString captions[3]={"Back 10s",paused||!audio?"Play":"Pause","Ahead 10s"};
+      for(int i=0;i<3;++i){
+        QRect c(x+i*(cell+8),controlY,cell,84);
+        p.fillRect(c,QColor("#333a42"));
+        buttonIcon(p,QRect(c.center().x()-19,c.y()+8,38,38),keys[i]);
+        txt(p,QRect(c.x()+3,c.y()+50,c.width()-6,28),captions[i],17,Qt::white,Qt::AlignCenter);
+      }
+      // Navigation and download remain visible without blocking the artwork.
+      QRect bottom(area.x()+26,area.bottom()-56,area.width()-52,45);
+      p.setPen(QPen(outline));p.drawLine(bottom.left(),bottom.top(),bottom.right(),bottom.top());
+      buttonIcon(p,QRect(bottom.x()+7,bottom.y()+10,27,27),READER_BACK);
+      txt(p,QRect(bottom.x()+39,bottom.y()+7,95,34),"Files",19,ink);
+      buttonIcon(p,QRect(bottom.x()+150,bottom.y()+10,27,27),READER_OPTIONS);
+      txt(p,QRect(bottom.x()+184,bottom.y()+7,185,34),"Download",19,ink);
+      if(!status.isEmpty())
+        txt(p,QRect(x,area.y()+389,w,45),status,19,QColor("#985d18"));
     } else if(page==DOWNLOAD_CONFIRM||page==DOWNLOADING) {
       QRect dialog=area.adjusted(120,35,-120,-35);
       p.fillRect(dialog,Qt::white);
