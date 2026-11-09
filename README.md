@@ -34,6 +34,11 @@ The writer checks the USB identity to avoid writing to the wrong host disk. Both
 
 ## Linux foundation
 
+Prefer standard Linux components throughout the project. Evaluate existing
+services, interfaces and formats before building replacements; keep custom code
+focused on Reader-specific hardware support and the ReRead experience. Apps remain
+independent Linux programs with optional shared helpers.
+
 ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux evdev buttons, ACPI/power_supply battery readings, and wpa_supplicant networking. Native helpers use libc and normal Linux interfaces. Qt Widgets/LinuxFB provides the embedded UI. Reader-specific code covers its physical control map, display configuration, USB controller driver, camera USB/FPGA protocol and stock fan reset. The native camera engine uses libusb and libjpeg-turbo, with recovered stock image processing. The installer also uses antiX; no stock kernel or vendor executables are required.
 
 ## Project files
