@@ -1,6 +1,8 @@
 # ReRead on-device UI
 
-ReRead uses Qt 5 Widgets on the LinuxFB platform plugin. Qt paints straight to
+Home and Camera use Qt 5 Widgets on the LinuxFB platform plugin. Independent
+apps choose their own UI; neither the Screen base class nor these libraries are
+mandatory. See [the program contract](../apps/README.md). Qt paints straight to
 Linux `/dev/fb0`; there is no desktop, X server, Wayland compositor, browser, or
 GPU requirement. The Reader exposes a 960 × 544, 32-bit framebuffer with a
 4096-byte stride. Qt handles that layout. Use large pixel fonts and keep all
@@ -13,8 +15,9 @@ packages and device administration. It does not run device applications.
 
 ## Controls and ownership
 
-`libreader-ui.so.2` supplies a safe content rectangle, selection list, transient
-notices, vector physical-button icons and input transport. Apps choose whether to
+`libreader-device.so.1` is an optional QtCore-only input/power adapter. It owns no
+renderer or app lifecycle. `libreader-ui.so.3` supplies optional drawing helpers:
+a safe content rectangle, selection list, notices and physical-button icons. Apps choose whether to
 show a compact header (`showHeader`), grouped icon/action controls (`controls`
 and `showControls`), or overlay controls on their own content (`controlsOverlay`).
 There is no mandatory header, subtitle row or footer bar. Camera uses a full
@@ -22,14 +25,16 @@ preview with small overlays; Home and Settings use the compact system header.
 Set `orientation=180` to rotate the entire screen, including overlays, and reverse
 the D-pad directions to follow the rotated display. Saved camera JPEG rotation
 is separate from screen orientation.
-Apps subclass `ReRead::Screen`, implement `draw` and `button`, then run a normal
-Qt event loop. `reader-keys.h` is the stable semantic button enumeration; apps
+Apps choosing Screen subclass it, implement `draw` and `button`, then run a
+normal Qt event loop. Other apps may use ordinary widgets plus Device, or their
+own Linux input/rendering without either library. The Camera service client
+belongs to the Camera executable, not the shared drawing library. `reader-keys.h` is the stable semantic button enumeration; apps
 never depend on historical stock labels or raw scan codes.
 
 Only the foreground process grabs evdev and paints the framebuffer. The launcher
 hides and releases its input descriptors before starting an app with QProcess;
 on exit or launch failure it returns to Home and grabs input again. Apps exit on
-Back at their root or Favorites (Home). The SDK sets Linux's parent-death signal,
+Back at their root or Favorites (Home). The launcher sets Linux's parent-death signal before exec,
 so an app does not remain orphaned after its launcher is terminated. No shell is
 involved in app execution. External USB arrow/Enter/Escape keys also work.
 
@@ -75,7 +80,7 @@ Qt references: [embedded Linux](https://doc.qt.io/qt-6/embedded-linux.html),
 [Linux device input](https://doc.qt.io/qt-6/inputs-linux-device.html). Qt 5 is used
 because Debian supplies its maintained i386 packages for this Reader's CPU.
 
-The 0.6.0 SDK uses SONAME 2. Upgrade core and Camera 0.2.0 together when
-moving from the initial UI prototype. The core package declares a conflict
+The 0.7.0 split uses device SONAME 1 and optional UI SONAME 3. Upgrade core and
+Camera 0.3.0 together when moving from the earlier combined helper. The core package declares a conflict
 with the old Camera binary instead of letting it start with an incompatible
 SDK. Future apps should declare the minimum core version for their SDK.

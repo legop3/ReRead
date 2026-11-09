@@ -27,8 +27,9 @@ without a shell. File/URL field codes are not passed: the current launcher start
 apps without a document. Use one entry per foreground application. Its desktop
 basename is the stable UI identity, e.g. `reread-camera`.
 
-Native applications use `Architecture: i386`, `Depends: reread (>= 0.6.0)` and
-their real dependencies. Code belongs in `/usr/lib/reread/apps/<id>/`, shared
+Native packages use `Architecture: i386` and declare their real dependencies.
+Apps choosing the new device helper need `Depends: reread (>= 0.7.0)`; apps
+using neither helper can declare the earliest platform version they require. Code belongs in `/usr/lib/reread/apps/<id>/`, shared
 assets in `/usr/share/reread/apps/<id>/`. The launcher exports `READER_APP_ID`,
 `READER_APP_DATA_DIR=/var/lib/reader/apps/<desktop-basename>` and `XDG_DATA_HOME`
 pointing to that private data location. Apps create their own files there. Public
@@ -40,19 +41,46 @@ Apps are trusted local Linux processes, currently running with the handheld UI's
 root privileges. This is not an app sandbox. They must not replace platform
 services, touch raw hardware already owned by a service, or reset global settings.
 
-## UI and lifecycle
+## Independent programs and lifecycle
 
-Use Qt Widgets with the installed `reread-ui` SDK. Subclass `ReRead::Screen` and
-implement `draw(QPainter&, const QRect&)` and `button(reader_button, int)`.
-The rectangle is already inset for the bezel. Call `text` / `list` or draw normal
-Qt content in that rectangle. Choose `showHeader`, `showControls` and `controlsOverlay`; set `title`,
-provide `controls` as button-ID/action pairs and use `toast` for
-short feedback. A plain QApplication event loop is enough; no application server
-or desktop session is required. See `antix/ui/camera.cpp` for a complete app.
+An app is its own Linux executable, launched as a child process. No ReRead base
+class, plugin API, shared UI, theme or runtime library is required. Choose your
+own toolkit, widgets, layout and rendering. Home only launches the desktop
+entry, releases its framebuffer/input, and returns when the program exits.
+It also sets Linux's parent-death signal before exec, so the main app terminates
+if Home dies even when the app links no ReRead library. Foreground programs must
+not daemonize; clean up their own worker processes on exit.
 
-Build using `g++ -fPIC app.cpp $(pkg-config --cflags --libs reread-ui)` in an i386
-build environment (the supplied builder uses `-m32`). The shared SDK keeps input,
-brightness recovery, volume, sleep, Hold and status chrome consistent.
+There are two **optional** helpers for Qt applications:
+
+- `reread-device` / `reader-device.hpp`: a QtCore-only `ReRead::Device` object
+  that handles calibrated evdev input, Hold, volume, sleep/wake and idle dimming.
+  It owns no window and draws nothing. Register callbacks with `onButton`,
+  `onIdle`, `onHold`, `onNotice` and `onResume`; call `setActive(true)` only while
+  owning foreground input and `setActive(false)` when handing it back. Call
+  `activity()` for any additional input your own widgets receive.
+- `reread-ui` / `reader-ui.hpp`: optional Qt Widgets drawing helpers and a
+  `Screen` widget, used by Home and Camera by choice. Lists, button glyphs,
+  margins, headers, notices and rotation are conveniences, not an app format.
+
+Use normal `pkg-config --cflags --libs reread-device Qt5Widgets` to build a Qt
+Widgets app that chooses device helpers, or `reread-ui` when choosing the drawing
+helpers too. The supplied builder targets i386 with `-m32`. SDK files are shipped
+in the core package; headers/libraries can be copied into a development sysroot
+without installing the Reader OS on a workstation.
+
+[device-window.cpp](examples/device-window.cpp) is an ordinary QWidget/QVBoxLayout
+application with its own appearance, using only `Device`. It has no `Screen`
+subclass and does not link `libreader-ui`. After building the libraries with
+`antix/ui/build.sh`, `antix/apps/examples/build.sh` builds this developer example
+inside the builder. It is not installed as a default app.
+
+When choosing `Device`, disable duplicate toolkit evdev handling before creating
+QApplication with `qputenv("QT_QPA_FB_DISABLE_INPUT", "1")`; the example and Camera
+do this. Home does not force that setting on independent applications. Apps using
+their own toolkit input or raw Linux evdev can ignore both optional libraries.
+They use the same button IDs/keycode table in `reader-keys.h` and existing system
+helpers below; handle system controls and release input/resources on exit.
 
 Button values follow Linux evdev: 0 released, 1 pressed and 2 repeated. Ignore
 release for ordinary navigation; use value 1 for actions that must fire only once.
@@ -60,18 +88,23 @@ IDs are semantic enums from `reader-keys.h`. Up/Down move focus, OK activates,
 Back returns within the app then exits from its root, Favorites exits to Home,
 Options opens app settings, and Guide explains controls. Provide useful grouped button-icon/action hints when they help. Power, volume and Hold belong to the shared system layer. Avoid idle
 animations or polling; use Qt socket notifiers, signals and timers only as needed.
-Override `idleChanged(bool)` to stop/restart expensive activity during dimming.
+Use Device's `onIdle` callback, or Screen's `idleChanged(bool)` when choosing
+that widget, to stop/restart expensive activity during dimming.
 
 Only one foreground app owns the framebuffer/input. The launcher releases them
 before starting an app and returns automatically when it exits, including crashes.
 Stop activity and close local-service requests on exit. Launch failures return to
-Home with feedback. Parent death terminates SDK apps rather than leaving input
+Home with feedback. The launcher terminates the main app on parent death rather than leaving input
 grabs behind. An app must not start a second framebuffer renderer.
 
 ## Platform services
 
 Audio uses ALSA (`default:CARD=MID`); master volume uses `reader-audio`.
 Display brightness uses `reader-brightness`; power uses `reader-power`.
+Apps using their own input handling call `reader-audio up/down` for volume and
+`reader-power suspend` after a short Power release. Hold value 1 means unlocked,
+0 means locked; suppress ordinary keys while locked. These are Linux command
+interfaces, usable from any language, not requirements to link a UI library.
 Battery state is `/run/reader-battery.json`, sampled by the existing Linux
 power-supply monitor. UI services do not emulate these Linux subsystems.
 

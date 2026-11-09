@@ -1,5 +1,72 @@
 #include "reader-ui.hpp"
+#include <QtNetwork>
+#include <memory>
 using namespace ReRead;
+namespace {
+void cameraRequest(
+    const QString &endpoint, const QJsonObject &body,
+    std::function<void(int, QByteArray, QMap<QByteArray, QByteArray>)> done,
+    QObject *owner) {
+  auto socket = new QLocalSocket(owner);
+  auto data = std::make_shared<QByteArray>();
+  auto timer = new QTimer(socket);
+  timer->setSingleShot(true);
+  auto finished = std::make_shared<bool>(false);
+  auto finish = [socket, data, timer, done,
+                 finished](int code, QByteArray bytes,
+                           QMap<QByteArray, QByteArray> headers) {
+    if (*finished)
+      return;
+    *finished = true;
+    timer->stop();
+    done(code, bytes, headers);
+    socket->deleteLater();
+  };
+  QObject::connect(timer, &QTimer::timeout, socket,
+                   [finish] { finish(504, "Camera request timed out", {}); });
+  QObject::connect(
+      socket, &QLocalSocket::connected, socket, [socket, endpoint, body] {
+        bool get = endpoint == "/status" || endpoint.startsWith("/live?") ||
+                   endpoint.startsWith("/rgb?");
+        QByteArray bytes = QJsonDocument(body).toJson(QJsonDocument::Compact);
+        socket->write(
+            (get ? "GET " : "POST ") + endpoint.toUtf8() +
+            " HTTP/1.0\r\nContent-Type: application/json\r\nContent-Length: " +
+            QByteArray::number(get ? 0 : bytes.size()) + "\r\n\r\n" +
+            (get ? QByteArray() : bytes));
+      });
+  QObject::connect(socket, &QLocalSocket::readyRead, socket,
+                   [socket, data, finish] {
+                     *data += socket->readAll();
+                     int end = data->indexOf("\r\n\r\n");
+                     if (end < 0)
+                       return;
+                     auto lines = data->left(end).split('\n');
+                     QMap<QByteArray, QByteArray> headers;
+                     for (auto line : lines) {
+                       int colon = line.indexOf(':');
+                       if (colon > 0)
+                         headers[line.left(colon).toLower().trimmed()] =
+                             line.mid(colon + 1).trimmed();
+                     }
+                     int length = headers.value("content-length").toInt();
+                     if (data->size() < end + 4 + length)
+                       return;
+                     finish(lines.first().split(' ').value(1).toInt(),
+                            data->mid(end + 4, length), headers);
+                   });
+  QObject::connect(socket,
+                   QOverload<QLocalSocket::LocalSocketError>::of(
+                       &QLocalSocket::errorOccurred),
+                   socket, [finish](QLocalSocket::LocalSocketError e) {
+                     if (e != QLocalSocket::PeerClosedError)
+                       finish(503, "Camera service unavailable", {});
+                   });
+  timer->start(30000);
+  socket->connectToServer("/run/reader-camera.sock");
+}
+} // namespace
+
 class Camera : public Screen {
   QImage frame, reviewFrame;
   QTimer capturePoll;
@@ -278,6 +345,7 @@ public:
   }
 };
 int main(int argc, char **argv) {
+  qputenv("QT_QPA_FB_DISABLE_INPUT", "1");
   QApplication app(argc, argv);
   app.setFont(QFont("DejaVu Sans"));
   Camera window;

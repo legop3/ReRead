@@ -1,6 +1,6 @@
 # ReRead
 
-A multipurpose handheld platform for the Intel Reader, built on **antiX 26.1 Core 32-bit**. ReRead runs a button-operated Qt framebuffer interface with Home, Files, Settings and separately packaged applications. There is no desktop or browser on the device. Large text and a fixed safe inset on every side account for the overlapping bezel.
+A multipurpose handheld platform for the Intel Reader, built on **antiX 26.1 Core 32-bit**. Home, Files and Settings use a button-operated Qt framebuffer interface. Apps are separately packaged Linux programs with their own UI; device and drawing helpers are optional. There is no desktop or browser on the device. Large text and a fixed safe inset on every side account for the overlapping bezel.
 
 The first app is **Camera**: live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
 

@@ -51,16 +51,27 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
     ui = build_dir / 'ui'
     subprocess.run([str(base / 'antix/ui/build.sh'), str(ui)], check=True)
-    copy(ui / 'libreader-ui.so.2', 'usr/lib/libreader-ui.so.2', 0o755)
-    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.2')
+    copy(ui / 'libreader-ui.so.3', 'usr/lib/libreader-ui.so.3', 0o755)
+    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.3')
+    copy(ui / 'libreader-device.so.1', 'usr/lib/libreader-device.so.1', 0o755)
+    (root / 'usr/lib/libreader-device.so').symlink_to('libreader-device.so.1')
+    copy(base / 'antix/ui/reader-device.hpp', 'usr/include/reread/reader-device.hpp')
+    write('usr/lib/i386-linux-gnu/pkgconfig/reread-device.pc', f"""prefix=/usr
+Name: ReRead device helpers
+Description: Optional QtCore-only Reader input and power integration
+Version: {version}
+Requires: Qt5Core
+Libs: -L/usr/lib -lreader-device
+Cflags: -I/usr/include/reread
+""")
     copy(ui / 'reader-launcher', 'usr/local/bin/reader-launcher', 0o755)
     copy(base / 'antix/ui/reader-ui.hpp', 'usr/include/reread/reader-ui.hpp')
     copy(base / 'antix/reader-keys.h', 'usr/include/reread/reader-keys.h')
     write('usr/lib/i386-linux-gnu/pkgconfig/reread-ui.pc', f"""prefix=/usr
 Name: ReRead UI
-Description: ReRead framebuffer UI and physical controls
+Description: Optional ReRead framebuffer drawing helpers
 Version: {version}
-Requires: Qt5Widgets Qt5Network
+Requires: reread-device Qt5Widgets
 Libs: -L/usr/lib -lreader-ui
 Cflags: -I/usr/include/reread
 """)
@@ -108,8 +119,8 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: libqt5network5t64, libqt5widgets5t64, libqt5gui5t64, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
-Breaks: reread-app-camera (<< 0.2.0)
+Depends: libqt5widgets5t64, libqt5gui5t64, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Breaks: reread-app-camera (<< 0.3.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
@@ -131,7 +142,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.6.0)
+Depends: reread (>= 0.7.0), libqt5network5t64
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
 """)

@@ -1,32 +1,15 @@
 #pragma once
-#include "reader-keys.h"
-#include <QtNetwork>
+#include "reader-device.hpp"
 #include <QtWidgets>
 #include <functional>
 namespace ReRead {
-QJsonObject readJson(const QString &path);
-void writeJson(const QString &path, const QJsonObject &value);
-void command(const QString &program, const QStringList &args,
-             std::function<void(QByteArray)> done = {});
-void cameraRequest(
-    const QString &endpoint, const QJsonObject &body,
-    std::function<void(int, QByteArray, QMap<QByteArray, QByteArray>)> done,
-    QObject *owner);
 class Screen : public QWidget {
-  struct Input {
-    int fd;
-    QSocketNotifier *notifier;
-    bool builtin;
-  };
-  QList<Input> inputs;
-  QTimer discovery, clock, idle;
-  bool dimmed = false, locked = false, powerDown = false, suspending = false;
-  qint64 lastVolume = 0, powerBlockUntil = 0;
-  void discover();
-  void closeInputs();
-  void activity();
+  Device *device;
+  QTimer clock;
 
 protected:
+  void showEvent(QShowEvent *) override;
+  void hideEvent(QHideEvent *) override;
   void paintEvent(QPaintEvent *) override;
   void keyPressEvent(QKeyEvent *) override;
   virtual void idleChanged(bool) {}

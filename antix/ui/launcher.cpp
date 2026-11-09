@@ -1,6 +1,20 @@
 #include "reader-ui.hpp"
 #include <sys/statvfs.h>
+#include <sys/prctl.h>
+#include <signal.h>
+#include <unistd.h>
 using namespace ReRead;
+// Lifecycle belongs to the launcher, including apps that use no ReRead library.
+class AppProcess : public QProcess {
+  pid_t launcherPid = getpid();
+protected:
+  void setupChildProcess() override {
+    if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 || getppid() != launcherPid)
+      _exit(127);
+  }
+public:
+  using QProcess::QProcess;
+};
 class Launcher : public Screen {
   struct App {
     QString name, description, exec, id;
@@ -173,8 +187,11 @@ class Launcher : public Screen {
       if (args[i].startsWith('%'))
         args.removeAt(i);
     QString executable = args.takeFirst();
-    child = new QProcess(this);
+    child = new AppProcess(this);
     auto env = QProcessEnvironment::systemEnvironment();
+    // An independent Qt app may use its toolkit's own Linux input backend.
+    // Apps choosing Device disable duplicate toolkit input themselves.
+    env.remove("QT_QPA_FB_DISABLE_INPUT");
     QString data = "/var/lib/reader/apps/" + app.id;
     QDir().mkpath(data);
     env.insert("READER_APP_ID", app.id);
