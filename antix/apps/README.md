@@ -15,7 +15,7 @@ Type=Application
 Name=My application
 Comment=A short purpose shown on Home
 Exec=/usr/lib/reread/apps/example/example
-Icon=applications-utilities
+Icon=example
 Categories=Utility;
 X-ReRead=true
 Terminal=false
@@ -26,6 +26,19 @@ Hidden/NoDisplay entries are excluded. Exec launches an executable with argument
 without a shell. File/URL field codes are not passed: the current launcher starts
 apps without a document. Use one entry per foreground application. Its desktop
 basename is the stable UI identity, e.g. `reread-camera`.
+
+Every foreground app **must supply an icon** through the standard `Icon=` key.
+Install its SVG or PNG in the normal hicolor theme, for example
+`/usr/share/icons/hicolor/scalable/apps/example.svg` with `Icon=example` (no
+extension). Use a unique application name for the icon. An absolute image path
+is also supported. Prefer a clear silhouette with few details: Home displays
+icons at about 100 pixels. No ReRead-specific image format or drawing API is
+needed. Home resolves theme names with Qt's icon-theme support and shows a
+fallback for missing/broken artwork so the application stays accessible.
+The app installer rejects foreground desktop entries with an empty/missing
+`Icon=` before installing; background-only services do not need icons.
+See the [desktop-entry icon key](https://specifications.freedesktop.org/desktop-entry/latest/recognized-keys.html)
+and [Linux icon-theme specification](https://specifications.freedesktop.org/icon-theme/).
 
 Native packages use `Architecture: i386` and declare their real dependencies.
 Apps choosing the new device helper need `Depends: reread (>= 0.7.0)`; apps
@@ -59,6 +72,9 @@ There are two **optional** helpers for Qt applications:
   `onIdle`, `onHold`, `onNotice` and `onResume`; call `setActive(true)` only while
   owning foreground input and `setActive(false)` when handing it back. Call
   `activity()` for any additional input your own widgets receive.
+  It also applies the user's optional auto-suspend timeout; activity restarts
+  both idle timers. Auto-suspend uses the existing Linux sleep helper and defers
+  while a package operation holds the package lock.
 - `reread-ui` / `reader-ui.hpp`: optional Qt Widgets drawing helpers and a
   `Screen` widget, used by Home and Camera by choice. Lists, button glyphs,
   margins, headers, notices and rotation are conveniences, not an app format.

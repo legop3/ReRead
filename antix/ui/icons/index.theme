@@ -1,0 +1,12 @@
+[Icon Theme]
+Name=ReRead
+Comment=Small system icon set for the Reader
+Inherits=hicolor
+Directories=scalable/apps
+
+[scalable/apps]
+Size=128
+MinSize=16
+MaxSize=512
+Type=Scalable
+Context=Applications

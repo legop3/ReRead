@@ -64,6 +64,8 @@ def main():
     try:
         if args.action == 'install':
             manager.package_info(args.value, 'platform' if args.package == 'reread' else 'app')
+            if args.package != 'reread':
+                manager.check_app_icons(args.value)
             run('apt-get', '-y', '--no-remove', '--reinstall', '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold',
                 'install', str(Path(args.value).resolve()))
             if args.package != 'reread':

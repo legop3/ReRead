@@ -75,7 +75,12 @@ Requires: reread-device Qt5Widgets
 Libs: -L/usr/lib -lreader-ui
 Cflags: -I/usr/include/reread
 """)
-    write('etc/reader/display.json', '{"brightness_percent":100,"idle_dim_seconds":120}\n')
+    write('etc/reader/display.json', '{"brightness_percent":100,"idle_dim_seconds":120,"auto_suspend_seconds":0}\n')
+    for asset in (base / 'antix/ui/icons').iterdir():
+        if asset.name == 'reread-camera.svg':
+            continue  # The Camera package owns its application icon.
+        target = 'index.theme' if asset.name == 'index.theme' else 'scalable/apps/' + asset.name
+        copy(asset, 'usr/share/icons/reread/' + target)
     native_camera = build_dir / 'libreader-camera.so'
     subprocess.run(['g++', '-m32', '-std=c++17', '-O3', '-march=bonnell',
                     '-Wall', '-Wextra', '-Werror', '-fPIC', '-shared', '-pthread',
@@ -119,7 +124,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: libqt5widgets5t64, libqt5gui5t64, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: libqt5widgets5t64, libqt5gui5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Breaks: reread-app-camera (<< 0.3.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
@@ -151,12 +156,15 @@ Type=Application
 Name=Camera
 Comment=Live view, photographs and documents
 Exec=/usr/lib/reread/apps/camera/reader-camera-app
-Icon=camera-photo
+Icon=reread-camera
 Categories=Graphics;Photography;
 X-ReRead=true
 Terminal=false
 """)
     appwrite('usr/share/reread/apps/reread-app-camera.json', '{"name":"Camera","description":"Live view, photographs and documents","desktop":"reread-camera.desktop"}\n')
+    camera_icon = app / 'usr/share/icons/hicolor/scalable/apps/reread-camera.svg'
+    camera_icon.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(base / 'antix/ui/icons/reread-camera.svg', camera_icon)
     target = app / 'usr/lib/reread/apps/camera/reader-camera-app'
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(ui / 'reader-camera', target)

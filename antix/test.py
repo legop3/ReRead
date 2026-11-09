@@ -28,12 +28,17 @@ def screen(name):
     return width, height, pixels
 
 
-def accent(picture, row):
+def accent(picture, column):
     width, height, pixels = picture
-    # Selected-row border inside the safe content area, away from clock/alerts.
-    return sum(pixels[(y * width + x) * 3:(y * width + x) * 3 + 3] == b'\x38\xc9\xbb'
-               for y in range(69 + row * 84, 74 + row * 84)
-               for x in range(30, width - 30))
+    # The fresh image has Camera, Files and Settings in one centered grid row.
+    content_height = height - 84
+    tile_width = (width - 60) // 3
+    tile_height = (content_height - 66) // 2
+    top = 70 + (content_height - 50 - tile_height) // 2
+    left = 14 + column * (tile_width + 16)
+    return sum(pixels[(y * width + x) * 3:(y * width + x) * 3 + 3] == b'\x65\xde\xd0'
+               for y in range(top + 1, top + 4)
+               for x in range(left + 25, left + tile_width - 25))
 
 
 def wait_screen(name, predicate, timeout=90):
@@ -54,9 +59,9 @@ try:
     vm.expect('/boot')
     vm.expect('vfat')
     wait_screen('ui-vm-home', lambda frame: accent(frame, 0) > 100)
-    vm.monitor('sendkey down')
+    vm.monitor('sendkey right')
     wait_screen('ui-vm-files-selected', lambda frame: accent(frame, 1) > 100)
-    vm.monitor('sendkey up')
+    vm.monitor('sendkey left')
     wait_screen('ui-vm-camera-selected', lambda frame: accent(frame, 0) > 100)
     vm.monitor('sendkey ret')
     # With no physical camera, the app still opens and presents its unavailable

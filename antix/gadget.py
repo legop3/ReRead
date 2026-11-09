@@ -38,7 +38,7 @@ def configure(root, base, build, kernel):
     policy.chmod(0o755)
     try:
         run('chroot', str(root), 'apt-get', 'install', '-y', '--no-install-recommends',
-            'dropbear-bin', 'chrony', 'alsa-utils', 'python3-usb', 'libstdc++6', 'libusb-1.0-0', 'libjpeg62-turbo', 'fxload', 'libqt5network5t64', 'libqt5widgets5t64', 'libqt5gui5t64', 'fonts-dejavu-core')
+            'dropbear-bin', 'chrony', 'alsa-utils', 'python3-usb', 'libstdc++6', 'libusb-1.0-0', 'libjpeg62-turbo', 'fxload', 'libqt5network5t64', 'libqt5widgets5t64', 'libqt5gui5t64', 'libqt5svg5', 'hicolor-icon-theme', 'fonts-dejavu-core')
     finally:
         if old_policy is None:
             policy.unlink()

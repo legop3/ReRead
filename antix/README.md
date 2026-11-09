@@ -257,9 +257,17 @@ confirmed. See [audio findings](../analysis/audio.md).
 
 ## Sleep
 
-Press and release Power to suspend to RAM; press Power again to wake. Holding it retains the firmware's forced power-off behavior. The button viewer consumes duplicate/wake events to avoid immediately sleeping again. The helper selects `deep` when available, otherwise uses the supported `mem` default; if suspend fails the screen reports it and `/var/log/reader/power.log` records the error. A normal shutdown menu is future work.
+Press and release Power to suspend to RAM; press Power again to wake. Holding it retains the firmware's forced power-off behavior. The device helper consumes duplicate/wake events to avoid immediately sleeping again. The power helper selects `deep` when available, otherwise uses the supported `mem` default; `/var/log/reader/power.log` records suspend errors. Settings / Power provides Sleep now, Restart and Shut down.
 
-The owner confirmed sleep works on the installed antiX system. USB gadget reconnect after sleep remains to be tested with the new driver.
+Settings / Power also provides optional automatic sleep after 2, 5, 10 or 30
+minutes without button activity. It defaults to Off, applies on battery and AC,
+and uses the same Linux suspend path as the Power button. Activity resets the
+timeout; package operations defer automatic sleep. The saved value is
+`auto_suspend_seconds` in `/etc/reader/display.json`.
+
+The owner confirmed deep sleep/wake, restored camera preview and USB management
+reconnection on the installed antiX system; see
+[the validation record](../analysis/reread-ui-validation.md).
 
 ## USB networking
 

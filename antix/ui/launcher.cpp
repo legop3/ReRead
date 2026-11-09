@@ -18,25 +18,42 @@ public:
 class Launcher : public Screen {
   struct App {
     QString name, description, exec, id;
+    QIcon icon;
   };
   QList<App> apps;
   QString page = "home", information;
   int selected = 0;
   qint64 lastAdjustment = 0;
   QStringList labels, details, files;
+  QList<QIcon> icons;
+  static constexpr int columns = 3, pageSize = 6;
   QImage photo;
   QProcess *child = nullptr;
+  QMap<QString, int> positions;
+  bool adjustmentPage() const {
+    return page == "display" || page == "sound" || (page == "power" && selected == 0);
+  }
   void selectionControls() {
-    if (page == "settings")
-      controls = selected < 3
-          ? QList<Control>{{READER_LEFT,"Less"},{READER_RIGHT,"More"},{READER_BACK,"Home"}}
-          : QList<Control>{{READER_OK,"Open"},{READER_BACK,"Home"}};
+    if (adjustmentPage())
+      controls = {{READER_LEFT,"Less"},{READER_RIGHT,"More"},{READER_BACK,"Settings"}};
+    else if (page == "power")
+      controls = {{READER_OK,"Select"},{READER_BACK,"Settings"}};
+  }
+  static QString duration(int seconds) {
+    return seconds == 0 ? "Off" : seconds < 60 ? QString::number(seconds) + " seconds"
+                                              : QString::number(seconds / 60) + " min";
+  }
+  static QIcon icon(const QString &name) {
+    QIcon result = name.startsWith('/') ? QIcon(name) : QIcon::fromTheme(name);
+    return result.isNull() ? QIcon::fromTheme("application-x-executable") : result;
   }
   void refresh() {
     showHeader = true;
+    showControls = true;
     controlsOverlay = false;
     labels.clear();
     details.clear();
+    icons.clear();
     title = page == "home"       ? "ReRead"
             : page == "files"    ? "Files"
             : page == "settings" ? "Settings"
@@ -45,6 +62,7 @@ class Launcher : public Screen {
     subtitle = "";
     controls = {{READER_OK,"Open"},{READER_OPTIONS,"Settings"}};
     if (page == "home") {
+      showControls = false;
       apps.clear();
       for (const auto &file : QDir("/usr/share/applications")
                                   .entryList({"*.desktop"}, QDir::Files)) {
@@ -76,10 +94,14 @@ class Launcher : public Screen {
             desktop.value("NoDisplay") == "true")
           continue;
         App app{desktop.value("Name"), desktop.value("Comment"),
-                desktop.value("Exec"), file.left(file.size() - 8)};
+                desktop.value("Exec"), file.left(file.size() - 8),
+                icon(desktop.value("Icon"))};
         if (app.name.isEmpty() || app.exec.isEmpty())
           continue;
+        if (desktop.value("Icon").isEmpty())
+          qWarning() << file << "needs an Icon= entry; using the fallback icon";
         apps.append(app);
+        icons << app.icon;
         labels << app.name;
         details << app.description;
       }
@@ -87,7 +109,7 @@ class Launcher : public Screen {
              << "Settings";
       details << "Photos and files stored on this Reader"
               << "Display, sound, connections and power";
-      subtitle = "Your Reader · Apps";
+      icons << icon("folder") << icon("preferences-system");
     } else if (page == "files") {
       files = QDir("/var/lib/reader/files").entryList(QDir::Files, QDir::Time);
       labels = files;
@@ -98,41 +120,34 @@ class Launcher : public Screen {
       }
       controls = {{READER_OK,"Open"},{READER_BACK,"Home"}};
     } else if (page == "settings") {
-      int brightness = 100;
-      QFile f("/sys/class/backlight/reader-panel/brightness");
-      if (f.open(QIODevice::ReadOnly))
-        brightness = f.readAll().trimmed().toInt();
+      labels << "Display" << "Sound" << "Power" << "Connections" << "About ReRead";
+      details << "Brightness and idle dimming" << "Speaker and headphone volume"
+              << "Automatic sleep, restart and shutdown" << "Wi-Fi and USB"
+              << "Version and storage";
+      for (const auto &name : {"video-display", "audio-volume-high", "system-suspend",
+                               "network-wireless", "help-about"}) icons << icon(name);
+      controls = {{READER_OK,"Open"},{READER_BACK,"Home"}};
+    } else if (page == "display") {
+      title = "Settings / Display";
       auto config = readJson("/etc/reader/display.json");
-      int idle = config.value("idle_dim_seconds").toInt(120);
-      labels << "Brightness"
-             << "Volume"
-             << "Idle dim"
-             << "Connections"
-             << "About ReRead"
-             << "Power";
+      labels << "Brightness" << "Dim after";
+      details << QString::number(config.value("brightness_percent").toInt(100)) + "%"
+              << duration(config.value("idle_dim_seconds").toInt(120));
+    } else if (page == "sound") {
+      title = "Settings / Sound";
+      labels << "Volume";
       QFile audio("/run/reader-audio-status");
-      QString volume;
-      if (audio.open(QIODevice::ReadOnly))
-        volume = QString::fromUtf8(audio.readAll()).trimmed();
-      details << QString::number(brightness) + "% · Left / Right to adjust"
-              << volume + " · Left / Right to adjust"
-              << (idle ? QString::number(idle) +
-                             " seconds · Left / Right to change"
-                       : "Off · Left / Right to change")
-              << "Wi-Fi and USB information"
-              << "Version, storage and application information"
-              << "Sleep, reboot or shut down";
-      controls = {{READER_LEFT,"Less"},{READER_RIGHT,"More"},{READER_BACK,"Home"}};
+      details << (audio.open(QIODevice::ReadOnly)
+                  ? QString::fromUtf8(audio.readAll()).trimmed() : "Use the volume buttons");
     } else if (page == "power") {
-      labels << "Sleep"
-             << "Reboot"
-             << "Shut down";
-      details << "Wake with the power button"
-              << "Restart ReRead"
-              << "Turn the Reader off";
-      controls = {{READER_OK,"Select"},{READER_BACK,"Cancel"}};
+      title = "Settings / Power";
+      labels << "Auto sleep after" << "Sleep now" << "Restart" << "Shut down";
+      details << duration(readJson("/etc/reader/display.json")
+                              .value("auto_suspend_seconds").toInt(0)) + " · without button activity"
+              << "Wake with the power button" << "Restart ReRead" << "Turn the Reader off";
+      controls = {{READER_OK,"Select"},{READER_BACK,"Settings"}};
     } else if (page == "connections") {
-      title = "Connections";
+      title = "Settings / Connections";
       controls = {{READER_BACK,"Settings"}};
       information = "Checking Wi-Fi…";
       command(
@@ -151,6 +166,7 @@ class Launcher : public Screen {
             update();
           });
     } else if (page == "about") {
+      title = "Settings / About";
       QFile f("/usr/share/reader/version");
       QString version;
       if (f.open(QIODevice::ReadOnly))
@@ -172,8 +188,9 @@ class Launcher : public Screen {
     update();
   }
   void go(const QString &destination) {
+    positions[page] = selected;
     page = destination;
-    selected = 0;
+    selected = positions.value(page);
     photo = QImage();
     refresh();
   }
@@ -264,6 +281,17 @@ class Launcher : public Screen {
       }
       return;
     }
+    if (page == "home" && (id == READER_UP || id == READER_DOWN ||
+                           id == READER_LEFT || id == READER_RIGHT)) {
+      int count = labels.size();
+      if (id == READER_LEFT && selected % columns != 0) --selected;
+      if (id == READER_RIGHT && selected % columns != columns - 1 && selected + 1 < count) ++selected;
+      if (id == READER_UP && selected >= columns) selected -= columns;
+      if (id == READER_DOWN && (selected / columns + 1) * columns < count)
+        selected = qMin(selected + columns, count - 1);
+      update();
+      return;
+    }
     if (id == READER_UP || id == READER_DOWN) {
       selected = qBound(0, selected + (id == READER_DOWN ? 1 : -1),
                         qMax(0, labels.size() - 1));
@@ -271,29 +299,30 @@ class Launcher : public Screen {
       update();
       return;
     }
-    if (page == "settings" &&
-        (id == READER_LEFT || id == READER_RIGHT || id == READER_OK) &&
-        selected < 3) {
+    if (adjustmentPage() && (id == READER_LEFT || id == READER_RIGHT)) {
       auto now = QDateTime::currentMSecsSinceEpoch();
-      if (value == 2 && now - lastAdjustment < 200)
-        return;
+      if (value == 2 && now - lastAdjustment < 200) return;
       lastAdjustment = now;
       int direction = id == READER_LEFT ? -1 : 1;
-      if (selected == 0)
-        command("/usr/local/sbin/reader-brightness",
-                {direction < 0 ? "down" : "up"},
+      if (page == "display" && selected == 0)
+        command("/usr/local/sbin/reader-brightness", {direction < 0 ? "down" : "up"},
                 [this](QByteArray) { refresh(); });
-      if (selected == 1)
+      else if (page == "sound")
         command("/usr/local/sbin/reader-audio", {direction < 0 ? "down" : "up"},
                 [this](QByteArray) { refresh(); });
-      if (selected == 2) {
+      else {
         auto config = readJson("/etc/reader/display.json");
-        {
-          QList<int> choices{0, 30, 60, 120, 300};
-          int i = choices.indexOf(config.value("idle_dim_seconds").toInt(120));
-          config["idle_dim_seconds"] =
-              choices[qBound(0, i + direction, choices.size() - 1)];
+        QString key = page == "power" ? "auto_suspend_seconds" : "idle_dim_seconds";
+        QList<int> choices = page == "power" ? QList<int>{0,120,300,600,1800}
+                                            : QList<int>{0,30,60,120,300};
+        int current = config.value(key).toInt(page == "power" ? 0 : 120);
+        int next = current;
+        if (direction > 0) {
+          for (int choice : choices) if (choice > current) { next = choice; break; }
+        } else {
+          for (int choice : choices) if (choice < current) next = choice;
         }
+        config[key] = next;
         writeJson("/etc/reader/display.json", config);
         refresh();
       }
@@ -309,17 +338,18 @@ class Launcher : public Screen {
     } else if (page == "files")
       openPhoto();
     else if (page == "settings")
-      go(selected == 3 ? "connections" : selected == 4 ? "about" : "power");
+      go(QStringList{"display","sound","power","connections","about"}.value(selected));
     else if (page == "power") {
-      if (selected == 0) {
+      if (selected == 0) return;
+      if (selected == 1) {
         dispatch(READER_POWER, 1);
         dispatch(READER_POWER, 0);
       } else {
-        title = selected == 1 ? "Rebooting…" : "Shutting down…";
+        title = selected == 2 ? "Rebooting…" : "Shutting down…";
         labels.clear();
         update();
         QProcess::startDetached("/sbin/shutdown",
-                                {selected == 1 ? "-r" : "-h", "now"});
+                                {selected == 2 ? "-r" : "-h", "now"});
       }
     }
   }
@@ -336,6 +366,7 @@ class Launcher : public Screen {
       return;
     }
     photo = loaded;
+    positions["files"] = selected;
     page = "image";
     showHeader = false;
     controlsOverlay = true;
@@ -344,6 +375,38 @@ class Launcher : public Screen {
     controls = {{READER_LEFT,"Previous"},{READER_RIGHT,"Next"},{READER_BACK,"Files"}};
     update();
   }
+  void drawHome(QPainter &p, const QRect &r) {
+    int first = (selected / pageSize) * pageSize;
+    const int gap = 16, footer = 50;
+    int w = (r.width() - gap * 2) / columns;
+    int h = (r.height() - footer - gap) / 2;
+    int rows = qMin(2, (labels.size() - first + columns - 1) / columns);
+    int top = r.y() + (r.height() - footer - (h * rows + gap * (rows - 1))) / 2;
+    for (int i = first; i < qMin(first + pageSize, labels.size()); ++i) {
+      int position = i - first;
+      QRect tile(r.x() + (position % columns) * (w + gap),
+                 top + (position / columns) * (h + gap), w, h);
+      bool focus = i == selected;
+      p.setPen(QPen(QColor(focus ? "#65ded0" : "#2a3b47"), focus ? 3 : 1));
+      p.setBrush(QColor(focus ? "#203e46" : "#172630"));
+      p.drawRoundedRect(tile.adjusted(2,2,-2,-2), 18, 18);
+      int size = qMin(100, h - 58);
+      icons.value(i).paint(&p, QRect(tile.center().x() - size/2, tile.top()+16, size, size));
+      auto font = p.font(); font.setPixelSize(27); font.setBold(focus); p.setFont(font);
+      p.setPen(QColor(focus ? "#ffffff" : "#d5e0e6"));
+      QString name = QFontMetrics(font).elidedText(labels[i], Qt::ElideRight, w-28);
+      p.drawText(tile.adjusted(14,h-48,-14,-8), Qt::AlignCenter, name);
+    }
+    auto font = p.font(); font.setBold(false); font.setPixelSize(21); p.setFont(font);
+    p.setPen(QColor("#aabfc9"));
+    int pages = (labels.size() + pageSize - 1) / pageSize;
+    QRect caption(r.x()+2,r.bottom()-footer+10,r.width()-(pages > 1 ? 110 : 0),40);
+    p.drawText(caption, Qt::AlignVCenter,
+               QFontMetrics(font).elidedText(details.value(selected), Qt::ElideRight, caption.width()));
+    if (pages > 1)
+      p.drawText(QRect(r.right()-100,caption.y(),100,40), Qt::AlignRight|Qt::AlignVCenter,
+                 QString::number(selected/pageSize+1) + " / " + QString::number(pages));
+  }
   void draw(QPainter &p, const QRect &r) override {
     if (page == "image") {
       auto target = photo.size().scaled(r.size(), Qt::KeepAspectRatio);
@@ -351,6 +414,21 @@ class Launcher : public Screen {
                                r.center().y() - target.height() / 2),
                         target),
                   photo);
+    } else if (page == "home")
+      drawHome(p, r);
+    else if (page == "settings") {
+      // Categories show all five destinations at once; values live one level down.
+      int height = r.height() / labels.size();
+      for (int i = 0; i < labels.size(); ++i) {
+        QRect row(r.x(),r.y()+i*height,r.width(),height-6);
+        p.setPen(QPen(QColor(i == selected ? "#65ded0" : "#2a3b47"),i == selected ? 2 : 1));
+        p.setBrush(QColor(i == selected ? "#203e46" : "#172630"));
+        p.drawRoundedRect(row,12,12);
+        icons.value(i).paint(&p,QRect(row.x()+12,row.center().y()-24,48,48));
+        text(p,QRect(row.x()+80,row.y(),260,row.height()),labels[i],26);
+        text(p,QRect(row.x()+350,row.y(),row.width()-390,row.height()),details[i],20,QColor("#aabfc9"));
+        text(p,QRect(row.right()-30,row.y(),24,row.height()),"›",30);
+      }
     } else if (page == "about" || page == "connections")
       text(p, r, information, 25);
     else
@@ -370,6 +448,16 @@ public:
 };
 int main(int argc, char **argv) {
   QApplication app(argc, argv);
+  // LinuxFB has no desktop platform theme to populate icon search paths.
+  QStringList iconPaths{QDir::homePath() + "/.icons"}, pixmapPaths;
+  for (const auto &path : QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation)) {
+    iconPaths << path + "/icons";
+    pixmapPaths << path + "/pixmaps";
+  }
+  QIcon::setThemeSearchPaths(iconPaths + QIcon::themeSearchPaths());
+  QIcon::setFallbackSearchPaths(pixmapPaths);
+  QIcon::setThemeName("reread");
+  QIcon::setFallbackThemeName("hicolor");
   app.setFont(QFont("DejaVu Sans"));
   Launcher window;
   window.showFullScreen();

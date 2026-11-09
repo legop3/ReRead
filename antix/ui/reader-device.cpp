@@ -18,28 +18,33 @@ void writeJson(const QString &path, const QJsonObject &value) {
     f.commit();
   }
 }
-void command(const QString &program, const QStringList &args,
-             std::function<void(QByteArray)> done, QObject *owner) {
+static void runCommand(const QString &program, const QStringList &args,
+                       std::function<void(QByteArray, int)> done, QObject *owner) {
   auto p = new QProcess(owner ? owner : QCoreApplication::instance());
   QObject::connect(
       p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), owner ? owner : p,
       [p, done](int code, QProcess::ExitStatus) {
         auto out = p->readAllStandardOutput();
-        if (code)
-          qWarning() << p->program() << p->readAllStandardError();
+        auto error = p->readAllStandardError();
+        if (code && !error.isEmpty())
+          qWarning() << p->program() << error;
         if (done)
-          done(out);
+          done(out, code);
         p->deleteLater();
       });
   QObject::connect(p, &QProcess::errorOccurred, owner ? owner : p,
                    [p, done](QProcess::ProcessError e) {
                      if (e == QProcess::FailedToStart) {
                        if (done)
-                         done({});
+                         done({}, -1);
                        p->deleteLater();
                      }
                    });
   p->start(program, args);
+}
+void command(const QString &program, const QStringList &args,
+             std::function<void(QByteArray)> done, QObject *owner) {
+  runCommand(program, args, [done](QByteArray out, int) { if (done) done(out); }, owner);
 }
 // Transient dimming never changes the saved level. Restore synchronously before
 // dispatching the waking key, so a simultaneous brightness adjustment starts at
@@ -71,7 +76,7 @@ struct Device::State {
   Device &owner;
   struct Input { int fd; QSocketNotifier *notifier; };
   QList<Input> inputs;
-  QTimer discovery, idle;
+  QTimer discovery, idle, autoSleep;
   bool active = false, dimmed = false, locked = false;
   bool powerDown = false, suspending = false;
   qint64 lastVolume = 0, powerBlockUntil = 0;
@@ -80,8 +85,19 @@ struct Device::State {
   std::function<void(const QString &)> noticeHandler;
   std::function<void()> resumeHandler;
   explicit State(Device &device) : owner(device) {
+    auto settings = new QFileSystemWatcher(&owner);
+    settings->addPath("/etc/reader");
+    QObject::connect(settings, &QFileSystemWatcher::directoryChanged, &owner,
+                     [this] { if (active) activity(); });
     QObject::connect(&discovery, &QTimer::timeout, &owner, [this] { discover(); });
     idle.setSingleShot(true);
+    autoSleep.setSingleShot(true);
+    QObject::connect(&autoSleep, &QTimer::timeout, &owner, [this] {
+      if (!active) return;
+      // Package jobs hold this standard flock. Retry after another interval
+      // rather than suspending an installation in progress.
+      suspend(true);
+    });
     QObject::connect(&idle, &QTimer::timeout, &owner, [this] {
       if (!active || readJson("/etc/reader/display.json")
                          .value("idle_dim_seconds").toInt(120) == 0) return;
@@ -99,6 +115,7 @@ struct Device::State {
   void closeInputs();
   void discover();
   void dispatch(reader_button, int);
+  void suspend(bool automatic = false);
 };
 Device::Device(QObject *parent) : QObject(parent), state(new State(*this)) {}
 Device::~Device() = default;
@@ -126,6 +143,12 @@ void Device::State::activity() {
     idle.start(seconds * 1000);
   else
     idle.stop();
+  int sleepSeconds = readJson("/etc/reader/display.json")
+                         .value("auto_suspend_seconds").toInt(0);
+  if (sleepSeconds > 0)
+    autoSleep.start(qMin(sleepSeconds, 86400) * 1000);
+  else
+    autoSleep.stop();
 }
 void Device::State::closeInputs() {
   for (auto input : inputs) {
@@ -149,6 +172,7 @@ void Device::State::setActive(bool enabled) {
     if (dimmed) transientBrightness(readJson("/etc/reader/display.json")
                                        .value("brightness_percent").toInt(100));
     idle.stop();
+    autoSleep.stop();
     discovery.stop();
     closeInputs();
   }
@@ -242,15 +266,7 @@ void Device::State::dispatch(reader_button id, int value) {
       powerDown = true;
     if (value == 0 && powerDown) {
       powerDown = false;
-      suspending = true;
-      command("/usr/local/sbin/reader-power", {"suspend"}, [this](QByteArray) {
-        suspending = false;
-        powerBlockUntil = QDateTime::currentMSecsSinceEpoch() + 1000;
-        closeInputs();
-        if (active) discover();
-        command("/usr/local/sbin/reader-brightness", {"init"}, {}, &owner);
-        if (resumeHandler) resumeHandler();
-      }, &owner);
+      suspend();
     }
     return;
   }
@@ -272,5 +288,38 @@ void Device::State::dispatch(reader_button id, int value) {
     return;
   }
   if (buttonHandler) buttonHandler(id, value);
+}
+void Device::State::suspend(bool automatic) {
+  if (!active || suspending) return;
+  suspending = true;
+  // A deferred automatic attempt must not cancel an upcoming idle dim.
+  if (!automatic) idle.stop();
+  autoSleep.stop();
+  QString program = "/usr/local/sbin/reader-power";
+  QStringList args{"suspend"};
+  if (automatic) {
+    args.prepend(program);
+    args.prepend("/var/lib/reader/package.lock");
+    args.prepend("-n");
+    program = "/usr/bin/flock";
+  }
+  runCommand(program, args, [this, automatic](QByteArray, int code) {
+    suspending = false;
+    if (automatic && code != 0) {
+      // A deferred/failed automatic attempt must leave the dimmed app idle.
+      int seconds = readJson("/etc/reader/display.json")
+                        .value("auto_suspend_seconds").toInt(0);
+      if (active && seconds > 0) autoSleep.start(qMin(seconds, 86400) * 1000);
+      return;
+    }
+    powerBlockUntil = QDateTime::currentMSecsSinceEpoch() + 1000;
+    closeInputs();
+    if (active) {
+      discover();
+      activity();
+    }
+    command("/usr/local/sbin/reader-brightness", {"init"}, {}, &owner);
+    if (resumeHandler) resumeHandler();
+  }, &owner);
 }
 } // namespace ReRead

@@ -1,10 +1,12 @@
 """ReRead release/app inventory and one persistent package-management job."""
+import configparser
 import fcntl
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import tarfile
 import tempfile
 import time
 
@@ -96,6 +98,34 @@ def package_info(path, kind):
     if kind not in ('platform', 'app') or fields.get('Architecture') not in ('i386', 'all'):
         raise ValueError('This package is not for the ReRead i386 platform.')
     return fields
+
+
+def check_app_icons(path):
+    """Check desktop metadata once before installation, without unpacking an app."""
+    process = subprocess.Popen(['dpkg-deb', '--fsys-tarfile', str(path)],
+                               stdout=subprocess.PIPE)
+    try:
+        with tarfile.open(fileobj=process.stdout, mode='r|') as archive:
+            for member in archive:
+                name = member.name.removeprefix('./')
+                if not (member.isfile() and name.startswith('usr/share/applications/')
+                        and name.endswith('.desktop')):
+                    continue
+                desktop = configparser.ConfigParser(interpolation=None, strict=False)
+                desktop.read_string(archive.extractfile(member).read().decode('utf-8'))
+                entry = desktop['Desktop Entry'] if desktop.has_section('Desktop Entry') else {}
+                if (entry.get('X-ReRead') == 'true' and entry.get('Hidden') != 'true'
+                        and entry.get('NoDisplay') != 'true' and not entry.get('Icon', '').strip()):
+                    raise ValueError(f'{Path(name).name} needs an Icon= entry and application artwork.')
+        if process.wait():
+            raise ValueError('Unable to read application desktop entries.')
+    except (tarfile.TarError, configparser.Error, UnicodeError) as error:
+        raise ValueError('Unable to read application desktop entries.') from error
+    finally:
+        process.stdout.close()
+        if process.poll() is None:
+            process.terminate()
+        process.wait()
 
 
 def start(action, value, kind='app'):

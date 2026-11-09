@@ -9,8 +9,12 @@ GPU requirement. The Reader exposes a 960 × 544, 32-bit framebuffer with a
 controls inside `Screen::content()`: a fixed 14-pixel inset on all four sides accounts for the overlapping bezel.
 It is not a user preference.
 
-The home screen launches installed applications, browses photos/files, and opens
-system settings. The web interface is for file transfers, network provisioning,
+Home uses a three-column icon grid, with six tiles per page and D-pad navigation.
+It launches installed applications, browses photos/files, and opens system
+settings. The selected tile has a persistent outline and a short description;
+there is no idle animation. Settings groups Display, Sound, Power, Connections
+and About, and remembers selection when returning from a category.
+The web interface is for file transfers, network provisioning,
 packages and device administration. It does not run device applications.
 
 ## Controls and ownership
@@ -62,12 +66,23 @@ one-command USB build includes both. Apps can be updated separately afterward.
 
 `reader-brightness` uses Linux backlight sysfs, preferring `reader-panel`. It restores
 the saved brightness at boot and wake. `/etc/reader/display.json` holds
-`brightness_percent` (10–100) and `idle_dim_seconds`
+`brightness_percent` (10–100), `idle_dim_seconds`
 (0 disables dimming; 120 seconds by default). Idle dimming is transient: it does
 not overwrite the user's saved brightness. Any control restores that brightness.
 The camera releases its preview lease while dimmed; hardware closes after the
-lease expires. Automatic suspend is deliberately not enabled: manual power-button
-sleep is available, and unattended timer wake is unreliable on this device.
+lease expires. `auto_suspend_seconds` defaults to 0 (Off); Settings / Power offers
+Off, 2, 5, 10 or 30 minutes without button activity. It applies on battery and
+external power. Automatic sleep uses the same suspend-to-RAM helper as Power;
+wake with the physical Power button. A package operation holding the standard
+package flock defers automatic sleep for another interval. Timers stop while an
+app gives up foreground ownership and restart on activity, settings changes and
+resume. Apps using their own input without Device must implement their chosen
+idle policy, just as they handle system controls themselves.
+
+Home uses Qt's standard icon-theme lookup: the small `reread` theme supplies
+system artwork and inherits `hicolor` for app icons. Camera owns its SVG in
+`/usr/share/icons/hicolor/scalable/apps/`. The Qt SVG plugin handles scalable
+artwork; no desktop environment or full external icon theme is required.
 
 USB management requires an active USB Ethernet carrier as well as a configured
 gadget. The legacy UDC can leave its configured state stale after disconnect.
