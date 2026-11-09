@@ -87,9 +87,12 @@ class Archive : public Screen {
   int browseSelected=0, browseGridStart=0;
   bool loadingMore=false, hasMore=false;
   static constexpr int resultsPerPage=24;
-  int imageZoom=1, imageX=0, imageY=0, fontSize=24, lineStart=0;
+  int imageZoomStep=0, imageX=0, imageY=0, fontSize=27;
   QImage viewedImage;
-  QStringList bookLines;
+  QVector<int> pageStarts{0};
+  int bookPage=0;
+  static constexpr int zoomSteps=13;
+  const double zoomLevels[zoomSteps]={1.0,1.15,1.3,1.5,1.75,2.0,2.5,3.0,4.0,5.0,6.0,8.0,10.0};
   File selectedFile, downloadFile;
   std::unique_ptr<QSaveFile> saveFile;
   QString downloadPath;
@@ -239,7 +242,7 @@ class Archive : public Screen {
         // Keep text in memory, not in device Files. Pre-layout for fast page turns.
         bookText=QString::fromUtf8(bytes);
         if(bookText.startsWith(QChar(0xfeff)))bookText.remove(0,1);
-        lineStart=0;layoutBook();
+        pageStarts={0};bookPage=0;
       } else {
         QJsonParseError err;
         auto doc=QJsonDocument::fromJson(bytes,&err);
@@ -369,37 +372,73 @@ class Archive : public Screen {
   }
   void openFile(const File &f) {
     selectedFile=f;currentFile=f.name;currentFormat=f.format;
-    imageZoom=1;imageX=0;imageY=0;viewedImage=QImage();bookText.clear();bookLines.clear();
+    imageZoomStep=0;imageX=0;imageY=0;viewedImage=QImage();
+    bookText.clear();pageStarts={0};bookPage=0;
     if(isAudio(f.name)){page=PLAYER;audioOffset=0;audioDuration=f.seconds;startAudio();return;}
     if(isImage(f.name)){page=VIEW;fetch(fileUrl(itemId,f.name),"image",14*1024*1024);return;}
     if(isText(f.name)){page=READER;fetch(fileUrl(itemId,f.name),"text",7*1024*1024);return;}
     status="No in-app viewer for this file type. Options can download it.";update();
   }
-  void layoutBook() {
-    bookLines.clear();int px=fontSize;
-    QFont f=font();f.setFamily("DejaVu Serif");f.setPixelSize(px);
+  int visibleBookLines() const {
+    return qMax(1,(height()-78)/(fontSize+10));
+  }
+  // Wrap only a single screen of text; never split or measure an entire book.
+  // 7 MiB source files used to block the GUI for seconds during initial layout.
+  QStringList bookPageLines(int start, int *next) const {
+    QStringList result;
+    const int length=bookText.size();
+    int pos=qBound(0,start,length);
+    QFont f=font();f.setFamily("DejaVu Serif");f.setPixelSize(fontSize);
     QFontMetrics fm(f);
-    int width=qMax(100,safeArea().width()-100);
-    QString input=bookText;
-    input.replace("\r\n","\n");
-    for(const auto &paragraph:input.split('\n')){
-      QString remaining=paragraph.trimmed();
-      if(remaining.isEmpty()){bookLines<<"";continue;}
-      while(!remaining.isEmpty()){
-        int n=remaining.size();
-        // Bounded binary search avoids quadratic wrapping on long lines.
-        int low=1,high=n;
-        while(low<high){int middle=(low+high+1)/2;
-          if(fm.horizontalAdvance(remaining.left(middle))<=width)low=middle;
-          else high=middle-1;}
-        n=low;
-        if(n<remaining.size()){int split=remaining.lastIndexOf(' ',n);
-          if(split>0)n=split;}
-        bookLines<<remaining.left(n).trimmed();
-        remaining=remaining.mid(n).trimmed();
-        if(bookLines.size()>40000){bookLines<<"[Text too long to display completely]";return;}
+    const int lineWidth=qMax(180,width()-120);
+    const int limit=visibleBookLines();
+    while(pos<length && result.size()<limit) {
+      if(bookText.at(pos)=='\r') {++pos;continue;}
+      if(bookText.at(pos)=='\n') {result<<"";++pos;continue;}
+      int end=bookText.indexOf('\n',pos);
+      if(end<0)end=length;
+      while(end>pos && bookText.at(end-1)=='\r')--end;
+      int count=qMin(end-pos,512);
+      if(count<=0){result<<"";pos=qMin(length,end+1);continue;}
+      int lo=1,hi=count;
+      while(lo<hi) {
+        int mid=(lo+hi+1)/2;
+        if(fm.horizontalAdvance(bookText.mid(pos,mid))<=lineWidth)lo=mid;
+        else hi=mid-1;
       }
+      count=lo;
+      if(pos+count<end) {
+        int whitespace=bookText.lastIndexOf(' ',pos+count-1);
+        if(whitespace>pos)count=whitespace-pos+1;
+      }
+      result<<bookText.mid(pos,count).trimmed();
+      pos+=count;
+      while(pos<end && bookText.at(pos).isSpace())++pos;
+      if(pos>=end)pos=qMin(length,end+1);
     }
+    if(next)*next=pos;
+    return result;
+  }
+  void changeBookPage(int delta) {
+    if(bookText.isEmpty())return;
+    if(delta<0){bookPage=qMax(0,bookPage-1);update();return;}
+    if(bookPage+1<pageStarts.size()){++bookPage;update();return;}
+    int next=pageStarts[bookPage];
+    bookPageLines(next,&next);
+    if(next>pageStarts[bookPage]&&next<bookText.size()){
+      pageStarts<<next;++bookPage;
+    }
+    update();
+  }
+  void changeBookFont(int delta) {
+    int newFont=qBound(18,fontSize+delta,42);
+    if(newFont==fontSize)return;
+    int anchor=pageStarts.value(bookPage,0);
+    fontSize=newFont;
+    // Preserve the current reading position without a full-book reflow.
+    pageStarts={anchor};
+    bookPage=0;
+    update();
   }
   void startAudio(){
     stopAudio();
@@ -527,6 +566,16 @@ class Archive : public Screen {
     update();
   }
   int activeFiles() const {return qMax(1,(safeArea().height()-140)/58);}
+  void clampPan() {
+    if(viewedImage.isNull()||imageZoomStep==0){imageX=imageY=0;return;}
+    QSize scaled=viewedImage.size();
+    scaled.scale(size(),Qt::KeepAspectRatio);
+    const double factor=zoomLevels[imageZoomStep];
+    const int xMax=qMax(0,int((scaled.width()*factor-width())/2));
+    const int yMax=qMax(0,int((scaled.height()*factor-height())/2));
+    imageX=qBound(-xMax,imageX,xMax);
+    imageY=qBound(-yMax,imageY,yMax);
+  }
   void navigate(int dx,int dy) {
     if(page==HOME){
       selected=qBound(0,selected+dx+dy*3,5);
@@ -547,11 +596,12 @@ class Archive : public Screen {
       if(selected<fileStart)fileStart=selected;
       if(selected>=fileStart+activeFiles())fileStart=selected-activeFiles()+1;
     } else if(page==VIEW){
-      if(imageZoom>1){imageX+=dx*90;imageY+=dy*90;}
-    } else if(page==READER){
-      int lines=qMax(1,(height()-62)/(fontSize+11));
-      lineStart=qBound(0,lineStart+(dx+dy)*lines,qMax(0,bookLines.size()-lines));
-    }
+      if(imageZoomStep>0) {
+        // Move the viewport through the image, not the picture with the arrow.
+        imageX-=dx*80;imageY-=dy*80;
+        clampPan();
+      }
+    } else if(page==READER){changeBookPage(dx+dy);}
     update();
   }
   void paintChrome(QPainter &p,const QRect &safe) {
@@ -700,7 +750,9 @@ protected:
           23,Qt::white,Qt::AlignCenter);
       else {
         QSize size=viewedImage.size();
-        size.scale(view.size(),Qt::KeepAspectRatio);size*=imageZoom;
+        size.scale(view.size(),Qt::KeepAspectRatio);
+        size.setWidth(int(size.width()*zoomLevels[imageZoomStep]));
+        size.setHeight(int(size.height()*zoomLevels[imageZoomStep]));
         QRect dest(QPoint(0,0),size);dest.moveCenter(view.center()+QPoint(imageX,imageY));
         p.save();p.setClipRect(view);p.setRenderHint(QPainter::SmoothPixmapTransform);
         p.drawImage(dest,viewedImage);p.restore();
@@ -709,17 +761,19 @@ protected:
     } else if(page==READER) {
       QRect paper=area;
       p.fillRect(paper,QColor("#fffdf6"));
-      QRect pageRect=paper.adjusted(44,32,-44,-30);
-      QFont f=p.font();f.setFamily("DejaVu Serif");f.setPixelSize(fontSize);p.setFont(f);
-      p.setPen(QColor("#222222"));
-      int step=fontSize+11,visible=qMax(1,pageRect.height()/step);
-      for(int i=0;i<visible && lineStart+i<bookLines.size();++i)
-        p.drawText(pageRect.left(),pageRect.top()+fontSize+i*step,bookLines[lineStart+i]);
-      txt(p,QRect(pageRect.right()-175,pageRect.bottom()-19,170,20),
-          QString("%1 / %2").arg(qMin(lineStart+visible,bookLines.size())).arg(bookLines.size()),
-          14,muted,Qt::AlignRight);
-      if(bookLines.isEmpty())
-        txt(p,pageRect,status.isEmpty()?"Loading text...":status,22,muted,Qt::AlignCenter);
+      QRect textArea=paper.adjusted(48,29,-48,-40);
+      QFont f=p.font();f.setFamily("DejaVu Serif");f.setPixelSize(fontSize);
+      p.setFont(f);p.setPen(QColor("#222222"));
+      const int step=fontSize+10;
+      QStringList lines=bookPageLines(pageStarts.value(bookPage,0),nullptr);
+      for(int i=0;i<lines.size();++i)
+        p.drawText(textArea.left(),textArea.top()+fontSize+i*step,lines[i]);
+      if(lines.isEmpty()) {
+        txt(p,textArea,status.isEmpty()?"Loading text...":status,26,muted,Qt::AlignCenter);
+      } else {
+        txt(p,QRect(textArea.right()-180,paper.bottom()-32,175,25),
+            "Page "+QString::number(bookPage+1),18,muted,Qt::AlignRight);
+      }
     } else if(page==PLAYER) {
       QRect cover(area.x()+24,area.y()+24,area.height()-48,area.height()-48);
       p.fillRect(cover,QColor("#eaeaea"));
@@ -783,13 +837,13 @@ protected:
       else if(key==READER_LEFT&&state==1)seek(-10);
       else if(key==READER_RIGHT&&state==1)seek(10);
     } else if(page==READER) {
-      if(key==READER_UP)navigate(0,-1);
-      else if(key==READER_DOWN)navigate(0,1);
-      else if(key==READER_ZOOM_IN&&state==1){fontSize=qMin(36,fontSize+2);layoutBook();update();}
-      else if(key==READER_ZOOM_OUT&&state==1){fontSize=qMax(18,fontSize-2);layoutBook();update();}
+      if(key==READER_UP)changeBookPage(-1);
+      else if(key==READER_DOWN)changeBookPage(1);
+      else if(key==READER_ZOOM_IN&&state==1)changeBookFont(2);
+      else if(key==READER_ZOOM_OUT&&state==1)changeBookFont(-2);
     } else if(page==VIEW) {
-      if(key==READER_ZOOM_IN&&state==1){imageZoom=qMin(6,imageZoom+1);update();}
-      else if(key==READER_ZOOM_OUT&&state==1){imageZoom=qMax(1,imageZoom-1);if(imageZoom==1)imageX=imageY=0;update();}
+      if(key==READER_ZOOM_IN&&state==1){imageZoomStep=qMin(zoomSteps-1,imageZoomStep+1);clampPan();update();}
+      else if(key==READER_ZOOM_OUT&&state==1){imageZoomStep=qMax(0,imageZoomStep-1);clampPan();update();}
       else if(key==READER_LEFT)navigate(-1,0);
       else if(key==READER_RIGHT)navigate(1,0);
       else if(key==READER_UP)navigate(0,-1);
