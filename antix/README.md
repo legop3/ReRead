@@ -67,25 +67,16 @@ display, physical input and lifecycle behavior. See [UI notes](ui/README.md).
 
 ## Installation
 
-From the repository root, connect one registered USB stick, unmount its
-partitions and run:
+For a released installer, follow the [download and flash instructions](../README.md#install-reread). Any USB stick large enough for the image works; there is no serial-number registration.
+
+On Linux, the repository helper flashes either a downloaded image or an existing local build:
 
 ```sh
-./make-usb.sh
+./make-usb.sh ~/Downloads/reread-installer-usb.img
+./make-usb.sh               # Uses out/antix/reread-installer-usb.img
 ```
 
-This builds everything and writes the USB installer. `sudo` is used for the
-writer at the end; there are no added confirmation prompts. A failed build
-stops the script before the writer runs. The USB stick is overwritten.
-The inputs and host requirements are described below.
-
-To write an already-built installer without rebuilding:
-
-```sh
-sudo python3 antix/write-usb.py
-```
-
-The flasher accepts the original Flash Memory stick and USB DISK 3.0 serial `0719079F1B2AD607`; connect exactly one of them.
+It lists USB drives, asks which one to erase, and uses standard `dd` to write it. Unmount the drive's partitions first. To skip the host confirmation for repeated development flashes, pass `--device /dev/sdX --yes`. A partition or internal drive is rejected. No rebuild happens unless `--build` is supplied. The Reader-side installer remains automatic.
 
 Boot the USB through the powered hub. The installer finds the known internal SSD, streams the image from USB, flushes writes and reboots after five seconds. No prompts, full-image checksum scans, decompression pre-tests or readback passes. Decompression and write failures still stop installation. Keep USB attached until **INSTALLATION COMPLETE**.
 
@@ -116,11 +107,11 @@ does not repartition or purge an existing system.
 
 ## Build
 
-The host needs Docker with its Buildx plugin and Python 3. Run the entry point from the repository
+Source builds need Docker with its Buildx plugin. The optional Linux USB helper also needs Python 3. Run the build entry point from the repository
 root as your normal user with Docker access. It builds/caches the tools in
 [the Dockerfile](../image-builder/Dockerfile) and uses a temporary container with
 only this workspace mounted at `/work`; no host disks are exposed to the builder.
-The host USB writer runs separately after a successful build.
+The host USB writer is separate; `./build.sh` never accesses host disks.
 
 Provide `downloads/antiX-26.1_386-core.iso` (antiX 26.1 Core i386).
 The builder checks SHA-256 `5e07ed85acba1d2c33a7e41b089e80ce203eeb11d81af8c830e64e2e058ead7e`
@@ -130,8 +121,8 @@ The full stock disk backup is optional research material; only this extracted
 camera firmware file is included in the platform package.
 
 ```sh
-./make-usb.sh                 # Build release files and write the USB stick
-./make-usb.sh --build-only    # Build release files, without writing USB
+./build.sh                  # Build release files without writing USB
+./make-usb.sh --build        # Build, then select and write a USB drive
 ```
 
 A dedicated Buildx builder named `reread` caches the tool image between runs.
@@ -145,7 +136,7 @@ Outputs in `out/antix/`:
 - `reread.img.gz`: compressed SSD payload.
 - `reread-installer-usb.img`: bootable automatic installer.
 - `reread_<version>_i386.deb`: platform update package.
-- `manifest.json`: paths used by the USB writer.
+- `manifest.json`: release version, image sizes and package filenames.
 
 For later platform changes, bump `antix/VERSION` and rebuild just the package.
 This uses the matching kernel headers from `build/antix/base-root`, populated by the

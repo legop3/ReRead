@@ -1,5 +1,5 @@
 > Historical bring-up notes. The one-off distribution flashers mentioned below
-> have been removed. Build and install ReRead using `./make-usb.sh`; see
+> have been removed. Build and install ReRead using `./make-usb.sh --build`; see
 > [current instructions](../antix/README.md).
 
 # Reader live boot tests
