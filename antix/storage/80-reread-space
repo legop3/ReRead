@@ -1,0 +1,6 @@
+# ReRead ships an English UI. Keep English translations and locale aliases.
+# Remove this policy before reinstalling packages to add other UI languages.
+# Generated libc locales under /usr/lib/locale are unaffected.
+path-exclude=/usr/share/locale/*
+path-include=/usr/share/locale/en*
+path-include=/usr/share/locale/locale.alias

@@ -92,16 +92,25 @@ account for most of the increase from the earlier console-only baseline. No desk
 session is installed or started. First boot, updates and personal files change
 the available space.
 
-Fresh images remove the live ISO's kernel headers, installer/template tools,
+Fresh images remove the live ISO's kernel headers, unused GRUB packages, installer/template tools,
 memory tester, AMD graphics firmware and all-locales
 bundle using apt/dpkg. ReRead generates `en_US.UTF-8`; other locales can still
 be enabled with normal `locale-gen`. Existing translations are retained.
 
 The builder's cached base keeps headers for subsequent module/release builds.
-The installed OS keeps antiX’s boot/init packages, normal kernel modules, broad Wi-Fi firmware, package
+The installed OS keeps antiX’s init packages and Syslinux bootloader, normal kernel modules, broad USB Wi-Fi firmware, package
 management, documentation and runtime services. Package archives and generated
 apt caches are cleared. Package indexes remain available for app dependency
-resolution; no blanket autoremove or adapter-specific firmware pruning is used.
+resolution. New APT index downloads stay compressed; translated package descriptions
+and duplicate binary package caches are omitted. Existing unchanged indexes may
+stay uncompressed until APT next downloads them.
+English UI catalogs are kept; other `/usr/share/locale` translations are excluded
+using normal dpkg policy (`/etc/dpkg/dpkg.cfg.d/80-reread-space`). This does not
+remove generated libc locales or OCR language data. Delete that policy and
+reinstall the relevant packages to restore other UI translations.
+Intel PCI-only Wi-Fi firmware and modern Intel DSP firmware are omitted; the
+Reader uses USB Wi-Fi and HDA audio. No blanket autoremove or USB-adapter-specific
+firmware pruning is used.
 This image cleanup applies to fresh installs; uploading the platform `.deb`
 does not repartition or purge an existing system.
 

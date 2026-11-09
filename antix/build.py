@@ -19,7 +19,7 @@ import image
 from gadget import configure as configure_gadget
 from package_installer import package
 from release import build as build_release
-from trim import runtime as trim_runtime
+from trim import runtime as trim_runtime, policy as storage_policy
 run=image.run
 OUT.mkdir(parents=True,exist_ok=True)
 BUILD.mkdir(parents=True,exist_ok=True)
@@ -61,6 +61,7 @@ shadow=root/'etc/shadow'
 shadow.write_text('\n'.join(':'.join([parts[0],'!',*parts[2:]]) if parts[0] in ('root','demo') else line
     for line in shadow.read_text().splitlines() for parts in [line.split(':')])+'\n')
 # The image and later updates install the same versioned ReRead package.
+storage_policy(root)
 configure_gadget(root, BASE, BUILD, KERNEL)
 release = build_release(BASE, BUILD, OUT, KERNEL)
 local_package = root/'tmp'/release.name

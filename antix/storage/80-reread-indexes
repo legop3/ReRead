@@ -1,0 +1,7 @@
+// Keep searchable package indexes, using APT's native compressed storage.
+Acquire::GzipIndexes "true";
+// English package descriptions already exist in the Packages indexes.
+Acquire::Languages "none";
+// Binary package caches are regenerated from those indexes; avoid SSD duplicates.
+Dir::Cache::pkgcache "";
+Dir::Cache::srcpkgcache "";

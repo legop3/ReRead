@@ -146,8 +146,10 @@ Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
 ''')
-    write('DEBIAN/conffiles', '/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n/etc/reader/files.conf\n')
+    write('DEBIAN/conffiles', '/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n/etc/reader/files.conf\n/etc/dpkg/dpkg.cfg.d/80-reread-space\n/etc/apt/apt.conf.d/80-reread-indexes\n')
     copy(base / 'antix/files-head.html', 'usr/share/reader/files-head.html')
+    copy(base / 'antix/storage/80-reread-space', 'etc/dpkg/dpkg.cfg.d/80-reread-space')
+    copy(base / 'antix/storage/80-reread-indexes', 'etc/apt/apt.conf.d/80-reread-indexes')
     copy(base / 'antix/files.conf', 'etc/reader/files.conf')
     copy(base / 'antix/STORAGE.md', 'usr/share/doc/reread/storage.md')
     copy(base / 'antix/THIRD_PARTY.md', 'usr/share/doc/reread/third-party.md')
