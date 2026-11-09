@@ -12,14 +12,45 @@ OUTPUT = BASE / "out/antix"
 def main():
     version = (SOURCE / "VERSION").read_text().strip()
     subprocess.run(["dpkg", "--validate-version", version], check=True)
-    if not (BUILD / "libreader-ui.so").exists():
-        raise SystemExit("First run antix/ui/build.sh inside the reread-builder container.")
+    BUILD.mkdir(parents=True, exist_ok=True)
     env = {"PKG_CONFIG_LIBDIR": "/usr/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig"}
     import os
     compiler_env = dict(os.environ, **env)
+
+    def pkg(*names, mode="--cflags"):
+        return subprocess.check_output(["pkg-config", mode, *names], text=True, env=compiler_env).split()
+
+    ui = BASE / "antix/ui"
+    device_flags = pkg("Qt5Core", "Qt5DBus")
+    device_libs = pkg("Qt5Core", "Qt5DBus", mode="--libs")
+    widget_flags = pkg("Qt5Widgets")
+    widget_libs = pkg("Qt5Widgets", mode="--libs")
+    # Build only the libraries the app uses, not Home, Camera or the
+    # session adapter. The full UI build also requires gio-unix-2.0.
+    moc = BUILD / "moc-reader-device.cpp"
+    subprocess.run(["moc", str(ui / "reader-device.hpp"), "-o", str(moc)], check=True)
+    subprocess.run(["g++", "-m32", "-std=c++17", "-O2", "-fPIC",
+                    "-Wall", "-Wextra", "-Werror", *device_flags,
+                    "-I" + str(BASE / "antix"), "-shared",
+                    "-Wl,-soname,libreader-device.so.1",
+                    str(ui / "reader-device.cpp"), str(moc),
+                    *device_libs, "-o", str(BUILD / "libreader-device.so.1")],
+                   check=True, env=compiler_env)
+    subprocess.run(["ln", "-sfn", "libreader-device.so.1",
+                    str(BUILD / "libreader-device.so")], check=True)
+    subprocess.run(["g++", "-m32", "-std=c++17", "-O2", "-fPIC",
+                    "-Wall", "-Wextra", "-Werror", *widget_flags,
+                    "-I" + str(BASE / "antix"), "-shared",
+                    "-Wl,-soname,libreader-ui.so.3",
+                    str(ui / "reader-ui.cpp"), "-L" + str(BUILD),
+                    "-lreader-device", *widget_libs,
+                    "-o", str(BUILD / "libreader-ui.so.3")],
+                   check=True, env=compiler_env)
+    subprocess.run(["ln", "-sfn", "libreader-ui.so.3",
+                    str(BUILD / "libreader-ui.so")], check=True)
     binary = BUILD / "reader-archive-app"
-    flags = subprocess.check_output(["pkg-config", "--cflags", "Qt5Widgets", "Qt5Network"], text=True, env=compiler_env).split()
-    libs = subprocess.check_output(["pkg-config", "--libs", "Qt5Widgets", "Qt5Network"], text=True, env=compiler_env).split()
+    flags = pkg("Qt5Widgets", "Qt5Network")
+    libs = pkg("Qt5Widgets", "Qt5Network", mode="--libs")
     subprocess.run(["g++", "-m32", "-std=c++17", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
                     *flags, "-I" + str(BASE / "antix/ui"), "-I" + str(BASE / "antix"),
                     str(SOURCE / "main.cpp"), "-L" + str(BUILD), "-lreader-ui", "-lreader-device",
