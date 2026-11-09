@@ -312,6 +312,7 @@ class Archive : public Screen {
       if(fileThumbs.contains(key)||fileThumbFailed.contains(key)||
          fileThumbPending.contains(key)||fileThumbJobs.size()>=2)continue;
       fileThumbPending.insert(key);
+      const QString sourceItem=itemId;
       QNetworkRequest req(fileUrl(itemId,key));
       req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                        QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -319,10 +320,10 @@ class Archive : public Screen {
       connect(job,&QNetworkReply::downloadProgress,this,[job](qint64 n,qint64) {
         if(n>700*1024)job->abort();
       });
-      connect(job,&QNetworkReply::finished,this,[this,job,key] {
+      connect(job,&QNetworkReply::finished,this,[this,job,key,sourceItem] {
         fileThumbJobs.removeAll(job);
         fileThumbPending.remove(key);
-        if(job->error()==QNetworkReply::NoError) {
+        if(sourceItem==itemId && job->error()==QNetworkReply::NoError) {
           QByteArray data=job->readAll();
           if(data.size()<=700*1024) {
             QBuffer buf(&data);buf.open(QIODevice::ReadOnly);
@@ -337,7 +338,8 @@ class Archive : public Screen {
             }
           }
         }
-        if(!fileThumbs.contains(key))fileThumbFailed.insert(key);
+        if(sourceItem==itemId && !fileThumbs.contains(key))
+          fileThumbFailed.insert(key);
         job->deleteLater();
         if(page==FILES)requestFilePreviews();
         update();
@@ -447,11 +449,17 @@ class Archive : public Screen {
     while(pos<length && result.size()<limit) {
       if(bookText.at(pos)=='\r') {++pos;continue;}
       if(bookText.at(pos)=='\n') {result<<"";++pos;continue;}
-      int end=bookText.indexOf('\n',pos);
-      if(end<0)end=length;
-      while(end>pos && bookText.at(end-1)=='\r')--end;
-      int count=qMin(end-pos,512);
-      if(count<=0){result<<"";pos=qMin(length,end+1);continue;}
+      // Examine at most 512 UTF-16 units, even for a huge unbroken line.
+      // Searching for the next newline across the whole file on each
+      // visual line caused repeated megabyte-scale scans during painting.
+      const int scanEnd=qMin(length,pos+512);
+      int end=pos;
+      while(end<scanEnd && bookText.at(end)!='\n' && bookText.at(end)!='\r')
+        ++end;
+      const bool hasBreak=end<length &&
+        (bookText.at(end)=='\n'||bookText.at(end)=='\r');
+      int count=end-pos;
+      if(count<=0){result<<"";++pos;continue;}
       int lo=1,hi=count;
       while(lo<hi) {
         int mid=(lo+hi+1)/2;
@@ -466,7 +474,10 @@ class Archive : public Screen {
       result<<bookText.mid(pos,count).trimmed();
       pos+=count;
       while(pos<end && bookText.at(pos).isSpace())++pos;
-      if(pos>=end)pos=qMin(length,end+1);
+      if(pos>=end && hasBreak) {
+        pos=end+1;
+        if(pos<length && bookText.at(end)=='\r' && bookText.at(pos)=='\n')++pos;
+      }
     }
     if(next)*next=pos;
     return result;
@@ -974,7 +985,13 @@ public:
     loadFavorites();loaded=true;
     connect(&playbackTick,&QTimer::timeout,this,[this]{if(page==PLAYER)update();});
   }
-  ~Archive() override {abortApi();abortCovers();stopAudio();if(transfer)transfer->abort();if(saveFile)saveFile->cancelWriting();}
+  ~Archive() override {
+    abortApi();abortCovers();
+    for(auto job:fileThumbJobs){job->disconnect(this);job->abort();job->deleteLater();}
+    stopAudio();
+    if(transfer)transfer->abort();
+    if(saveFile)saveFile->cancelWriting();
+  }
 };
 int main(int argc,char **argv) {
   qputenv("QT_QPA_FB_DISABLE_INPUT","1");
