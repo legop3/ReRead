@@ -7,13 +7,13 @@ ReRead is a handheld platform built on **antiX 26.1 Core i386**, kernel `5.10.25
 The full installer installs antiX plus the **same `reread` Debian package used
 for later updates**. The source of truth is this repository, not a running
 Reader. Version is set in [VERSION](VERSION); [release.py](release.py) builds
-the platform and Camera packages from source. Personal files, network credentials, host
+the platform, Camera and Software packages from source. Personal files, network credentials, host
 identity and installed apps are not part of its payload.
 
 Camera updates use the separate `reread-app-camera_<version>_i386.deb` on **Apps**.
 To add Camera to an older installation, update the core first, then install that app package.
 
-For online updates and app installation, use the [signed APT repository](../repository/README.md).
+For online updates and app installation, use the [signed APT repository](../repository/README.md) or the on-device **Software** app.
 The source and public key are included starting with ReRead 0.11.0.
 Starting with 0.12.0, **Updates → Check for updates** and **Apps → Check for apps and updates**
 refresh that repository from the USB web interface. Install the offered platform
@@ -30,7 +30,7 @@ background-service/driver changes; reboot with `reboot` over SSH when indicated.
 
 **Apps** installs/updates `reread-app-*` packages, lists installed apps, and removes
 them while retaining their data and conffiles. Service apps can be enabled or
-disabled persistently. The installer bundles the separately packaged Camera app; see the
+disabled persistently. The installer bundles the separately packaged Camera and Software apps; see the
 [app packaging contract](apps/README.md).
 
 Core code/assets, hardware module and service definitions are package-owned.
@@ -319,12 +319,20 @@ Reinstallation replaces uploaded files, settings, passwords and SSH host keys.
 
 ## Wi-Fi and web menu
 
-Open `http://192.168.7.1/#wifi`, scan, select a network, enter its password and
-choose **Save and connect**. A hidden network can be entered manually. The page
-shows association state and the assigned address. **Forget saved network**
-removes the stored credentials. One saved network reconnects automatically.
-WPA/WPA2 Personal and open networks are supported; WPA3-only, enterprise and WEP
-networks are not supported by this small setup.
+Open `http://192.168.7.1/#wifi` to manage saved profiles. Scan or enter an SSID,
+choose security and enter its password, then **Save network** or **Save and connect now**.
+Saving another profile retains all existing networks. **Edit** changes a specific
+profile; a blank password keeps its current PSK when the SSID/security are unchanged.
+Each profile has a hidden-network flag, automatic connection switch and priority
+(higher values are preferred). **Connect**, **Enable/Disable** and **Forget** act
+on that profile only. Connecting explicitly enables that profile; enabled alternatives
+remain available for fallback and future boots.
+
+WPA/WPA2 Personal and open networks can be created/edited here. Existing profiles
+with other security can be selected or removed but not edited in this form.
+The standard `wpa_cli` control commands manage network IDs and `save_config`
+persists them in wpa_supplicant's own format; there is no ReRead profile database.
+Saved profiles require a plugged-in adapter and running supplicant to edit.
 
 The Wi-Fi service discovers wireless interfaces through sysfs and starts the
 distro's `wpa_supplicant`, with generic nl80211/WEXT fallback. The web backend
@@ -344,6 +352,40 @@ Factory images contain no saved network. Logs are `/var/log/reader/wifi.log`
 and `time.log`. Reinstallation removes the saved network along with other data.
 
 The web interface has hash-linked **Overview**, **Files**, **Apps**, **Updates**,
-**Wi-Fi** and **Settings** pages, with browser back/forward navigation. It stays a small
+**Repositories**, **Wi-Fi** and **Settings** pages, with browser back/forward navigation. It stays a small
 HTML/JavaScript page and a Python standard-library server. Management HTTP and
 SSH remain bound to the USB address; Wi-Fi provides the Reader's Internet link.
+
+## On-device software management
+
+The default **Software** application is an independent Qt executable in the
+`reread-app-software` Debian package, with its own desktop entry and hicolor SVG.
+Use its button menu to check repositories, install a ReRead system update, browse
+installed/available applications, install/update them, or remove an app while keeping
+its data. The operation page shows the persistent package job and scrollable log.
+An app removal has a Cancel-first confirmation. The existing Home power menu handles
+restarting after a system update.
+
+Software calls the local `reader-software` CLI, which starts the same detached
+`reader-update` worker as the web interface. It needs no web server or USB host,
+adds no daemon, and does not implement another package manager. Jobs continue if
+the foreground app exits or a core update restarts Home. APT and runit still own
+dependencies, installation and app services.
+
+Repository management is available at `http://192.168.7.1/#repositories`; see the
+[source-file contract](../repository/README.md#additional-repositories).
+
+Focused checks (inside the builder unless indicated):
+
+```sh
+python3 antix/test-base-management.py
+python3 antix/apps/software/test-navigation.py
+# On a host with Node, Playwright and Chromium:
+node antix/test-web-packages.cjs
+```
+
+The backend test uses real APT parsing and a disposable wpa_supplicant with the
+`none` driver on the container's loopback interface. It does not change the Reader's
+networks. The native navigation test uses a temporary CLI fixture inside the builder;
+it refuses to replace an installed `reader-software` command. Screenshots go under
+`build/repository/`. The browser test intercepts API requests and makes no device changes.

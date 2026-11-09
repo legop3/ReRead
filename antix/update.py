@@ -72,10 +72,11 @@ def main():
                                    'org.freedesktop.login1.Manager')
             inhibitor = login.Inhibit('idle', 'ReRead package manager', 'Package operation in progress', 'block').take()
         if args.action == 'check':
-            run('apt-get', '-o', 'Dir::Etc::sourcelist=sources.list.d/reread.sources',
-                '-o', 'Dir::Etc::sourceparts=-', '-o', 'APT::Get::List-Cleanup=false',
-                '-o', 'APT::Update::Error-Mode=any', '-o', 'Acquire::Retries=0',
-                '-o', 'Acquire::http::Timeout=20', '-o', 'Acquire::https::Timeout=20', 'update')
+            with manager.repositories.app_sources() as options:
+                arguments = [value for key, option in options.items() for value in ('-o', key + '=' + option)]
+                run('apt-get', *arguments, '-o', 'APT::Get::List-Cleanup=false',
+                    '-o', 'APT::Update::Error-Mode=any', '-o', 'Acquire::Retries=0',
+                    '-o', 'Acquire::http::Timeout=20', '-o', 'Acquire::https::Timeout=20', 'update')
             manager.refresh_catalog(checked=True)
         elif args.action == 'online':
             candidate = next((p for p in manager.available_packages() if p['package'] == args.package), None)

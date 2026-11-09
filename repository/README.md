@@ -85,3 +85,26 @@ python3 repository/test.py build/repository/site
 The output directory must be new. The integration check uses isolated APT lists
 and a local HTTP server to check a real package download and rejection of a
 tampered signed index; it does not install packages or change system APT sources.
+
+## Additional repositories
+
+Use **Repositories** in USB web management to add an app archive with its URL,
+suite, components and ASCII-armored public signing key (or an existing keyring path).
+The page can enable/disable, edit and remove sources. Its advanced section exposes
+existing antiX/Debian source files too. Editing uses the actual `.sources`/`.list`
+text; APT parses proposed changes before the old file is replaced. App sources can
+also replace their public key through the editor. Changes wait for package jobs to
+finish and clear the cached catalog; check for updates afterward.
+
+App sources are ordinary files named `reread*.sources` or `reread*.list` under
+`/etc/apt/sources.list.d/`. The add form writes `reread-<name>.sources`, native i386
+architecture and an explicit `Signed-By` reference. Uploaded public keys live under
+`/etc/apt/keyrings/`; removing a source leaves its unused key file for later reuse.
+There is no separate repository registry or global `apt-key` trust import.
+
+Software and the web catalog load trusted candidates from these app sources.
+Packages still need the `reread` / `reread-app-*` identities. Repository origin,
+host and suite are not hardcoded. Version selection follows APT preferences and
+Debian version comparisons. Dependency installation uses all enabled system sources.
+The catalog is intentionally limited to app-source metadata to keep it small on the
+Reader; system repositories remain normal APT sources for Linux packages.

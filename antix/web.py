@@ -9,8 +9,9 @@ import shutil
 import socket
 import subprocess
 import tempfile
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urlsplit, parse_qs
 import reader_wifi as wifi
+import reader_repositories as repositories
 import reader_manager as manager
 import reader_battery as battery
 
@@ -54,6 +55,14 @@ class Handler(BaseHTTPRequestHandler):
                         files=[dict(name=p.name, bytes=p.stat().st_size) for p in sorted(FILES.iterdir())
                                if p.is_file() and not p.is_symlink() and not p.name.startswith('.')])
             return self.reply(200, json.dumps(body), 'application/json')
+        if route == '/api/repositories':
+            return self.reply(200, json.dumps(repositories.inventory()), 'application/json')
+        if route == '/api/wifi/profile':
+            try:
+                identity = parse_qs(urlsplit(self.path).query).get('id', [''])[0]
+                return self.reply(200, json.dumps(wifi.profile(wifi.require_device(), identity)), 'application/json')
+            except (ValueError, OSError, subprocess.SubprocessError) as error:
+                return self.reply(400, str(error))
         if route == '/api/wifi':
             return self.reply(200, json.dumps(wifi.status()), 'application/json')
         if route == '/api/platform':
@@ -126,8 +135,8 @@ class Handler(BaseHTTPRequestHandler):
                     os.fsync(dest.fileno())
                 os.replace(temporary, target)
                 return self.reply(200, 'Uploaded ' + target.name)
-            if route not in ('/api/settings', '/api/wifi/scan', '/api/wifi/connect', '/api/wifi/forget', '/api/apps/action',
-                             '/api/packages/check', '/api/packages/install') or length > 4096:
+            if route not in ('/api/settings', '/api/wifi/scan', '/api/wifi/save', '/api/wifi/action', '/api/apps/action',
+                             '/api/packages/check', '/api/packages/install', '/api/repositories') or length > (131072 if route == '/api/repositories' else 4096):
                 self.close_connection = True
                 return self.reply(400, 'Invalid request.')
             data = json.loads(self.rfile.read(length))
@@ -145,12 +154,15 @@ class Handler(BaseHTTPRequestHandler):
             if route == '/api/wifi/scan':
                 wifi.scan()
                 return self.reply(200, 'Scanning for networks…')
-            if route == '/api/wifi/connect':
-                wifi.connect(data)
-                return self.reply(200, 'Network saved. Connecting…')
-            if route == '/api/wifi/forget':
-                wifi.forget()
-                return self.reply(200, 'Saved network forgotten.')
+            if route == '/api/wifi/save':
+                wifi.save(data)
+                return self.reply(200, 'Network saved.' + (' Connecting…' if data.get('connect') else ''))
+            if route == '/api/wifi/action':
+                wifi.action(data)
+                return self.reply(200, 'Network settings saved.')
+            if route == '/api/repositories':
+                repositories.change(data)
+                return self.reply(200, 'Repository saved. Check for apps and updates to refresh the catalog.')
             hostname = data.get('hostname', '')
             password = data.get('password', '')
             if hostname and not re.fullmatch(r'[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,30}[a-zA-Z0-9])?', hostname):

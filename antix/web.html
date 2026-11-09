@@ -10,8 +10,9 @@ nav{display:flex;gap:5px;margin:22px 0;flex-wrap:wrap}nav a{color:#3e5361;text-d
 nav a[aria-current=page]{background:#172c38;color:white}main{max-width:940px;margin:auto;padding:0 20px 32px}
 section{background:white;border:1px solid #dce3e8;border-radius:10px;padding:24px;margin:16px 0}
 h2{font-size:21px;margin:0 0 16px}p{line-height:1.5}.muted{color:#5b6f7d}
-input,select,button{font:inherit;padding:10px 12px;border:1px solid #bfcbd3;border-radius:6px;max-width:100%}
+input,select,textarea,button{font:inherit;padding:10px 12px;border:1px solid #bfcbd3;border-radius:6px;max-width:100%}
 input:not([type=checkbox]),select{width:100%;max-width:440px}input[type=file]{max-width:100%;padding:8px}
+textarea{display:block;width:100%;font:14px monospace;resize:vertical}summary{cursor:pointer}article+article{border-top:1px solid #e5e9ed;margin-top:20px;padding-top:12px}
 label{display:block;margin:16px 0 6px}button{cursor:pointer;background:#176b64;color:white;border-color:#176b64;margin:16px 8px 0 0}
 button.secondary{background:white;color:#344a58;border-color:#bfcbd3}button:disabled{opacity:.55;cursor:wait}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #63b3aa;outline-offset:3px}
@@ -27,7 +28,7 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
 <nav aria-label="Main menu">
  <a href="#overview" data-page="overview">Overview</a><a href="#files" data-page="files">Files</a>
  <a href="#apps" data-page="apps">Apps</a><a href="#updates" data-page="updates">Updates</a>
- <a href="#wifi" data-page="wifi">Wi-Fi</a><a href="#settings" data-page="settings">Settings</a>
+ <a href="#repositories" data-page="repositories">Repositories</a><a href="#wifi" data-page="wifi">Wi-Fi</a><a href="#settings" data-page="settings">Settings</a>
 </nav>
 <div id="page-overview">
  <section><h2>Your ReRead</h2><dl><dt>Device</dt><dd id="device">—</dd><dt>Storage</dt><dd id="storage">—</dd>
@@ -40,7 +41,8 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  <ul id="files"></ul><p id="empty-files" class="muted" hidden>No files yet.</p></section>
 </div>
 <div id="page-wifi" hidden>
- <section><h2>Wi-Fi</h2><p id="wifi-status" role="status">Checking adapter…</p><p id="saved-network" class="muted"></p>
+ <section><h2>Wi-Fi</h2><p id="wifi-status" role="status">Checking adapter…</p><h3>Saved networks</h3><div id="wifi-profiles"></div><button id="new-network" class="secondary">Add network</button></section>
+ <section><h2 id="wifi-form-title">Add network</h2>
  <div class="inline"><button id="scan" class="secondary">Scan for networks</button><span id="scan-status" class="muted"></span></div>
  <form id="wifi-form">
  <label for="networks">Nearby networks</label><select id="networks"><option value="">Scan or enter a name below</option></select>
@@ -48,8 +50,10 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  <label for="security">Security</label><select id="security"><option value="personal">WPA / WPA2 Personal</option><option value="open">Open network</option></select>
  <div id="wifi-password-field"><label for="wifi-password">Wi-Fi password</label><input id="wifi-password" type="password" autocomplete="off" minlength="8" maxlength="64" required></div>
  <label class="check"><input id="hidden-network" type="checkbox"> Hidden network</label>
- <button id="connect">Save and connect</button><button id="forget" type="button" class="secondary">Forget saved network</button>
- </form><p class="muted">The saved network reconnects automatically after boot. WPA3-only and enterprise networks are not supported yet.</p>
+ <label class="check"><input id="wifi-enabled" type="checkbox" checked> Connect automatically</label>
+ <label for="wifi-priority">Priority (higher is preferred)</label><input id="wifi-priority" type="number" min="-100" max="100" value="0" required>
+ <button id="save-network">Save network</button><button id="save-connect" class="secondary">Save and connect now</button>
+ </form><p class="muted">Enabled networks reconnect automatically after boot. Use priority to prefer one network over another. When editing, leave the password blank to keep it. WPA3-only and enterprise profiles cannot be created here yet.</p>
  </section>
 </div>
 <div id="page-apps" hidden>
@@ -67,6 +71,24 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  <form id="install-platform"><label for="platform-package">ReRead package (.deb)</label><input id="platform-package" type="file" accept=".deb" required><br><button>Install update</button></form></details>
  <p id="reboot-notice" hidden>Reboot to apply all background-service and driver changes.</p></section>
 </div>
+<div id="page-repositories" hidden>
+ <section><h2>App repositories</h2><p class="muted">These APT sources supply ReRead updates and apps. Disabling or removing a source keeps its installed packages. Check for apps and updates after changes.</p><div id="app-repos"></div></section>
+ <section><details id="add-repo"><summary>Add an app repository</summary><form id="repo-add">
+ <label for="repo-name">Short name</label><input id="repo-name" pattern="[a-z0-9]([a-z0-9]|-){0,47}" placeholder="my-apps" required>
+ <label for="repo-uri">Repository URL</label><input id="repo-uri" type="url" placeholder="https://example.org/apt" required>
+ <label for="repo-suite">Suite</label><input id="repo-suite" value="stable" required>
+ <label for="repo-components">Components</label><input id="repo-components" value="main">
+ <label for="repo-key-file">Load a public key (.asc)</label><input id="repo-key-file" type="file" accept=".asc">
+ <label for="repo-key">Public signing key (ASCII armored)</label><textarea id="repo-key" rows="5" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----"></textarea>
+ <label for="repo-signed-by">Or an existing keyring path on the Reader</label><input id="repo-signed-by" placeholder="/usr/share/keyrings/example.asc">
+ <button>Add repository</button></form></details></section>
+ <section id="repo-editor" hidden><h2 id="repo-editor-title">Edit repository</h2><form id="repo-edit">
+ <p class="muted">This is the normal APT source file. You can edit URLs, suites, components and Signed-By here.</p>
+ <label for="repo-content">Source file</label><textarea id="repo-content" rows="12" required></textarea>
+ <div id="repo-edit-key-field"><label for="repo-edit-key">Replacement public signing key (optional)</label><textarea id="repo-edit-key" rows="5"></textarea></div>
+ <button>Save changes</button><button type="button" id="repo-cancel" class="secondary">Cancel</button></form></section>
+ <section><details><summary>System APT sources (advanced)</summary><p class="muted">antiX and Debian supply Linux system packages and app dependencies. These sources are managed by APT; changing them can affect dependency availability.</p><div id="system-repos"></div></details></section>
+</div>
 <div id="package-operation" hidden><section><h2>Package operation</h2><p id="package-status" role="status"></p><pre id="package-log" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px"></pre></section></div>
 <div id="page-settings" hidden>
  <section><h2>Device settings</h2><form id="settings">
@@ -79,7 +101,7 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
 </main>
 <script>
 const $=id=>document.getElementById(id),size=n=>(n/1048576).toFixed(1)+' MiB';
-let networks=[],page='',scanTimer=null;
+let networks=[],page='',scanTimer=null,lastProfiles='',editingRepo=null;
 function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
 async function get(url){const r=await fetch(url);if(!r.ok)throw Error(await r.text());return r.json();}
 async function post(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();if(!r.ok)throw Error(t);return t;}
@@ -104,24 +126,32 @@ function wifiDescription(s){if(!s.interface)return 'No Wi-Fi adapter detected.';
  const states={SCANNING:'Scanning…',ASSOCIATING:'Connecting…',ASSOCIATED:'Authenticating…','4WAY_HANDSHAKE':'Authenticating…',GROUP_HANDSHAKE:'Authenticating…',INACTIVE:'Not connected.',DISCONNECTED:'Not connected.',INTERFACE_DISABLED:'Wi-Fi interface is disabled.'};
  return states[s.state]||s.state;}
 async function refreshWifi(){const s=await get('/api/wifi'),text=wifiDescription(s);$('wifi-status').textContent=text;$('overview-wifi').textContent=text;
- $('saved-network').textContent=s.saved_ssid?'Saved network: '+s.saved_ssid:'No saved network.';$('forget').disabled=!s.saved_ssid;
- $('scan').disabled=!s.interface;$('connect').disabled=!s.interface||!!s.error;
+  $('scan').disabled=!s.interface;
+ $('save-network').disabled=$('save-connect').disabled=!s.interface||!!s.error;
+ const profileSignature=JSON.stringify([s.interface,s.profiles||[]]);
+ if(profileSignature!==lastProfiles){lastProfiles=profileSignature;$('wifi-profiles').replaceChildren();
+ if(!(s.profiles||[]).length){const p=document.createElement('p');p.className='muted';p.textContent=s.interface?'No networks saved.':'Plug in a Wi-Fi adapter to manage saved networks.';$('wifi-profiles').append(p);}
+ for(const saved of s.profiles||[]){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=saved.ssid;p.textContent=(saved.current?'Connected · ':'')+(saved.enabled?'Automatic connection enabled':'Automatic connection disabled');row.append(h,p);
+ for(const [label,action] of [['Connect','connect'],['Edit','edit'],[saved.enabled?'Disable':'Enable',saved.enabled?'disable':'enable'],['Forget','forget']]){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.onclick=async()=>{b.disabled=true;try{if(action==='edit'){await editWifi(saved.id);}else{if(action==='forget'&&!confirm('Forget '+saved.ssid+'?'))return;message(await post('/api/wifi/action',{id:saved.id,action}));await refreshWifi();}}catch(e){message(e.message,true);}finally{b.disabled=false;}};row.append(b);}$('wifi-profiles').append(row);}}
+
  if(document.activeElement===$('networks'))return;
  const selected=$('networks').value,selectedName=selected!==''&&networks[Number(selected)]?networks[Number(selected)].ssid:'';
  networks=s.networks;$('networks').replaceChildren(new Option(networks.length?'Choose a network':'No scan results yet',''));
  networks.forEach((n,i)=>{const label={personal:'secured',open:'open',wpa3:'WPA3 only',unsupported:'unsupported security'}[n.security];const o=new Option(n.ssid+' · '+label+' · '+(n.signal<0?n.signal+' dBm':'signal '+n.signal),String(i));o.disabled=!['personal','open'].includes(n.security);if(n.ssid===selectedName)o.selected=true;$('networks').append(o);});
 }
-async function navigate(){const next=location.hash.slice(1)||'overview';page=['overview','files','wifi','settings','apps','updates'].includes(next)?next:'overview';
+async function navigate(){const next=location.hash.slice(1)||'overview';page=['overview','files','wifi','settings','apps','updates','repositories'].includes(next)?next:'overview';
  for(const a of document.querySelectorAll('nav a')){const active=a.dataset.page===page;if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');$('page-'+a.dataset.page).hidden=!active;}
- message('');try{await refreshSystem();await refreshBattery();if(page==='wifi'||page==='overview')await refreshWifi();if(page==='apps'||page==='updates')await refreshPlatform();$('package-operation').hidden=!['apps','updates'].includes(page);}catch(e){message(e.message,true);}}
-$('networks').onchange=()=>{const n=networks[Number($('networks').value)];if($('networks').value===''||!n)return;$('ssid').value=n.ssid;$('security').value=n.security;updateSecurity();$('wifi-password').focus();};
-function updateSecurity(){const secure=$('security').value!=='open';$('wifi-password-field').hidden=!secure;$('wifi-password').required=secure;}
+ message('');try{await refreshSystem();await refreshBattery();if(page==='wifi'||page==='overview')await refreshWifi();if(['apps','updates','repositories'].includes(page))await refreshPlatform();if(page==='repositories')await refreshRepos();$('package-operation').hidden=!['apps','updates','repositories'].includes(page);}catch(e){message(e.message,true);}}
+$('networks').onchange=()=>{const n=networks[Number($('networks').value)];if($('networks').value===''||!n)return;resetWifi();$('ssid').value=n.ssid;$('security').value=n.security;updateSecurity();$('wifi-password').focus();};
+function updateSecurity(){const secure=$('security').value!=='open';$('wifi-password-field').hidden=!secure;$('wifi-password').required=secure&&!$('wifi-form').dataset.id;}
 $('security').onchange=updateSecurity;
 $('scan').onclick=async()=>{const b=$('scan');b.disabled=true;$('scan-status').textContent='Scanning…';try{await post('/api/wifi/scan',{});
  clearTimeout(scanTimer);scanTimer=setTimeout(async()=>{try{await refreshWifi();$('scan-status').textContent=networks.length+' networks found';}catch(e){message(e.message,true);}finally{b.disabled=false;}},2500);
  }catch(e){message(e.message,true);$('scan-status').textContent='';b.disabled=false;}};
-$('wifi-form').onsubmit=async e=>{e.preventDefault();$('connect').disabled=true;try{message(await post('/api/wifi/connect',{ssid:$('ssid').value,password:$('wifi-password').value,security:$('security').value,hidden:$('hidden-network').checked}));$('wifi-password').value='';await refreshWifi();}catch(e){message(e.message,true);}finally{$('connect').disabled=false;}};
-$('forget').onclick=async()=>{try{message(await post('/api/wifi/forget',{}));await refreshWifi();}catch(e){message(e.message,true);}};
+function resetWifi(){delete $('wifi-form').dataset.id;$('wifi-form').reset();$('wifi-form-title').textContent='Add network';$('wifi-password').placeholder='';updateSecurity();}
+async function editWifi(id){const p=await get('/api/wifi/profile?id='+encodeURIComponent(id));if(p.security==='unsupported')throw Error('This saved profile uses unsupported security; it can still connect or be removed.');$('wifi-form').dataset.id=p.id;$('wifi-form-title').textContent='Edit '+p.ssid;$('ssid').value=p.ssid;$('security').value=p.security;$('hidden-network').checked=p.hidden;$('wifi-enabled').checked=p.enabled;$('wifi-priority').value=p.priority;$('wifi-password').value='';$('wifi-password').placeholder='Leave blank to keep password';updateSecurity();$('wifi-form-title').scrollIntoView({block:'start',behavior:'smooth'});}
+$('new-network').onclick=()=>{resetWifi();$('ssid').focus();};
+$('wifi-form').onsubmit=async e=>{e.preventDefault();const connect=e.submitter?.id==='save-connect';try{message(await post('/api/wifi/save',{id:$('wifi-form').dataset.id??null,ssid:$('ssid').value,password:$('wifi-password').value,security:$('security').value,hidden:$('hidden-network').checked,enabled:$('wifi-enabled').checked,priority:Number($('wifi-priority').value),connect}));resetWifi();await refreshWifi();}catch(e){message(e.message,true);}};
 $('send').onclick=async()=>{if(!$('upload').files.length)return message('Choose a file first.');const b=$('send');b.disabled=true;try{
  for(const f of $('upload').files){message('Uploading '+f.name+'…');const r=await fetch('/files/'+encodeURIComponent(f.name),{method:'POST',body:f});if(!r.ok)throw Error(await r.text());}
  message('Upload complete.');await refreshSystem();}catch(e){message(e.message,true);}finally{b.disabled=false;}};
@@ -139,7 +169,7 @@ async function refreshPlatform(){const s=await get('/api/platform');if(reconnect
  const platform=catalog.packages.find(p=>p.package==='reread');
  $('update-online').hidden=!platform||!platform.upgrade;
  $('online-version').textContent=platform?(platform.upgrade?'Version '+platform.version+' is available.':'No newer ReRead release available.'):(catalog.checked?'No platform package available from the repository.':'Check the repository to see available updates.');
- for(const b of document.querySelectorAll('#install-app button,#install-platform button,#apps-list button,#available-apps button,#check-apps,#check-updates,#update-online'))b.disabled=packageBusy;
+ for(const b of document.querySelectorAll('#install-app button,#install-platform button,#apps-list button,#available-apps button,#check-apps,#check-updates,#update-online,#page-repositories button'))b.disabled=packageBusy;
  const signature=JSON.stringify([s.apps,catalog.packages]);if(signature===lastApps)return;lastApps=signature;
  $('available-apps').replaceChildren();
  const available=catalog.packages.filter(p=>p.package!=='reread'&&!s.apps.some(a=>a.package===p.package));
@@ -156,6 +186,16 @@ async function installPackage(input,url){if(packageBusy)return message('A packag
  message('Uploading '+file.name+'…');const r=await fetch(url,{method:'POST',body:file});if(!r.ok)throw Error(await r.text());message('Package received. Installing…');await refreshPlatform();}
 $('install-app').onsubmit=async e=>{e.preventDefault();try{await installPackage('app-package','/api/apps/install');}catch(e){message(e.message,true);}};
 $('install-platform').onsubmit=async e=>{e.preventDefault();try{await installPackage('platform-package','/api/updates/install');}catch(e){message(e.message,true);}};
+async function repoAction(data){message(await post('/api/repositories',data));await refreshRepos();await refreshPlatform();}
+async function refreshRepos(){const repos=await get('/api/repositories');$('app-repos').replaceChildren();$('system-repos').replaceChildren();
+ if(!repos.some(r=>r.apps)){$('app-repos').textContent='No app repositories configured. Add one below.';}
+ for(const repo of repos){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=repo.id==='reread.sources'?'ReRead':repo.id;p.textContent=repo.enabled?'Enabled':'Disabled';row.append(h,p);
+ for(const [label,action] of [[repo.enabled?'Disable':'Enable','toggle'],['Edit','edit'],['Remove','remove']]){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.disabled=packageBusy;b.onclick=async()=>{try{if(action==='edit'){editingRepo=repo;$('repo-content').value=repo.content;$('repo-edit-key').value='';$('repo-edit-key-field').hidden=!repo.apps||!repo.id.endsWith('.sources');$('repo-editor-title').textContent='Edit '+repo.id;$('repo-editor').hidden=false;$('repo-editor').scrollIntoView({behavior:'smooth'});}else{if(action==='remove'&&!confirm('Remove '+repo.id+'? Installed packages will be kept.'))return;await repoAction({action,id:repo.id,enabled:!repo.enabled});}}catch(e){message(e.message,true);}};row.append(b);}
+ const path=document.createElement('p');path.textContent=repo.path;path.className='muted';row.append(path);$(repo.apps?'app-repos':'system-repos').append(row);}}
+$('repo-key-file').onchange=async()=>{const f=$('repo-key-file').files[0];if(f)$('repo-key').value=await f.text();};
+$('repo-add').onsubmit=async e=>{e.preventDefault();try{await repoAction({action:'add',name:$('repo-name').value,uri:$('repo-uri').value,suite:$('repo-suite').value,components:$('repo-components').value,key:$('repo-key').value,signed_by:$('repo-signed-by').value});$('repo-add').reset();$('add-repo').open=false;}catch(e){message(e.message,true);}};
+$('repo-edit').onsubmit=async e=>{e.preventDefault();if(!editingRepo)return;try{await repoAction({action:'save',id:editingRepo.id,content:$('repo-content').value,key:$('repo-edit-key').value});$('repo-editor').hidden=true;editingRepo=null;}catch(e){message(e.message,true);}};
+$('repo-cancel').onclick=()=>{$('repo-editor').hidden=true;editingRepo=null;};
 window.addEventListener('hashchange',navigate);navigate();
-setInterval(()=>{refreshBattery().catch(()=>{});if(page==='wifi'||page==='overview')refreshWifi().catch(e=>message(e.message,true));if(page==='apps'||page==='updates')refreshPlatform().catch(()=>{reconnecting=true;message('Reconnecting to ReRead…');});},4000);
+setInterval(()=>{refreshBattery().catch(()=>{});if(page==='wifi'||page==='overview')refreshWifi().catch(e=>message(e.message,true));if(['apps','updates','repositories'].includes(page))refreshPlatform().catch(()=>{reconnecting=true;message('Reconnecting to ReRead…');});},4000);
 </script></html>

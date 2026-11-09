@@ -30,11 +30,11 @@ def screen(name):
 
 def accent(picture, column):
     width, height, pixels = picture
-    # The fresh image has Camera, Files and Settings in one centered grid row.
+    # The fresh image has Camera, Software, Files and Settings in two grid rows.
     content_height = height - 84
     tile_width = (width - 60) // 3
     tile_height = (content_height - 66) // 2
-    top = 70 + (content_height - 50 - tile_height) // 2
+    top = 70 + (content_height - 50 - (tile_height * 2 + 16)) // 2
     left = 14 + column * (tile_width + 16)
     return sum(pixels[(y * width + x) * 3:(y * width + x) * 3 + 3] == b'\x65\xde\xd0'
                for y in range(top + 1, top + 4)
@@ -60,7 +60,12 @@ try:
     vm.expect('vfat')
     wait_screen('ui-vm-home', lambda frame: accent(frame, 0) > 100)
     vm.monitor('sendkey right')
-    wait_screen('ui-vm-files-selected', lambda frame: accent(frame, 1) > 100)
+    wait_screen('ui-vm-software-selected', lambda frame: accent(frame, 1) > 100)
+    vm.monitor('sendkey ret')
+    wait_screen('ui-vm-software-app', lambda frame: accent(frame, 1) == 0
+                and frame[2].count(b'\xee\xf3\xf8') > 100)
+    vm.monitor('sendkey esc')
+    wait_screen('ui-vm-software-returned', lambda frame: accent(frame, 1) > 100)
     vm.monitor('sendkey left')
     wait_screen('ui-vm-camera-selected', lambda frame: accent(frame, 0) > 100)
     vm.monitor('sendkey ret')

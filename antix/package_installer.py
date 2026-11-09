@@ -18,10 +18,13 @@ def package(system,packed,root_id):
     size=max(128,(sum(p.stat().st_size for p in files.rglob('*') if p.is_file())+MIB-1)//MIB+32)
     usb=image.disk('reread-installer-usb',size,files)
     version=(BUILD/'root/usr/share/reader/version').read_text().strip()
-    app_version=subprocess.check_output(['dpkg-query', '--admindir='+str(BUILD/'root/var/lib/dpkg'),
-        '-W', '-f=${Version}', 'reread-app-camera'], text=True).strip()
+    app_packages = []
+    for name in ('camera', 'software'):
+        app_version = subprocess.check_output(['dpkg-query', '--admindir='+str(BUILD/'root/var/lib/dpkg'),
+            '-W', '-f=${Version}', 'reread-app-' + name], text=True).strip()
+        app_packages.append(f'reread-app-{name}_{app_version}_i386.deb')
     manifest={'product':'ReRead','version':version,'update_package':f'reread_{version}_i386.deb',
-              'application_packages':[f'reread-app-camera_{app_version}_i386.deb'],
+              'application_packages':app_packages,
               'base':'antiX 26.1 Core i386','kernel':'5.10.256-antix.1-486-smp',
               'system_image':system.name,'system_bytes':system.stat().st_size,
               'compressed_image':packed.name,'installer_usb_image':usb.name,

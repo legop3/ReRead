@@ -10,6 +10,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 from gi.repository import GLib
+import reader_repositories as repositories
 
 STATE = Path('/var/lib/reader')
 STAGING = STATE / 'updates'
@@ -93,22 +94,22 @@ def write_job(data):
 
 @contextmanager
 def repository_cache():
-    """Load ReRead metadata and installed packages, rather than all of Debian."""
+    """Load configured app sources and installed packages, rather than all Debian."""
     import apt
     import apt_pkg
-    options = {'Dir::Etc::sourcelist': 'sources.list.d/reread.sources', 'Dir::Etc::sourceparts': '-'}
-    previous = {key: apt_pkg.config.find(key) if apt_pkg.config.exists(key) else None for key in options}
-    try:
-        for key, value in options.items():
-            apt_pkg.config.set(key, value)
-        with apt.Cache() as cache:
-            yield cache
-    finally:
-        for key, value in previous.items():
-            if value is None:
-                apt_pkg.config.clear(key)
-            else:
+    with repositories.app_sources() as options:
+        previous = {key: apt_pkg.config.find(key) if apt_pkg.config.exists(key) else None for key in options}
+        try:
+            for key, value in options.items():
                 apt_pkg.config.set(key, value)
+            with apt.Cache() as cache:
+                yield cache
+        finally:
+            for key, value in previous.items():
+                if value is None:
+                    apt_pkg.config.clear(key)
+                else:
+                    apt_pkg.config.set(key, value)
 
 
 def available_packages():
@@ -123,8 +124,7 @@ def available_packages():
             if name != 'reread' and not re.fullmatch(APP_PATTERN, name):
                 continue
             candidate = package.candidate
-            if not candidate or not any(o.trusted and o.origin == 'ReRead' and o.archive == 'stable'
-                                        for o in candidate.origins):
+            if not candidate or not any(o.trusted for o in candidate.origins):
                 continue
             installed = package.installed.version if package.installed else None
             packages.append(dict(package=package.name, version=candidate.version,

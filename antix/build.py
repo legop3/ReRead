@@ -67,11 +67,12 @@ local_package = root/'tmp'/release.name
 shutil.copy(release, local_package)
 run('chroot',str(root),'dpkg','--force-confdef','--force-confold','-i','/tmp/'+release.name)
 local_package.unlink()
-app_version = (BASE / 'antix/apps/camera/VERSION').read_text().strip()
-app_package = OUT / f'reread-app-camera_{app_version}_i386.deb'
-shutil.copy(app_package, root / 'tmp' / app_package.name)
-run('chroot', str(root), 'dpkg', '-i', '/tmp/' + app_package.name)
-(root / 'tmp' / app_package.name).unlink()
+for name in ('camera', 'software'):
+    app_version = (BASE / f'antix/apps/{name}/VERSION').read_text().strip()
+    app_package = OUT / f'reread-app-{name}_{app_version}_i386.deb'
+    shutil.copy(app_package, root / 'tmp' / app_package.name)
+    run('chroot', str(root), 'dpkg', '-i', '/tmp/' + app_package.name)
+    (root / 'tmp' / app_package.name).unlink()
 # The cached base retains headers for later release builds; the runtime does not.
 trim_runtime(root)
 write('/etc/default/console-setup','ACTIVE_CONSOLES="/dev/tty[1-6]"\nCHARMAP="UTF-8"\nFONT="/usr/share/reader/font-large.psf"\n')

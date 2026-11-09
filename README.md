@@ -2,15 +2,15 @@
 
 A multipurpose handheld platform for the Intel Reader, built on **antiX 26.1 Core 32-bit**. Home uses a button-operated icon grid; system settings are grouped into categories. Apps are separately packaged Linux programs with their own UI and standard desktop-entry icons; device and drawing helpers are optional. There is no desktop or browser on the device. Large text and a fixed safe inset on every side account for the overlapping bezel.
 
-The first app is **Camera**: live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
+Default apps are **Camera** and **Software**. Software manages system updates and application installs/removal directly with the Reader’s buttons, without a USB connection. Camera provides live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
 
 Power-button sleep, stock fan behavior, battery monitoring, ALSA speaker audio and physical volume control use normal Linux services. Settings provides brightness, sound, idle dimming, optional auto-suspend, connection information and power options. USB Ethernet supplies DHCP, SSH and a management web interface for files, Wi-Fi provisioning, apps and updates. Management daemons run only while connected to a USB host; camera streaming stops when no app needs it. Use a powered USB hub for installation.
 
 ## Install or update
 
-ReRead is built from this repository as an installable OS and a versioned platform package. Fresh installs and later updates use the same `reread` package. Applications use `reread-app-*` Debian packages and standard `.desktop` launcher entries. The installer includes `reread-app-camera`; the management Apps page installs, updates and removes apps independently.
+ReRead is built from this repository as an installable OS and a versioned platform package. Fresh installs and later updates use the same `reread` package. Applications use `reread-app-*` Debian packages and standard `.desktop` launcher entries. The installer includes `reread-app-camera` and `reread-app-software`; the management Apps page installs, updates and removes apps independently.
 
-Existing installations can update in place through the [signed APT repository](repository/README.md), preserving files, Wi-Fi settings, credentials and app data. In the USB web interface, **Updates → Check for updates** finds platform releases; **Apps** browses available apps and updates installed ones. Both pages also accept local `.deb` uploads. App removal retains app data and configuration. Checks and installations happen on request.
+Existing installations can update in place through the [signed APT repository](repository/README.md), preserving files, Wi-Fi settings, credentials and app data. In the USB web interface, **Updates → Check for updates** finds platform releases; **Apps** browses available apps and updates installed ones. Both pages also accept local `.deb` uploads. App removal retains app data and configuration. Checks and installations happen on request. **Repositories** manages APT sources and signing keys; **Wi-Fi** manages multiple saved networks, priorities and automatic connections.
 
 For a **fresh installation**, connect one registered USB stick, unmount its
 partitions, then run from the project folder:
@@ -19,7 +19,7 @@ partitions, then run from the project folder:
 ./make-usb.sh
 ```
 
-This prepares the Docker builder, builds the SSD image, platform and Camera packages, assembles the bootable installer,
+This prepares the Docker builder, builds the SSD image, platform, Camera and Software packages, assembles the bootable installer,
 and writes it to the registered USB stick. It stops on a build failure before
 writing USB. Docker and Python 3 are required; `sudo` is used only for the USB
 writer. The source ISO and extracted camera firmware requirements are in the
