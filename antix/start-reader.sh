@@ -21,6 +21,7 @@ echo "ReRead base: antiX Core $(uname -r)"
 findmnt -n -o TARGET,SOURCE,FSTYPE /
 findmnt -n -o TARGET,SOURCE,FSTYPE /boot || true
 # Qt LinuxFB owns the framebuffer; ReRead's shared evdev layer owns buttons.
+export REREAD_FILES_DIR=/var/lib/reader/files
 export QT_QPA_PLATFORM=linuxfb:fb=/dev/fb0
 export QT_QPA_FB_DISABLE_INPUT=1
 export QT_QPA_GENERIC_PLUGINS=

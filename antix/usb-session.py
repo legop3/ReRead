@@ -35,6 +35,7 @@ def main():
     commands = [
         ['busybox', 'udhcpd', '-f', '/etc/reader/udhcpd.conf'],
         ['/usr/local/sbin/reader-web'],
+        ['/usr/local/sbin/reader-files'],
         ['dropbear', '-F', '-E', '-p', '192.168.7.1:22', '-r', '/etc/dropbear/dropbear_ed25519_host_key'],
     ]
     Path('/etc/dropbear').mkdir(exist_ok=True)

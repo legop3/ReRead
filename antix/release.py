@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from gadget import stage, build_module
+from third_party import stage_file_manager
 
 KERNEL = '5.10.256-antix.1-486-smp'
 
@@ -22,6 +23,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
         ['dpkg-query', '--admindir=' + str(build_dir / 'root/var/lib/dpkg'), '-W', '-f=${Version}', 'linux-image-' + kernel],
         text=True, capture_output=True, check=True).stdout.strip()
     stage(root, base)
+    stage_file_manager(root, base)
 
     def copy(source, target, mode=0o644):
         path = root / target
@@ -51,7 +53,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
                          ('camera.py', 'reader_camera.py'),
                          ('camera_backend.py', 'reader_camera_backend.py'),
                          ('manager.py', 'reader_manager.py'), ('repositories.py', 'reader_repositories.py'),
-                         ('software.py', 'reader-software'), ('update.py', 'reader-update')]:
+                         ('files.sh', 'reader-files'), ('software.py', 'reader-software'), ('update.py', 'reader-update')]:
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
     ui = build_dir / 'ui'
     subprocess.run([str(base / 'antix/ui/build.sh'), str(ui)], check=True)
@@ -138,13 +140,17 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Breaks: reread-app-camera (<< 0.3.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
 ''')
-    write('DEBIAN/conffiles', '/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n')
+    write('DEBIAN/conffiles', '/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n/etc/reader/files.conf\n')
+    copy(base / 'antix/files-head.html', 'usr/share/reader/files-head.html')
+    copy(base / 'antix/files.conf', 'etc/reader/files.conf')
+    copy(base / 'antix/STORAGE.md', 'usr/share/doc/reread/storage.md')
+    copy(base / 'antix/THIRD_PARTY.md', 'usr/share/doc/reread/third-party.md')
     copy(base / 'antix/postinst.sh', 'DEBIAN/postinst', 0o755)
     output.mkdir(parents=True, exist_ok=True)
     package = output / ('reread_' + version + '_i386.deb')

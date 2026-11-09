@@ -294,7 +294,10 @@ are now confirmed on the physical Reader with a Fedora host; see
 After installing, connect mini-B to a computer with a data cable. DHCP assigns
 the computer `192.168.7.2`; open `http://192.168.7.1`. The host Ethernet profile
 must use automatic/DHCP addressing, rather than link-local addressing.
-The page uploads/downloads files directly on SSD at `/var/lib/reader/files`,
+The **Files** page embeds the bundled Copyparty browser for folder-based transfers
+directly on SSD at `/var/lib/reader/files` (full-screen browser on USB port 8080).
+Apps share that same ordinary directory; no data partition is reserved. See the
+[storage policy](STORAGE.md) and [upstream package provenance](THIRD_PARTY.md). The management page
 changes the device name, and sets the root SSH password. Then connect using
 `ssh root@192.168.7.1`. No shared password is embedded; SSH login remains locked
 until a password is set. Each installation generates its own SSH host key.

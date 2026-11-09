@@ -21,6 +21,8 @@ ul{padding:0;list-style:none}li{display:flex;justify-content:space-between;gap:1
 a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{color:#a52626}[hidden]{display:none!important}
 .check{display:flex;align-items:center;gap:9px}.inline{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.inline button{margin:0}
 @media(max-width:480px){nav a{padding:10px 12px}section{padding:18px}dl{grid-template-columns:100px 1fr}}
+#page-files{margin:0 min(0px,calc((940px - 100vw)/2))}#page-files .file-manager-heading{margin-bottom:0;border-radius:10px 10px 0 0}#page-files h2{margin:0}#page-files .inline{justify-content:space-between}#page-files p{margin-bottom:0}
+#file-manager{display:block;width:100%;height:75vh;min-height:480px;border:1px solid #dce3e8;border-top:0;background:white;border-radius:0 0 10px 10px}
 </style>
 <header><h1>ReRead management</h1><p id="summary">Connecting…</p></header>
 <main>
@@ -36,9 +38,11 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  <p class="muted">Use <a href="#wifi">Wi-Fi</a> to get online, <a href="#files">Files</a> to transfer files, or <a href="#settings">Settings</a> for device and SSH settings.</p>
 </div>
 <div id="page-files" hidden>
- <section><h2>Files</h2><p class="muted">Files stay on the Reader. Uploading the same filename replaces it.</p>
- <label for="upload">Choose files</label><input id="upload" type="file" multiple><br><button id="send">Upload</button>
- <ul id="files"></ul><p id="empty-files" class="muted" hidden>No files yet.</p></section>
+ <section class="file-manager-heading"><div class="inline"><h2>Files</h2><a id="open-files" target="_blank" rel="noopener">Open full screen ↗</a></div>
+ <p class="muted">One shared folder for your apps and transfers. Browse folders, drag in files to upload, or select files to move, rename, download or delete.</p>
+ <p class="muted">On the Reader: <code id="files-root">/var/lib/reader/files</code> · <span id="files-space"></span></p></section>
+ <p id="files-starting" class="muted" hidden>Starting the file manager…</p>
+ <iframe id="file-manager" title="ReRead file manager" hidden></iframe>
 </div>
 <div id="page-wifi" hidden>
  <section><h2>Wi-Fi</h2><p id="wifi-status" role="status">Checking adapter…</p><h3>Saved networks</h3><div id="wifi-profiles"></div><button id="new-network" class="secondary">Add network</button></section>
@@ -101,6 +105,20 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
 </main>
 <script>
 const $=id=>document.getElementById(id),size=n=>(n/1048576).toFixed(1)+' MiB';
+const fileManagerURL='http://'+location.hostname+':8080/';$('open-files').href=fileManagerURL;
+let filesLoading=false;
+async function openFiles(){
+ if(filesLoading||$('file-manager').getAttribute('src'))return;
+ filesLoading=true;$('files-starting').hidden=false;
+ try{
+  for(let attempt=0;;attempt++){
+   try{await fetch(fileManagerURL,{method:'HEAD',mode:'no-cors',cache:'no-store'});break;}
+   catch(e){if(attempt>=19)throw e;await new Promise(resolve=>setTimeout(resolve,1000));}
+  }
+  $('file-manager').src=fileManagerURL;$('file-manager').hidden=false;
+ }catch(e){message('File manager unavailable. Reconnect USB and open Files again.',true);}
+ finally{filesLoading=false;$('files-starting').hidden=true;}
+}
 let networks=[],page='',scanTimer=null,lastProfiles='',editingRepo=null;
 function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
 async function get(url){const r=await fetch(url);if(!r.ok)throw Error(await r.text());return r.json();}
@@ -109,9 +127,7 @@ async function refreshSystem(){const s=await get('/api/status');
  $('summary').textContent='ReRead '+s.version+' · '+s.hostname+' · '+size(s.free)+' free';$('device').textContent=s.hostname;
  $('storage').textContent=size(s.free)+' free of '+size(s.total);$('kernel').textContent=s.kernel;
  if(!$('hostname').dataset.loaded){$('hostname').value=s.hostname;$('hostname').dataset.loaded='true';}
- $('files').replaceChildren();$('empty-files').hidden=s.files.length>0;
- for(const f of s.files){const li=document.createElement('li'),a=document.createElement('a'),meta=document.createElement('span');
- a.textContent=f.name;a.href='/files/'+encodeURIComponent(f.name);a.download=f.name;meta.textContent=size(f.bytes);meta.className='muted';li.append(a,meta);$('files').append(li);}
+ $('files-root').textContent=s.files_root||'/var/lib/reader/files';$('files-space').textContent=size(s.free)+' free';
 }
 async function refreshBattery(){const s=await get('/api/battery');
  const level=s.capacity_percent===null?s.status:s.capacity_percent+'%';
@@ -141,6 +157,7 @@ async function refreshWifi(){const s=await get('/api/wifi'),text=wifiDescription
 }
 async function navigate(){const next=location.hash.slice(1)||'overview';page=['overview','files','wifi','settings','apps','updates','repositories'].includes(next)?next:'overview';
  for(const a of document.querySelectorAll('nav a')){const active=a.dataset.page===page;if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');$('page-'+a.dataset.page).hidden=!active;}
+ if(page==='files')openFiles();
  message('');try{await refreshSystem();await refreshBattery();if(page==='wifi'||page==='overview')await refreshWifi();if(['apps','updates','repositories'].includes(page))await refreshPlatform();if(page==='repositories')await refreshRepos();$('package-operation').hidden=!['apps','updates','repositories'].includes(page);}catch(e){message(e.message,true);}}
 $('networks').onchange=()=>{const n=networks[Number($('networks').value)];if($('networks').value===''||!n)return;resetWifi();$('ssid').value=n.ssid;$('security').value=n.security;updateSecurity();$('wifi-password').focus();};
 function updateSecurity(){const secure=$('security').value!=='open';$('wifi-password-field').hidden=!secure;$('wifi-password').required=secure&&!$('wifi-form').dataset.id;}
@@ -152,9 +169,6 @@ function resetWifi(){delete $('wifi-form').dataset.id;$('wifi-form').reset();$('
 async function editWifi(id){const p=await get('/api/wifi/profile?id='+encodeURIComponent(id));if(p.security==='unsupported')throw Error('This saved profile uses unsupported security; it can still connect or be removed.');$('wifi-form').dataset.id=p.id;$('wifi-form-title').textContent='Edit '+p.ssid;$('ssid').value=p.ssid;$('security').value=p.security;$('hidden-network').checked=p.hidden;$('wifi-enabled').checked=p.enabled;$('wifi-priority').value=p.priority;$('wifi-password').value='';$('wifi-password').placeholder='Leave blank to keep password';updateSecurity();$('wifi-form-title').scrollIntoView({block:'start',behavior:'smooth'});}
 $('new-network').onclick=()=>{resetWifi();$('ssid').focus();};
 $('wifi-form').onsubmit=async e=>{e.preventDefault();const connect=e.submitter?.id==='save-connect';try{message(await post('/api/wifi/save',{id:$('wifi-form').dataset.id??null,ssid:$('ssid').value,password:$('wifi-password').value,security:$('security').value,hidden:$('hidden-network').checked,enabled:$('wifi-enabled').checked,priority:Number($('wifi-priority').value),connect}));resetWifi();await refreshWifi();}catch(e){message(e.message,true);}};
-$('send').onclick=async()=>{if(!$('upload').files.length)return message('Choose a file first.');const b=$('send');b.disabled=true;try{
- for(const f of $('upload').files){message('Uploading '+f.name+'…');const r=await fetch('/files/'+encodeURIComponent(f.name),{method:'POST',body:f});if(!r.ok)throw Error(await r.text());}
- message('Upload complete.');await refreshSystem();}catch(e){message(e.message,true);}finally{b.disabled=false;}};
 $('settings').onsubmit=async e=>{e.preventDefault();try{message(await post('/api/settings',{hostname:$('hostname').value,password:$('password').value}));$('password').value='';await refreshSystem();}catch(e){message(e.message,true);}};
 let packageBusy=false,lastApps='',reconnecting=false;
 async function packageRequest(url,body={}){if(packageBusy)return;packageBusy=true;try{await post(url,body);message('');await refreshPlatform();}catch(e){packageBusy=false;message(e.message,true);}}

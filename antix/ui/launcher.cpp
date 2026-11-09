@@ -18,6 +18,9 @@ class Launcher : public Screen {
   int selected = 0;
   qint64 lastAdjustment = 0;
   QStringList labels, details, files;
+  QString fileDirectory;
+  static QString filesRoot() { return qEnvironmentVariable("REREAD_FILES_DIR", "/var/lib/reader/files"); }
+  QString filesPath() const { return filesRoot() + "/" + fileDirectory; }
   QList<QIcon> icons;
   static constexpr int columns = 3, pageSize = 6;
   QImage photo;
@@ -90,10 +93,12 @@ class Launcher : public Screen {
               << "Display, sound, connections and power";
       icons << icon("folder") << icon("preferences-system");
     } else if (page == "files") {
-      files = QDir("/var/lib/reader/files").entryList(QDir::Files, QDir::Time);
+      subtitle = fileDirectory;
+      files = QDir(filesPath()).entryList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::DirsFirst | QDir::Name);
       labels = files;
       for (auto file : files) {
-        QFileInfo info("/var/lib/reader/files/" + file);
+        QFileInfo info(filesPath() + "/" + file);
+        if (info.isDir()) { details << "Folder"; continue; }
         details << QString::number(info.size() / 1024) + " KiB · " +
                        info.lastModified().toString("dd MMM HH:mm");
       }
@@ -205,6 +210,7 @@ class Launcher : public Screen {
     g_app_launch_context_unsetenv(context,"QT_QPA_FB_DISABLE_INPUT");
     QString data = "/var/lib/reader/apps/" + app.id;
     QDir().mkpath(data);
+    g_app_launch_context_setenv(context,"REREAD_FILES_DIR",filesRoot().toUtf8());
     g_app_launch_context_setenv(context,"READER_APP_ID",app.id.toUtf8());
     g_app_launch_context_setenv(context,"READER_APP_DATA_DIR",data.toUtf8());
     g_app_launch_context_setenv(context,"XDG_DATA_HOME",data.toUtf8());
@@ -247,6 +253,11 @@ class Launcher : public Screen {
     if (id == READER_BACK) {
       if (page == "home")
         return;
+      if (page == "files" && !fileDirectory.isEmpty()) {
+        fileDirectory = QFileInfo(fileDirectory).path();
+        if (fileDirectory == ".") fileDirectory.clear();
+        selected = 0; refresh(); return;
+      }
       go(page == "settings" || page == "files" ? "home"
          : page == "image"                     ? "files"
                                                : "settings");
@@ -345,7 +356,13 @@ class Launcher : public Screen {
   void openPhoto() {
     if (files.isEmpty())
       return;
-    QImageReader reader("/var/lib/reader/files/" + files.value(selected));
+    QString path = filesPath() + "/" + files.value(selected);
+    if (QFileInfo(path).isDir()) {
+      page = "files";
+      fileDirectory = QDir(filesRoot()).relativeFilePath(path);
+      selected = 0; refresh(); return;
+    }
+    QImageReader reader(path);
     reader.setAutoTransform(true);
     reader.setScaledSize(
         reader.size().scaled(content().size(), Qt::KeepAspectRatio));

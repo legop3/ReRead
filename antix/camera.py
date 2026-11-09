@@ -129,7 +129,9 @@ class Platform:
             with tempfile.TemporaryDirectory(dir=STATE, prefix='capture-') as temporary:
                 temporary = Path(temporary)
                 result = backend.capture(job['flash'], temporary / 'photo.jpg', temporary / 'preview.jpg', document=job['mode'] == 'document', rotation=job['rotation'])
-                name = 'photo-' + time.strftime('%Y%m%d-%H%M%S') + '-' + job['id'][:6] + '.jpg'
+                folder = FILES / 'Pictures/Camera'
+                folder.mkdir(parents=True, exist_ok=True)
+                name = 'Pictures/Camera/photo-' + time.strftime('%Y%m%d-%H%M%S') + '-' + job['id'][:6] + '.jpg'
                 photo, preview = FILES / name, STATE / 'preview.jpg'
                 os.replace(temporary / 'photo.jpg', photo)
                 os.replace(temporary / 'preview.jpg', preview)

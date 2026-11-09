@@ -47,7 +47,7 @@ Home uses a button-operated icon grid; system settings are grouped into categori
 
 Default apps are **Camera** and **Software**. Software manages system updates and application installs/removal directly with the Reader’s buttons, without a USB connection. Camera provides live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
 
-Power-button sleep, stock fan behavior, battery monitoring, ALSA speaker audio and physical volume control use normal Linux services. Settings provides brightness, sound, idle dimming, optional auto-suspend, connection information and power options. USB Ethernet supplies DHCP, SSH and a management web interface for files, Wi-Fi provisioning, apps and updates. Management daemons run only while connected to a USB host; camera streaming stops when no app needs it. Use a powered USB hub for installation.
+Power-button sleep, stock fan behavior, battery monitoring, ALSA speaker audio and physical volume control use normal Linux services. Settings provides brightness, sound, idle dimming, optional auto-suspend, connection information and power options. USB Ethernet supplies DHCP, SSH and a management web interface for files, Wi-Fi provisioning, apps and updates. **Files** embeds Copyparty for folders, drag-and-drop uploads, previews, rename/move/delete and downloads. Apps and both file browsers share the ordinary `/var/lib/reader/files` directory; [storage policy](antix/STORAGE.md). Management daemons run only while connected to a USB host; camera streaming stops when no app needs it. Use a powered USB hub for installation.
 
 ## Linux foundation
 
@@ -63,6 +63,8 @@ ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux ev
 - [Build and system notes](antix/README.md)
 - [On-device UI and controls](antix/ui/README.md)
 - [Application contract and SDK](antix/apps/README.md)
+- [Shared storage and web file manager](antix/STORAGE.md)
+- [Bundled file-manager provenance](antix/THIRD_PARTY.md)
 - [UPower and GIO integration](analysis/linux-battery-apps.md)
 - [Linux power/input migration and hardware validation](analysis/linux-power-migration.md)
 - [Initial Linux integration research](analysis/linux-power-integration.md)

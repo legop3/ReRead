@@ -12,7 +12,8 @@ bottom-facing camera pointed forward while holding the Reader away from you.
 Back returns Home. The USB web interface is reserved for management and file
 transfer; it does not operate the camera.
 
-Photos have unique filenames under `/var/lib/reader/files`. Settings and files
+New photos have unique filenames under `/var/lib/reader/files/Pictures/Camera/`.
+The API returns paths relative to the shared root, including subdirectories. Settings and files
 survive package updates. The service keeps only the latest thumbnail/metadata
 under `/var/lib/reader/camera`; live frames remain in RAM and temporary capture
 files are removed. It reports the actual stock-cropped output dimensions:
@@ -65,8 +66,8 @@ encoding and decoding for the on-device preview. Clients must check the exact
 `width * height * 3` body size and own their returned buffer. Each preview request
 renews an eight-second hardware lease. The engine only encodes live JPEGs when
 JPEG clients actually request them. Closing Camera, viewing the last photo, or
-idle dimming stops renewing the lease. Saved-photo downloads use management's
-`/files/<filename>` route.
+idle dimming stops renewing the lease. Saved photos are available through the
+management **Files** page (Copyparty), under the returned relative filename.
 
 POST `/capture` additionally accepts `rotation: 0` or `180` (default 0 for API
 compatibility). Rotation is applied during native encoding, after stock's row

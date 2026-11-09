@@ -52,7 +52,11 @@ using neither helper can declare the earliest platform version they require. Cod
 assets in `/usr/share/reread/apps/<id>/`. The launcher exports `READER_APP_ID`,
 `READER_APP_DATA_DIR=/var/lib/reader/apps/<desktop-basename>` and `XDG_DATA_HOME`
 pointing to that private data location. Apps create their own files there. Public
-photos/documents intended for transfer belong in `/var/lib/reader/files/`.
+photos/documents intended for transfer belong under `REREAD_FILES_DIR`, exported as
+`/var/lib/reader/files`. Use subdirectories, for example `Pictures/Camera/` and
+`Documents/`; see the [shared storage policy](../STORAGE.md). This is the same
+ordinary folder used by the web and on-device file browsers, sharing all free
+space with the system. No import/export API is required.
 Never ship runtime data in a package or delete it in removal scripts. Editable
 system defaults belong in `/etc/reread/apps/` and `DEBIAN/conffiles`.
 
