@@ -1,4 +1,5 @@
 #include "reader-ui.hpp"
+#include "audio.hpp"
 #include <QtNetwork>
 #include <QtWidgets>
 #include <QStorageInfo>
@@ -64,8 +65,7 @@ bool isImage(QString s) {
 }
 bool isText(QString s) { s=s.toLower(); return s.endsWith(".txt")||s.endsWith(".text"); }
 bool isAudio(QString s) {
-  s=s.toLower();return s.endsWith(".mp3")||s.endsWith(".ogg")||s.endsWith(".flac")||
-    s.endsWith(".m4a")||s.endsWith(".opus")||s.endsWith(".wav");
+  s=s.toLower();return s.endsWith(".mp3");
 }
 }
 struct Entry {QString id,title,creator,date,kind;};
@@ -91,7 +91,7 @@ class Archive : public Screen {
   std::unique_ptr<QSaveFile> saveFile;
   QString downloadPath;
   qint64 received=0, expected=0;
-  QProcess *audio=nullptr;
+  ArchiveAudio *audio=nullptr;
   QElapsedTimer audioTimer;
   QTimer playbackTick;
   int audioOffset=0, audioDuration=0;
@@ -170,13 +170,18 @@ class Archive : public Screen {
     coverJobs.clear();coverPending.clear();
   }
   void stopAudio() {
-    if(audio){
-      if(paused && audio->processId()>0)kill(pid_t(audio->processId()),SIGCONT);
-      audio->disconnect(this);audio->kill();audio->deleteLater();audio=nullptr;
+    if(audio) {
+      ArchiveAudio *worker=audio;
+      audio=nullptr;
+      worker->stop();
+      worker->wait();
+      worker->deleteLater();
     }
-    audioTimer.invalidate();paused=false;playbackTick.stop();
+    audioTimer.invalidate();
+    paused=false;
+    playbackTick.stop();
   }
-  void showStatus(const QString &s) {status=s;update();}
+    void showStatus(const QString &s) {status=s;update();}
   void loadFavorites(){
     QFile f(storagePath()+"/favorites.json");if(!f.open(QIODevice::ReadOnly))return;
     auto arr=QJsonDocument::fromJson(f.readAll()).array();
@@ -351,49 +356,53 @@ class Archive : public Screen {
     }
   }
   void startAudio(){
-    stopAudio();status.clear();
-    QString executable=QStandardPaths::findExecutable("ffmpeg");
-    if(executable.isEmpty()){
-      status="Audio decoder not installed. You can download this file.";
-      update();return;
+    stopAudio();
+    status.clear();
+    if(!currentFile.toLower().endsWith(".mp3")){
+      status="Only MP3 is supported for streaming; other formats can be downloaded.";
+      update();
+      return;
     }
-    audio=new QProcess(this);
-    audio->setProcessChannelMode(QProcess::SeparateChannels);
-    connect(audio,&QProcess::readyReadStandardError,this,[this]{
-      if(audio)audio->readAllStandardError();
+    // Estimate byte offset from known duration and size for a small,
+    // approximate network seek. Beginning playback starts at byte zero.
+    qint64 offset=0;
+    if(audioOffset>0 && audioDuration>0 && selectedFile.size>0)
+      offset=qMax(qint64(0),selectedFile.size*qint64(audioOffset)/audioDuration-4096);
+    auto worker=new ArchiveAudio(fileUrl(itemId,currentFile),offset,this,
+      [this](const QString &message){status=message;update();});
+    audio=worker;
+    connect(worker,&QThread::finished,this,[this,worker]{
+      if(audio==worker){audio=nullptr;audioTimer.invalidate();playbackTick.stop();}
+      worker->deleteLater();
+      update();
     });
-    connect(audio,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,
-      [this](int code,QProcess::ExitStatus){
-        if(audio){audio->deleteLater();audio=nullptr;}
-        audioTimer.invalidate();playbackTick.stop();
-        if(code!=0)status="Playback ended or audio output unavailable";
-        update();
-      });
-    connect(audio,&QProcess::errorOccurred,this,[this](QProcess::ProcessError){
-      status="Unable to start audio playback";update();
-    });
-    QStringList args={"-nostdin","-hide_banner","-loglevel","error"};
-    if(audioOffset>0)args<<"-ss"<<QString::number(audioOffset);
-    args<<"-i"<<fileUrl(itemId,currentFile).toString(QUrl::FullyEncoded)
-        <<"-vn"<<"-f"<<"alsa"<<"default:CARD=MID";
-    paused=false;audio->start(executable,args);audioTimer.start();playbackTick.start(900);update();
+    paused=false;
+    audioTimer.start();
+    worker->start();
+    playbackTick.start(900);
+    update();
   }
-  void toggleAudio() {
+  void toggleAudio(){
     if(!audio){startAudio();return;}
-    if(audio->processId()<=0)return;
     if(paused){
-      kill(pid_t(audio->processId()),SIGCONT);paused=false;audioTimer.start();
+      paused=false;
+      audio->setPaused(false);
+      audioTimer.start();
     } else {
-      audioOffset=elapsed();kill(pid_t(audio->processId()),SIGSTOP);paused=true;audioTimer.invalidate();
+      audioOffset=elapsed();
+      paused=true;
+      audio->setPaused(true);
+      audioTimer.invalidate();
     }
     update();
   }
   void seek(int seconds){
     int position=qMax(0,elapsed()+seconds);
-    if(audioDuration>0)position=qMin(position,audioDuration-1);
-    audioOffset=position;startAudio();
+    if(audioDuration>0)position=qMin(position,qMax(0,audioDuration-1));
+    audioOffset=position;
+    startAudio();
   }
-  void downloadSelected() {
+    void downloadSelected() {
     downloadFile=selectedFile;downloadReturn=page;page=DOWNLOAD_CONFIRM;status.clear();update();
   }
   void beginDownload(){
