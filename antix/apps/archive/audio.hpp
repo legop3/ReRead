@@ -70,7 +70,7 @@ protected:
         long n=pcmWrite(pcm,pos,frames);
         if(n<0){int fixed=pcmRecover(pcm,int(n),1);if(fixed<0)return false;continue;}
         if(n==0)continue;
-        frames-=unsigned long(n);pos+=size_t(n)*frameSize;
+        frames-=static_cast<unsigned long>(n);pos+=size_t(n)*frameSize;
       }
       return true;
     };
