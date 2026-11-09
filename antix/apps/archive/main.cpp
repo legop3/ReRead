@@ -14,8 +14,8 @@
 using namespace ReRead;
 
 namespace {
-const QColor bg("#111b28"), panel("#1d2b3b"), outline("#385166");
-const QColor ink("#f4efdf"), muted("#a7b6c4"), accent("#f6bb6c"), blue("#68cbd0");
+const QColor bg("#fafafa"), panel("#ffffff"), outline("#d7d7d7");
+const QColor ink("#242424"), muted("#666666"), accent("#1769aa"), blue("#1769aa");
 QString value(const QJsonValue &v) {
   if (v.isString()) return v.toString();
   if (v.isDouble()) return QString::number(v.toDouble());
@@ -111,7 +111,7 @@ class Archive : public Screen {
     QFont f=font();f.setPixelSize(px);
     return QFontMetrics(f).elidedText(s,Qt::ElideRight,qMax(10,width));
   }
-  void round(QPainter &p,const QRect &r,QColor c,int radius=13) const {
+  void round(QPainter &p,const QRect &r,QColor c,int radius=3) const {
     p.setPen(Qt::NoPen);p.setBrush(c);p.drawRoundedRect(r,radius,radius);
   }
   void icon(QPainter &p,const QRect &rect,const QString &kind,QColor c=accent) const {
@@ -155,14 +155,22 @@ class Archive : public Screen {
   }
   void card(QPainter &p,const QRect &r,const QString &name,const QString &sub,
             const QImage &img,bool active,const QString &symbol) const {
-    round(p,r,active?QColor("#31465a"):panel);
-    if(active){p.setBrush(Qt::NoBrush);p.setPen(QPen(accent,3));p.drawRoundedRect(r.adjusted(1,1,-1,-1),13,13);}
-    QRect cover=r.adjusted(7,7,-7,-61);round(p,cover,QColor("#2a3e52"),8);
-    if(!img.isNull()) imageIn(p,cover,img,true);
-    else icon(p,QRect(cover.center().x()-34,cover.center().y()-34,68,68),symbol,QColor("#88abc2"));
-    txt(p,QRect(r.x()+12,r.bottom()-52,r.width()-24,29),fitText(name,21,r.width()-25),21,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
-    txt(p,QRect(r.x()+12,r.bottom()-25,r.width()-24,21),fitText(sub,16,r.width()-24),16,muted);
+    p.fillRect(r,Qt::white);
+    p.setPen(QPen(active?QColor("#177bbb"):QColor("#d5d5d5"),active?3:1));
+    p.setBrush(Qt::NoBrush);
+    p.drawRect(r.adjusted(1,1,-2,-2));
+    QRect cover=r.adjusted(5,5,-5,-65);
+    p.fillRect(cover,QColor("#e7e7e7"));
+    if(!img.isNull())imageIn(p,cover,img,true);
+    else {
+      icon(p,QRect(cover.center().x()-29,cover.center().y()-29,58,58),symbol,QColor("#858585"));
+    }
+    txt(p,QRect(r.x()+9,r.bottom()-57,r.width()-18,34),
+        fitText(name,18,r.width()-22),18,QColor("#135c96"),Qt::AlignLeft|Qt::AlignVCenter,true);
+    txt(p,QRect(r.x()+9,r.bottom()-27,r.width()-18,18),
+        fitText(sub,14,r.width()-22),14,QColor("#777777"));
   }
+
   int elapsed() const {return audioOffset+(audio && !paused && audioTimer.isValid()?int(audioTimer.elapsed()/1000):0);}
   void abortApi() {if(api){api->disconnect(this);api->abort();api->deleteLater();api=nullptr;}}
   void abortCovers() {
