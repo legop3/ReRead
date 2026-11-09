@@ -46,6 +46,7 @@ ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux ev
 - [Build and system notes](antix/README.md)
 - [On-device UI and controls](antix/ui/README.md)
 - [Application contract and SDK](antix/apps/README.md)
+- [Standard Linux power/input integration research](analysis/linux-power-integration.md)
 - [Shared camera interface and firmware input](antix/CAMERA.md)
 - [Verified physical control map](analysis/button-map.md) and [raw measurements](buttons.md)
 - [Hardware research](RESEARCH.md)
