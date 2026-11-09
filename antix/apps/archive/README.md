@@ -11,15 +11,13 @@ From the **repository root** on your development computer, with the existing
 `reread-builder` Docker image (see `antix/README.md`):
 
 ```sh
-docker run --rm -v "$PWD:/work:z" reread-builder sh -c '
-  /work/antix/ui/build.sh /work/build/antix/ui &&
+docker run --rm -v "$PWD:/work:z" reread-builder \
   python3 /work/antix/apps/archive/package.py
-'
 ```
 
 Output: `out/antix/reread-app-archive_0.1.0_i386.deb`.
 
-This builds *only* the app and its locally required UI SDK libraries. It does
+This builds *only* the app and its locally required UI SDK libraries, without building Home or the launcher. It does
 not build the firmware, platform package or installer, and does not publish
 anything. It also does not touch any GitHub workflow or APT repository files.
 
