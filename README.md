@@ -10,7 +10,7 @@ Power-button sleep, stock fan behavior, battery monitoring, ALSA speaker audio a
 
 ReRead is built from this repository as an installable OS and a versioned platform package. Fresh installs and later updates use the same `reread` package. Applications use `reread-app-*` Debian packages and standard `.desktop` launcher entries. The installer includes `reread-app-camera`; the management Apps page installs, updates and removes apps independently.
 
-Existing installations can update in place through the [signed APT repository](repository/README.md), preserving files, Wi-Fi settings, credentials and app data. The web **Updates** page also accepts `out/antix/reread_<version>_i386.deb` uploads; online discovery in that UI is still to come. App removal retains app data and configuration. Updates are installed on request.
+Existing installations can update in place through the [signed APT repository](repository/README.md), preserving files, Wi-Fi settings, credentials and app data. In the USB web interface, **Updates → Check for updates** finds platform releases; **Apps** browses available apps and updates installed ones. Both pages also accept local `.deb` uploads. App removal retains app data and configuration. Checks and installations happen on request.
 
 For a **fresh installation**, connect one registered USB stick, unmount its
 partitions, then run from the project folder:

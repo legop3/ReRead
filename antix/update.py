@@ -8,6 +8,7 @@ import re
 import subprocess
 import time
 import dbus
+import apt_pkg
 import reader_manager as manager
 
 
@@ -32,8 +33,8 @@ def service(package, enabled):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['install', 'remove', 'enable', 'disable'])
-    parser.add_argument('value')
+    parser.add_argument('action', choices=['check', 'online', 'install', 'remove', 'enable', 'disable'])
+    parser.add_argument('value', nargs='?', default='')
     parser.add_argument('--package')
     parser.add_argument('--lock-fd', type=int)
     args = parser.parse_args()
@@ -43,9 +44,9 @@ def main():
             args.package = result.stdout.strip()
         else:
             args.package = args.value
-    if args.package != 'reread' and not re.fullmatch(manager.APP_PATTERN, args.package):
+    if args.action != 'check' and args.package != 'reread' and not re.fullmatch(manager.APP_PATTERN, args.package):
         raise ValueError('Choose a ReRead package.')
-    if args.action != 'install' and args.package == 'reread':
+    if args.action not in ('install', 'online') and args.package == 'reread':
         raise ValueError('Use the app manager only for app actions.')
     lock = None
     if args.lock_fd is None:
@@ -70,16 +71,26 @@ def main():
             login = dbus.Interface(dbus.SystemBus().get_object('org.freedesktop.login1', '/org/freedesktop/login1'),
                                    'org.freedesktop.login1.Manager')
             inhibitor = login.Inhibit('idle', 'ReRead package manager', 'Package operation in progress', 'block').take()
-        if args.action == 'install':
+        if args.action == 'check':
+            run('apt-get', '-o', 'Dir::Etc::sourcelist=sources.list.d/reread.sources',
+                '-o', 'Dir::Etc::sourceparts=-', '-o', 'APT::Get::List-Cleanup=false',
+                '-o', 'APT::Update::Error-Mode=any', '-o', 'Acquire::Retries=0',
+                '-o', 'Acquire::http::Timeout=20', '-o', 'Acquire::https::Timeout=20', 'update')
+            manager.refresh_catalog(checked=True)
+        elif args.action == 'online':
+            candidate = next((p for p in manager.available_packages() if p['package'] == args.package), None)
+            if not candidate:
+                raise ValueError('Package unavailable. Check the ReRead repository first.')
+            if candidate['installed'] and not candidate['upgrade']:
+                raise ValueError('This package is already up to date.')
+            run('apt-get', '-y', '--no-remove', '-o', 'Dpkg::Options::=--force-confdef',
+                '-o', 'Dpkg::Options::=--force-confold', 'install', args.package + '=' + candidate['version'])
+        elif args.action == 'install':
             manager.package_info(args.value, 'platform' if args.package == 'reread' else 'app')
             if args.package != 'reread':
                 manager.check_app_icons(args.value)
             run('apt-get', '-y', '--no-remove', '--reinstall', '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold',
                 'install', str(Path(args.value).resolve()))
-            if args.package != 'reread':
-                (manager.STATE / 'apps' / args.package.removeprefix('reread-app-')).mkdir(parents=True, exist_ok=True)
-                if Path('/etc/runit/runsvdir/default', args.package).is_symlink():
-                    subprocess.run(['sv', '-w', '5', 'restart', args.package], check=False)
         elif args.action == 'remove':
             app = next((a for a in manager.inventory() if a['package'] == args.package), None)
             if app and app['service']:
@@ -87,10 +98,18 @@ def main():
             run('dpkg', '--remove', args.package)
         else:
             service(args.package, args.action == 'enable')
-        job.update(state='complete', message='Complete. Your files and settings were preserved.')
-    except (OSError, ValueError, subprocess.SubprocessError, dbus.DBusException) as error:
+        if args.action in ('install', 'online') and args.package != 'reread':
+            (manager.STATE / 'apps' / args.package.removeprefix('reread-app-')).mkdir(parents=True, exist_ok=True)
+            if Path('/etc/runit/runsvdir/default', args.package).is_symlink():
+                subprocess.run(['sv', '-w', '5', 'restart', args.package], check=False)
+        if args.action in ('install', 'online', 'remove'):
+            manager.refresh_catalog()
+        job.update(state='complete', message='Repository checked.' if args.action == 'check'
+                   else 'Complete. Your files and settings were preserved.')
+    except (OSError, ValueError, RuntimeError, apt_pkg.Error, subprocess.SubprocessError, dbus.DBusException) as error:
         print(str(error), flush=True)
-        job.update(state='failed', message='Operation failed. See the log below; files were not reset.')
+        job.update(state='failed', message='Repository check failed. Previous results are still shown; see the log below.'
+                   if args.action == 'check' else 'Operation failed. See the log below; files were not reset.')
     finally:
         if inhibitor is not None:
             os.close(inhibitor)

@@ -34,8 +34,17 @@ elogind-inhibit --what=idle --mode=block --why='ReRead update' \
 Install an available app with `apt-get install reread-app-NAME`; remove it with
 `apt-get remove reread-app-NAME` to keep its data and configuration. These are
 in-place package operations. No reflash is needed. The existing web upload
-pages still work; online discovery in the web UI is a later step. Nothing
-downloads or installs updates automatically in the background.
+pages still work. Starting with 0.12.0, use **Updates → Check for updates** for
+platform releases, or **Apps → Check for apps and updates** to browse available
+apps and update installed ones. The Reader needs Wi-Fi/internet access; USB
+alone provides the management connection. Nothing checks, downloads or installs
+updates automatically in the background.
+
+The check refreshes only the ReRead archive, retaining other APT lists for
+dependency resolution. Python APT reads trusted stable candidates and normal
+Debian version ordering; `apt-get` installs the selected version and resolves its
+dependencies. This does not run a distribution-wide upgrade. Package jobs retain
+their log/status across management-server restarts and inhibit automatic idle sleep.
 
 ## Publishing
 

@@ -126,12 +126,16 @@ class Handler(BaseHTTPRequestHandler):
                     os.fsync(dest.fileno())
                 os.replace(temporary, target)
                 return self.reply(200, 'Uploaded ' + target.name)
-            if route not in ('/api/settings', '/api/wifi/scan', '/api/wifi/connect', '/api/wifi/forget', '/api/apps/action') or length > 4096:
+            if route not in ('/api/settings', '/api/wifi/scan', '/api/wifi/connect', '/api/wifi/forget', '/api/apps/action',
+                             '/api/packages/check', '/api/packages/install') or length > 4096:
                 self.close_connection = True
                 return self.reply(400, 'Invalid request.')
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Expected settings object.')
+            if route in ('/api/packages/check', '/api/packages/install'):
+                job = manager.start('check' if route.endswith('/check') else 'online', data.get('package', ''))
+                return self.reply(202, json.dumps(job), 'application/json')
             if route == '/api/apps/action':
                 action = data.get('action')
                 if action not in ('remove', 'enable', 'disable'):

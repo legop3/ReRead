@@ -8,11 +8,13 @@ import subprocess
 import tarfile
 import tempfile
 import time
+from contextlib import contextmanager
 from gi.repository import GLib
 
 STATE = Path('/var/lib/reader')
 STAGING = STATE / 'updates'
 JOB = STATE / 'package-job.json'
+CATALOG = STATE / 'package-catalog.json'
 LOG = Path('/var/log/reader/update.log')
 REGISTRY = Path('/usr/share/reread/apps')
 APP_PATTERN = r'reread-app-[a-z0-9][a-z0-9+.-]*'
@@ -72,16 +74,70 @@ def status():
         with LOG.open('rb') as source:
             source.seek(max(0, LOG.stat().st_size - 12000))
             log = source.read().decode(errors='replace')
-    return dict(version=version(), apps=inventory(), job=job, log=log,
+    catalog = json.loads(CATALOG.read_text()) if CATALOG.exists() else dict(checked=None, packages=[])
+    return dict(version=version(), apps=inventory(), job=job, log=log, catalog=catalog,
                 reboot_required=(STATE / 'reboot-required').exists())
 
 
-def write_job(data):
+def write_json(destination, data):
     STATE.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode='w', dir=STATE, delete=False) as dest:
         json.dump(data, dest)
         path = Path(dest.name)
-    os.replace(path, JOB)
+    os.replace(path, destination)
+
+
+def write_job(data):
+    write_json(JOB, data)
+
+
+@contextmanager
+def repository_cache():
+    """Load ReRead metadata and installed packages, rather than all of Debian."""
+    import apt
+    import apt_pkg
+    options = {'Dir::Etc::sourcelist': 'sources.list.d/reread.sources', 'Dir::Etc::sourceparts': '-'}
+    previous = {key: apt_pkg.config.find(key) if apt_pkg.config.exists(key) else None for key in options}
+    try:
+        for key, value in options.items():
+            apt_pkg.config.set(key, value)
+        with apt.Cache() as cache:
+            yield cache
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                apt_pkg.config.clear(key)
+            else:
+                apt_pkg.config.set(key, value)
+
+
+def available_packages():
+    """Read APT's candidates once per job, never in the web polling path."""
+    import apt_pkg
+    packages = []
+    with repository_cache() as cache:
+        for name in cache.keys():
+            if name != 'reread' and not name.startswith('reread-app-'):
+                continue
+            package = cache[name]
+            if name != 'reread' and not re.fullmatch(APP_PATTERN, name):
+                continue
+            candidate = package.candidate
+            if not candidate or not any(o.trusted and o.origin == 'ReRead' and o.archive == 'stable'
+                                        for o in candidate.origins):
+                continue
+            installed = package.installed.version if package.installed else None
+            packages.append(dict(package=package.name, version=candidate.version,
+                                 description=candidate.summary, installed=installed,
+                                 upgrade=bool(installed and apt_pkg.version_compare(candidate.version, installed) > 0)))
+    return sorted(packages, key=lambda p: p['package'])
+
+
+def refresh_catalog(checked=False):
+    previous = json.loads(CATALOG.read_text()) if CATALOG.exists() else {}
+    data = dict(checked=time.time() if checked else previous.get('checked'), packages=available_packages())
+    write_json(CATALOG, data)
+    return data
 
 
 def package_info(path, kind):
@@ -140,7 +196,15 @@ def start(action, value, kind='app'):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise ValueError('A package operation is already running.') from None
-        if action == 'install':
+        if action == 'check':
+            package = ''
+            title = 'Check ReRead repository'
+        elif action == 'online':
+            package = value
+            if package != 'reread' and not re.fullmatch(APP_PATTERN, package):
+                raise ValueError('Choose a ReRead package.')
+            title = 'Install from repository: ' + package
+        elif action == 'install':
             fields = package_info(value, kind)
             package = fields['Package']
             title = 'Install ' + package + ' ' + fields['Version']

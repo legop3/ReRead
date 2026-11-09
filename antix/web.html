@@ -53,14 +53,18 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  </section>
 </div>
 <div id="page-apps" hidden>
- <section><h2>Applications</h2><p class="muted">Install or update a ReRead app package. Removing an app keeps its saved data.</p>
- <form id="install-app"><label for="app-package">App package (.deb)</label><input id="app-package" type="file" accept=".deb" required><br><button>Install app</button></form></section>
+ <section><h2>Available apps</h2><p class="muted">Get apps from the ReRead repository. Removing an app keeps its saved data.</p>
+ <button id="check-apps" class="secondary">Check for apps and updates</button><p class="catalog-status muted"></p><div id="available-apps"></div></section>
+ <section><details><summary>Install a local app package</summary><form id="install-app"><label for="app-package">App package (.deb)</label><input id="app-package" type="file" accept=".deb" required><br><button>Install app</button></form></details></section>
  <section><h2>Installed apps</h2><div id="apps-list"></div></section>
 </div>
 <div id="page-updates" hidden>
  <section><h2>ReRead updates</h2><p>Installed version: <strong id="release-version">—</strong></p>
- <p class="muted">Install a ReRead update package without resetting your files, apps, Wi-Fi settings or credentials.</p>
- <form id="install-platform"><label for="platform-package">ReRead package (.deb)</label><input id="platform-package" type="file" accept=".deb" required><br><button>Install update</button></form>
+ <p class="muted">Update ReRead without resetting your files, apps, Wi-Fi settings or credentials.</p>
+ <button id="check-updates" class="secondary">Check for updates</button><p class="catalog-status muted"></p>
+ <p id="online-version">Check the repository to see available updates.</p><button id="update-online" hidden>Install update</button>
+ <details><summary>Install a local update package</summary>
+ <form id="install-platform"><label for="platform-package">ReRead package (.deb)</label><input id="platform-package" type="file" accept=".deb" required><br><button>Install update</button></form></details>
  <p id="reboot-notice" hidden>Reboot to apply all background-service and driver changes.</p></section>
 </div>
 <div id="package-operation" hidden><section><h2>Package operation</h2><p id="package-status" role="status"></p><pre id="package-log" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px"></pre></section></div>
@@ -123,14 +127,28 @@ $('send').onclick=async()=>{if(!$('upload').files.length)return message('Choose 
  message('Upload complete.');await refreshSystem();}catch(e){message(e.message,true);}finally{b.disabled=false;}};
 $('settings').onsubmit=async e=>{e.preventDefault();try{message(await post('/api/settings',{hostname:$('hostname').value,password:$('password').value}));$('password').value='';await refreshSystem();}catch(e){message(e.message,true);}};
 let packageBusy=false,lastApps='',reconnecting=false;
+async function packageRequest(url,body={}){if(packageBusy)return;packageBusy=true;try{await post(url,body);message('');await refreshPlatform();}catch(e){packageBusy=false;message(e.message,true);}}
+$('check-apps').onclick=$('check-updates').onclick=()=>packageRequest('/api/packages/check');
+$('update-online').onclick=()=>packageRequest('/api/packages/install',{package:'reread'});
+function packageButton(label,packageName){const b=document.createElement('button');b.textContent=label;b.disabled=packageBusy;b.onclick=()=>packageRequest('/api/packages/install',{package:packageName});return b;}
 async function refreshPlatform(){const s=await get('/api/platform');if(reconnecting){message('');reconnecting=false;}packageBusy=s.job.state==='running';
  $('release-version').textContent=s.version;$('reboot-notice').hidden=!s.reboot_required;
  $('package-status').textContent=s.job.message||'No package operation yet.';$('package-log').textContent=s.log;
- for(const b of document.querySelectorAll('#install-app button,#install-platform button,#apps-list button'))b.disabled=packageBusy;
- const signature=JSON.stringify(s.apps);if(signature===lastApps)return;lastApps=signature;
+ const catalog=s.catalog||{checked:null,packages:[]};
+ for(const el of document.querySelectorAll('.catalog-status'))el.textContent=catalog.checked?'Last checked '+new Date(catalog.checked*1000).toLocaleString()+'.':'Not checked yet. Connect the Reader to Wi-Fi to check.';
+ const platform=catalog.packages.find(p=>p.package==='reread');
+ $('update-online').hidden=!platform||!platform.upgrade;
+ $('online-version').textContent=platform?(platform.upgrade?'Version '+platform.version+' is available.':'No newer ReRead release available.'):(catalog.checked?'No platform package available from the repository.':'Check the repository to see available updates.');
+ for(const b of document.querySelectorAll('#install-app button,#install-platform button,#apps-list button,#available-apps button,#check-apps,#check-updates,#update-online'))b.disabled=packageBusy;
+ const signature=JSON.stringify([s.apps,catalog.packages]);if(signature===lastApps)return;lastApps=signature;
+ $('available-apps').replaceChildren();
+ const available=catalog.packages.filter(p=>p.package!=='reread'&&!s.apps.some(a=>a.package===p.package));
+ if(!available.length){const p=document.createElement('p');p.className='muted';p.textContent=catalog.checked?'No additional apps available.':'Check the repository to browse apps.';$('available-apps').append(p);}
+ for(const app of available){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=app.package.replace(/^reread-app-/,'');p.textContent=app.description+' · '+app.version;row.append(h,p,packageButton('Install',app.package));$('available-apps').append(row);}
  $('apps-list').replaceChildren();if(!s.apps.length){const p=document.createElement('p');p.className='muted';p.textContent='No apps installed yet.';$('apps-list').append(p);}
  for(const app of s.apps){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p'),state=document.createElement('p');
  h.textContent=app.name+' · '+app.version;p.textContent=app.description;state.textContent=app.state;state.className='muted';row.append(h,p,state);
+ const candidate=catalog.packages.find(p=>p.package===app.package);if(candidate&&candidate.upgrade)row.append(packageButton('Update to '+candidate.version,app.package));
  const actions=app.service?[[app.enabled?'Disable':'Enable',app.enabled?'disable':'enable'],['Remove','remove']]:[['Remove','remove']];
  for(const [label,action] of actions){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.disabled=packageBusy;b.onclick=async()=>{try{await post('/api/apps/action',{package:app.package,action});await refreshPlatform();}catch(e){message(e.message,true);}};row.append(b);}
  $('apps-list').append(row);}}
