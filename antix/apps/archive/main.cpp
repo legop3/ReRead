@@ -510,44 +510,59 @@ class Archive : public Screen {
     }
     update();
   }
+  int topBar() const {return 75;}
   void paintChrome(QPainter &p,const QRect &safe) {
-    txt(p,QRect(safe.x()+10,safe.y(),safe.width()-20,45),"INTERNET  ARCHIVE",30,ink,
+    // Internet Archive's distinctive charcoal navigation, rather than the
+    // standard ReRead panel/header visual language.
+    p.fillRect(QRect(safe.x(),safe.y(),safe.width(),48),QColor("#222222"));
+    txt(p,QRect(safe.x()+12,safe.y()+5,48,38),"▥",33,Qt::white,Qt::AlignCenter,true);
+    txt(p,QRect(safe.x()+61,safe.y()+5,160,37),"INTERNET\nARCHIVE",16,Qt::white,
         Qt::AlignLeft|Qt::AlignVCenter,true);
-    txt(p,QRect(safe.right()-235,safe.y()+4,225,37),
-      page==HOME?"EXPLORE":page==BROWSE?category.toUpper():page==ITEM?"ITEM":
-      page==FILES?"FILES":page==VIEW?"IMAGE":page==READER?"READER":
-      page==PLAYER?"LISTEN":page==DOWNLOADING?"DOWNLOADING":"ARCHIVE",
-      17,accent,Qt::AlignRight|Qt::AlignVCenter,true);
-    p.setPen(QPen(outline,1));p.drawLine(safe.x()+8,safe.y()+49,safe.right()-8,safe.y()+49);
-    int bottom=safe.bottom()-46;
-    p.drawLine(safe.x()+8,bottom,safe.right()-8,bottom);
+    const QStringList nav={"BOOKS","AUDIO","IMAGES","SOFTWARE","COLLECTIONS"};
+    int x=safe.x()+245;
+    for(const auto &label:nav) {
+      int w=label=="COLLECTIONS"?116:100;
+      bool chosen=(category.toUpper()==label)||(category=="Books"&&label=="BOOKS");
+      if(chosen && (page==BROWSE||page==ITEM||page==FILES))
+        p.fillRect(QRect(x,safe.y()+44,w-5,4),QColor("#f7f7f7"));
+      txt(p,QRect(x,safe.y()+9,w-5,31),label,15,
+          chosen?QColor("#ffffff"):QColor("#bbbbbb"),Qt::AlignCenter);
+      x+=w;
+    }
+    p.fillRect(QRect(safe.x(),safe.y()+48,safe.width(),1),QColor("#555555"));
+    // Links and device glyphs form a compact footer, not a ReRead button panel.
+    const int bottom=safe.bottom()-37;
+    p.fillRect(QRect(safe.x(),bottom,safe.width(),37),QColor("#f1f1f1"));
+    p.setPen(QPen(QColor("#dedede")));p.drawLine(safe.x(),bottom,safe.right(),bottom);
     using Hint=QPair<reader_button,QString>;
     QList<Hint> hints;
-    if(page==HOME)hints={{READER_UP,"Move"},{READER_OK,"Open"},{READER_BACK,"Home"}};
-    else if(page==BROWSE)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_PLAY,"More"},{READER_OPTIONS,"Sort"}};
-    else if(page==ITEM)hints={{READER_OK,"Select"},{READER_BACK,"Browse"}};
-    else if(page==FILES)hints={{READER_UP,"Choose"},{READER_OK,"Open"},{READER_OPTIONS,"Save"},{READER_BACK,"Item"}};
-    else if(page==VIEW)hints={{READER_ZOOM_IN,"Zoom"},{READER_UP,"Pan"},{READER_OPTIONS,"Save"},{READER_BACK,"Files"}};
-    else if(page==READER)hints={{READER_DOWN,"Page"},{READER_ZOOM_IN,"Text size"},{READER_OPTIONS,"Save"},{READER_BACK,"Files"}};
-    else if(page==PLAYER)hints={{READER_PLAY,"Pause"},{READER_LEFT,"Seek"},{READER_OPTIONS,"Save"},{READER_BACK,"Files"}};
+    if(page==HOME)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_BACK,"Exit"}};
+    else if(page==BROWSE)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_PLAY,"Next page"},{READER_OPTIONS,"Sort"}};
+    else if(page==ITEM)hints={{READER_UP,"Action"},{READER_OK,"Select"},{READER_BACK,"Results"}};
+    else if(page==FILES)hints={{READER_OK,"Open"},{READER_OPTIONS,"Download"},{READER_BACK,"Item"}};
+    else if(page==VIEW)hints={{READER_ZOOM_IN,"Zoom"},{READER_UP,"Pan"},{READER_OPTIONS,"Download"},{READER_BACK,"Files"}};
+    else if(page==READER)hints={{READER_DOWN,"Page"},{READER_ZOOM_IN,"Text size"},{READER_OPTIONS,"Download"},{READER_BACK,"Files"}};
+    else if(page==PLAYER)hints={{READER_PLAY,"Pause"},{READER_LEFT,"Seek"},{READER_OPTIONS,"Download"},{READER_BACK,"Files"}};
     else if(page==DOWNLOAD_CONFIRM)hints={{READER_OK,"Download"},{READER_BACK,"Cancel"}};
-    else if(page==DOWNLOADING)hints={{READER_BACK,"Cancel download"}};
+    else if(page==DOWNLOADING)hints={{READER_BACK,"Cancel"}};
     else hints={{READER_BACK,"Return"}};
-    QFont hintFont=p.font();hintFont.setPixelSize(17);
-    QFontMetrics metrics(hintFont);
+    QFont f=p.font();f.setPixelSize(15);QFontMetrics metrics(f);
     int total=0;
-    for(const auto &hint:hints)total+=47+metrics.horizontalAdvance(hint.second)+15;
-    double scale=qMin(1.0,double(safe.width()-12)/qMax(1,total));
-    p.save();p.translate(safe.x()+12,bottom+5);p.scale(scale,scale);
-    int cursor=0;
+    for(const auto &hint:hints)total+=36+metrics.horizontalAdvance(hint.second)+23;
+    double scale=qMin(1.0,double(safe.width()-20)/qMax(1,total));
+    p.save();p.translate(safe.x()+12,bottom+2);p.scale(scale,scale);
+    int pos=0;
     for(const auto &hint:hints) {
-      int width=42+metrics.horizontalAdvance(hint.second);
-      buttonIcon(p,QRect(cursor,2,31,31),hint.first);
-      txt(p,QRect(cursor+37,0,width-34,34),hint.second,17,muted);
-      cursor+=width+20;
+      int w=36+metrics.horizontalAdvance(hint.second);
+      // The SDK glyphs are white; they are drawn on a dark, small icon square.
+      p.fillRect(QRect(pos+1,1,31,31),QColor("#414141"));
+      buttonIcon(p,QRect(pos+4,4,25,25),hint.first);
+      txt(p,QRect(pos+39,0,w-32,33),hint.second,15,QColor("#444444"));
+      pos+=w+23;
     }
     p.restore();
   }
+
 protected:
   void draw(QPainter &p,const QRect &r) override {
     p.fillRect(r,bg);
