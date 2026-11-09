@@ -481,6 +481,8 @@ class Archive : public Screen {
   void navigate(int dx,int dy) {
     if(page==HOME){
       selected=qBound(0,selected+dx+dy*3,5);
+    } else if(page==ITEM) {
+      selected=qBound(0,selected+dx+dy,2);
     } else if(page==BROWSE){
       if(entries.isEmpty())return;
       selected=qBound(0,selected+dx+dy*3,entries.size()-1);
