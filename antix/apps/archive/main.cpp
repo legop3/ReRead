@@ -75,7 +75,9 @@ class Archive : public Screen {
   Page page=HOME, downloadReturn=FILES;
   QNetworkAccessManager network;
   QNetworkReply *api=nullptr, *transfer=nullptr;
-  QMap<QString,QImage> thumbs;
+  QMap<QString,QImage> thumbs, fileThumbs;
+  QSet<QString> fileThumbPending, fileThumbFailed;
+  QList<QNetworkReply*> fileThumbJobs;
   QList<QNetworkReply*> coverJobs;
   QSet<QString> coverPending, failedCovers;
   QList<Entry> entries;
@@ -300,6 +302,48 @@ class Archive : public Screen {
       update();
     });
   }
+  void requestFilePreviews() {
+    if(page!=FILES || files.isEmpty())return;
+    const int visible=activeFiles();
+    for(int i=fileStart;i<qMin(fileStart+visible,files.size());++i) {
+      const File &file=files[i];
+      if(!isImage(file.name)||file.size<=0||file.size>650*1024)continue;
+      const QString key=file.name;
+      if(fileThumbs.contains(key)||fileThumbFailed.contains(key)||
+         fileThumbPending.contains(key)||fileThumbJobs.size()>=2)continue;
+      fileThumbPending.insert(key);
+      QNetworkRequest req(fileUrl(itemId,key));
+      req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                       QNetworkRequest::NoLessSafeRedirectPolicy);
+      auto job=network.get(req);fileThumbJobs<<job;
+      connect(job,&QNetworkReply::downloadProgress,this,[job](qint64 n,qint64) {
+        if(n>700*1024)job->abort();
+      });
+      connect(job,&QNetworkReply::finished,this,[this,job,key] {
+        fileThumbJobs.removeAll(job);
+        fileThumbPending.remove(key);
+        if(job->error()==QNetworkReply::NoError) {
+          QByteArray data=job->readAll();
+          if(data.size()<=700*1024) {
+            QBuffer buf(&data);buf.open(QIODevice::ReadOnly);
+            QImageReader reader(&buf);
+            QSize original=reader.size();
+            if(original.isValid())
+              reader.setScaledSize(original.scaled(150,110,Qt::KeepAspectRatio));
+            QImage image=reader.read();
+            if(!image.isNull()) {
+              fileThumbs.insert(key,image);
+              if(fileThumbs.size()>12)fileThumbs.erase(fileThumbs.begin());
+            }
+          }
+        }
+        if(!fileThumbs.contains(key))fileThumbFailed.insert(key);
+        job->deleteLater();
+        if(page==FILES)requestFilePreviews();
+        update();
+      });
+    }
+  }
   void requestCover(const QString &id) {
     if(id.isEmpty()||thumbs.contains(id)||failedCovers.contains(id)||coverPending.contains(id)||coverJobs.size()>=4)return;
     coverPending.insert(id);
@@ -325,7 +369,11 @@ class Archive : public Screen {
     });
   }
   void requestVisibleCovers() {
-    if(page==ITEM||page==FILES||page==PLAYER||page==VIEW){requestCover(itemId);return;}
+    if(page==ITEM||page==FILES||page==PLAYER||page==VIEW){
+      requestCover(itemId);
+      if(page==FILES)requestFilePreviews();
+      return;
+    }
     if(page!=BROWSE)return;
     for(int i=gridStart;i<qMin(gridStart+6,entries.size()) && coverJobs.size()<4;++i)
       requestCover(entries[i].id);
@@ -367,14 +415,18 @@ class Archive : public Screen {
     if(index<0||index>=entries.size())return;
     const auto e=entries[index];itemId=e.id;itemTitle=e.title;creator=e.creator;itemDate=e.date;
     browseSelected=selected;browseGridStart=gridStart;
-    description.clear();files.clear();selected=0;page=ITEM;requestCover(itemId);
+    description.clear();files.clear();fileThumbs.clear();
+    fileThumbFailed.clear();selected=0;page=ITEM;requestCover(itemId);
     fetch(QUrl("https://archive.org/metadata/"+QString::fromUtf8(QUrl::toPercentEncoding(itemId))),"metadata",12*1024*1024);
   }
   void openFile(const File &f) {
     selectedFile=f;currentFile=f.name;currentFormat=f.format;
     imageZoomStep=0;imageX=0;imageY=0;viewedImage=QImage();
     bookText.clear();pageStarts={0};bookPage=0;
-    if(isAudio(f.name)){page=PLAYER;audioOffset=0;audioDuration=f.seconds;startAudio();return;}
+    if(isAudio(f.name)){
+      page=PLAYER;requestCover(itemId);
+      audioOffset=0;audioDuration=f.seconds;startAudio();return;
+    }
     if(isImage(f.name)){page=VIEW;fetch(fileUrl(itemId,f.name),"image",14*1024*1024);return;}
     if(isText(f.name)){page=READER;fetch(fileUrl(itemId,f.name),"text",7*1024*1024);return;}
     status="No in-app viewer for this file type. Options can download it.";update();
@@ -595,6 +647,7 @@ class Archive : public Screen {
       selected=qBound(0,selected+dx+dy,qMax(0,files.size()-1));
       if(selected<fileStart)fileStart=selected;
       if(selected>=fileStart+activeFiles())fileStart=selected-activeFiles()+1;
+      requestFilePreviews();
     } else if(page==VIEW){
       if(imageZoomStep>0) {
         // Move the viewport through the image, not the picture with the arrow.
@@ -731,10 +784,18 @@ protected:
       for(int i=fileStart;i<qMin(files.size(),fileStart+visible);++i){
         QRect row(area.x(),top+(i-fileStart)*step,area.width(),step-2);
         p.fillRect(row,i==selected?QColor("#e2edf6"):QColor(i%2?"#ffffff":"#f6f6f6"));
-        icon(p,QRect(row.x()+9,row.y()+5,45,43),
-             isAudio(files[i].name)?"Audio":isText(files[i].name)?"Books":
-             isImage(files[i].name)?"Images":"Software",
-             i==selected?accent:muted);
+        QRect preview(row.x()+7,row.y()+4,49,47);
+        const QImage previewImage=fileThumbs.contains(files[i].name)?
+          fileThumbs.value(files[i].name):thumbs.value(itemId);
+        if(!previewImage.isNull()) {
+          p.fillRect(preview,QColor("#e5e5e5"));
+          imageIn(p,preview,previewImage,false);
+        } else {
+          icon(p,preview.adjusted(2,1,-2,-1),
+               isAudio(files[i].name)?"Audio":isText(files[i].name)?"Books":
+               isImage(files[i].name)?"Images":"Software",
+               i==selected?accent:muted);
+        }
         txt(p,QRect(row.x()+65,row.y()+2,row.width()-310,27),
             fitText(files[i].name,20,row.width()-315),20,QColor("#1769aa"));
         txt(p,QRect(row.x()+65,row.y()+30,row.width()-310,19),
@@ -895,7 +956,10 @@ protected:
         auto it=std::find_if(entries.begin(),entries.end(),[this](const Entry&e){return e.id==itemId;});
         if(it!=entries.end()&&it->kind=="collection"){
           collectionId=itemId;category=itemTitle;searchPage=1;search();
-        } else {page=FILES;selected=0;fileStart=0;update();}
+        } else {
+          page=FILES;selected=0;fileStart=0;
+          requestVisibleCovers();update();
+        }
       } else if(selected==1) {
         if(favorites.contains(itemId))favorites.removeAll(itemId);
         else if(favorites.size()<200)favorites<<itemId;
