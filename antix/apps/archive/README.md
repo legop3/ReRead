@@ -11,7 +11,7 @@ From the repository root with the existing reread-builder Docker image:
     docker run --rm -v "$PWD:/work:z" reread-builder \
       python3 /work/antix/apps/archive/package.py
 
-The result is out/antix/reread-app-archive_0.3.0_i386.deb.
+The result is out/antix/reread-app-archive_0.4.0_i386.deb.
 The script builds only the app and its shared Qt libraries. It does not touch
 the operating-system package, installer, GitHub releases or APT workflows.
 Use ReRead's USB web interface, http://192.168.7.1, Apps, to upload/install
@@ -54,9 +54,11 @@ The only extra audio libraries required are libmpg123-0t64 and libasound2t64.
 The app does not install or execute the mpg123 command-line player. Existing
 FFmpeg libraries from older installations are not removed by an upgrade.
 
-The on-screen footer uses ReRead's physical button drawings, not text labels
-standing in for button icons. The remainder of the application keeps its
-custom Archive artwork-first gallery, detail, image and reading interfaces.
+The on-screen footer uses ReRead's physical button drawings, not textual
+stand-ins. The app is visually organized like archive.org: charcoal header
+and category navigation, a near-white catalog canvas, compact cover cards,
+blue item links, a left collection/sidebar column, sort strip and white
+metadata/file pages. This is deliberately not the standard ReRead dark UI.
 
 ## Testing notes
 
