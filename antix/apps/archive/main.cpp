@@ -133,7 +133,7 @@ class Archive : public Screen {
                           <<QPoint(r.right()-5,r.bottom()-6);p.drawPolyline(shape);
     } else if(kind=="Favorites") {
       QPolygonF star;
-      for(int i=0;i<10;++i){double a=-M_PI/2+i*M_PI/5;double rad=(i%2)?r.width()*.20:r.width()*.45;
+      for(int i=0;i<10;++i){double a=-3.14159265358979323846/2+i*3.14159265358979323846/5;double rad=(i%2)?r.width()*.20:r.width()*.45;
         star<<QPointF(r.center().x()+cos(a)*rad,r.center().y()+sin(a)*rad);}
       p.drawPolygon(star);
     } else if(kind=="Software"||kind=="software") {
@@ -274,7 +274,9 @@ class Archive : public Screen {
         QByteArray bytes=r->readAll();
         if(bytes.size()<1024*1024){
           QBuffer b(&bytes);b.open(QIODevice::ReadOnly);
-          QImageReader reader(&b);reader.setScaledSize(QSize(240,180));
+          QImageReader reader(&b);
+          QSize original=reader.size();
+          if(original.isValid())reader.setScaledSize(original.scaled(320,220,Qt::KeepAspectRatio));
           QImage img=reader.read();
           if(!img.isNull()){thumbs[id]=img;if(thumbs.size()>32)thumbs.erase(thumbs.begin());}
         }
