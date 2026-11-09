@@ -1,113 +1,80 @@
 #!/usr/bin/python3
-"""Battery readings and low-charge protection, using Linux power_supply."""
+"""UPower status adapter for ReRead's UI. UPower owns battery policy/actions."""
 import argparse
 import json
 import os
 from pathlib import Path
-import subprocess
-import time
+import dbus
+from dbus.mainloop.glib import DBusGMainLoop
+from gi.repository import GLib
 
-SUPPLIES = Path('/sys/class/power_supply')
-CONFIG = Path('/etc/reader/power.json')
+SERVICE = 'org.freedesktop.UPower'
+ROOT = '/org/freedesktop/UPower'
+DEVICE = SERVICE + '.Device'
 STATE = Path('/run/reader-battery.json')
 TEXT = Path('/run/reader-battery-status')
-DEFAULTS = dict(warning_percent=12, critical_percent=6, shutdown_delay_seconds=30)
+STATES = {0: 'Unknown', 1: 'Charging', 2: 'Discharging', 3: 'Empty',
+          4: 'Full', 5: 'Not charging', 6: 'Pending discharge'}
 
 
-def read(path):
-    try:
-        return path.read_text().strip()
-    except OSError:
-        return None
+def unavailable():
+    return dict(backend='UPower', present=None, external_power=None,
+                capacity_percent=None, raw_status=None, status='Battery unavailable',
+                voltage_uv=None, charge_now_uah=None, charge_full_uah=None,
+                current_ua=None, level='unknown', action_pending=False,
+                shutdown_in_seconds=None, monitor_running=False)
 
 
-def number(path):
-    try:
-        value = int(read(path))
-        return value if 0 <= value < 0xffffffff else None
-    except (TypeError, ValueError):
-        return None
-
-
-def settings():
-    values = {**DEFAULTS, **json.loads(CONFIG.read_text())} if CONFIG.exists() else DEFAULTS.copy()
-    if (any(type(values[k]) is not int for k in DEFAULTS) or
-            not 0 < values['critical_percent'] < values['warning_percent'] <= 100 or
-            not 10 <= values['shutdown_delay_seconds'] <= 3600):
-        raise ValueError('Invalid battery thresholds or shutdown delay in ' + str(CONFIG))
-    return values
-
-
-def snapshot(root=SUPPLIES):
-    supplies = sorted(root.glob('*'))
-    batteries = [p for p in supplies if read(p / 'type') == 'Battery']
-    sources = [number(p / 'online') for p in supplies
-               if read(p / 'type') in ('Mains', 'USB', 'USB_C', 'USB_PD')]
-    external = True if 1 in sources else False if sources and all(v == 0 for v in sources) else None
-    presence = [number(p / 'present') for p in batteries]
-    present = [p for p, value in zip(batteries, presence) if value == 1]
-    result = dict(present=True if present else False if presence and all(v == 0 for v in presence) else None, external_power=external,
-                  capacity_percent=None, raw_status=None, status='Unknown', voltage_uv=None,
-                  charge_now_uah=None, charge_full_uah=None, current_ua=None)
-    if not present:
-        result['status'] = 'No battery' if result['present'] is False else 'Battery unavailable'
-        return result
-    battery = present[0]
-    result.update(capacity_percent=number(battery / 'capacity'), raw_status=read(battery / 'status'),
-                  voltage_uv=number(battery / 'voltage_now'), charge_now_uah=number(battery / 'charge_now'),
-                  charge_full_uah=number(battery / 'charge_full'), current_ua=number(battery / 'current_now'))
-    capacity = result['capacity_percent']
-    if capacity is None and result['charge_now_uah'] is not None and result['charge_full_uah']:
-        capacity = min(100, result['charge_now_uah'] * 100 // result['charge_full_uah'])
-    result['capacity_percent'] = capacity if capacity is not None and capacity <= 100 else None
-    raw = result['raw_status'] or 'Unknown'
-    # Colbert _BST calls every non-charging state "Discharging", even on AC.
-    result['status'] = 'Not charging' if external is True and raw == 'Discharging' else raw
+def snapshot(bus=None):
+    bus = bus or dbus.SystemBus()
+    root = bus.get_object(SERVICE, ROOT)
+    power = dbus.Interface(root, 'org.freedesktop.DBus.Properties').GetAll(SERVICE)
+    path = dbus.Interface(root, SERVICE).GetDisplayDevice()
+    battery = dbus.Interface(bus.get_object(SERVICE, path),
+                             'org.freedesktop.DBus.Properties').GetAll(DEVICE)
+    voltage = None
+    for device in dbus.Interface(root, SERVICE).EnumerateDevices():
+        properties = dbus.Interface(bus.get_object(SERVICE, device),
+                                    'org.freedesktop.DBus.Properties').GetAll(DEVICE)
+        if int(properties['Type']) == 2 and properties['PowerSupply']:
+            voltage = round(float(properties['Voltage']) * 1_000_000) or None
+            break
+    result = unavailable()
+    present = bool(battery['IsPresent'])
+    state = STATES.get(int(battery['State']), 'Unknown')
+    external = not bool(power['OnBattery'])
+    # Colbert can report Discharging while externally powered and not charging.
+    # This is presentation only; never mask UPower's warning/action decisions.
+    label = 'Not charging' if external and state == 'Discharging' else state
+    warning = int(battery['WarningLevel'])
+    result.update(present=present, external_power=external,
+                  capacity_percent=round(float(battery['Percentage'])) if present else None,
+                  raw_status=state, status=label if present else 'No battery', voltage_uv=voltage,
+                  energy_wh=float(battery['Energy']), energy_full_wh=float(battery['EnergyFull']),
+                  power_w=float(battery['EnergyRate']), time_to_empty_seconds=int(battery['TimeToEmpty']),
+                  level='critical' if warning >= 4 else 'low' if warning == 3 else 'normal',
+                  action_pending=warning == 5, monitor_running=True)
     return result
 
 
-class Policy:
-    def __init__(self, config):
-        self.config = config
-        self.critical_since = None
-
-    def update(self, sample, now):
-        sample = dict(sample)
-        percent = sample['capacity_percent']
-        on_battery = sample['present'] is True and sample['external_power'] is False and percent is not None
-        critical = on_battery and percent <= self.config['critical_percent']
-        if not critical:
-            self.critical_since = None
-        elif self.critical_since is None:
-            self.critical_since = now
-        level = 'critical' if critical else 'low' if on_battery and percent <= self.config['warning_percent'] else 'normal'
-        remaining = None if not critical else max(0, int(self.config['shutdown_delay_seconds'] - (now - self.critical_since) + .999))
-        sample.update(level=level, shutdown_in_seconds=remaining, monitor_running=True, sampled_monotonic=now)
-        return sample
+def status():
+    try:
+        return snapshot()
+    except dbus.DBusException:
+        return unavailable()
 
 
 def description(sample):
     percent = sample['capacity_percent']
     text = 'Battery: ' + (str(percent) + '%' if percent is not None else sample['status'])
-    if sample.get('level') == 'critical':
-        return text + ' CRITICAL - shutdown in ' + str(sample['shutdown_in_seconds']) + 's; connect power'
-    if sample.get('level') == 'low':
+    if sample['level'] == 'critical':
+        return text + (' CRITICAL - shutting down soon; connect power' if sample['action_pending']
+                       else ' CRITICAL - connect power')
+    if sample['level'] == 'low':
         return text + ' LOW - connect power'
     if sample['external_power'] is True:
         return text + ' - external power, ' + sample['status'].lower()
-    if sample['external_power'] is False:
-        return text + ' - on battery' if sample['present'] else text
-    return text + ' - power source unknown'
-
-
-def status():
-    try:
-        sample = json.loads(STATE.read_text())
-        if 0 <= time.monotonic() - sample['sampled_monotonic'] < 20:
-            return sample
-    except (OSError, ValueError, KeyError, TypeError):
-        pass
-    return dict(snapshot(), monitor_running=False, level='unknown', shutdown_in_seconds=None)
+    return text + ' - on battery' if sample['external_power'] is False else text
 
 
 def publish(sample):
@@ -118,40 +85,38 @@ def publish(sample):
 
 
 def monitor():
-    try:
-        config = settings()
-    except (OSError, ValueError, TypeError) as error:
-        print('Battery configuration error; using defaults:', error, flush=True)
-        config = DEFAULTS.copy()
-    policy = Policy(config)
-    previous = None
-    while True:
-        sample = policy.update(snapshot(), time.monotonic())
-        publish(sample)
-        state = (sample['present'], sample['external_power'], sample['status'], sample['level'])
-        if state != previous:
-            print(time.strftime('%Y-%m-%dT%H:%M:%S%z'), description(sample), flush=True)
-            previous = state
-        if sample['shutdown_in_seconds'] == 0:
-            # Recheck live power/charge immediately before requesting shutdown.
-            sample = policy.update(snapshot(), time.monotonic())
-            publish(sample)
-            if sample['shutdown_in_seconds'] == 0:
-                print('Critical battery confirmed; requesting clean power-off.', flush=True)
-                try:
-                    subprocess.run(['/sbin/poweroff'], check=True, timeout=20)
-                except (OSError, subprocess.SubprocessError) as error:
-                    print('Power-off failed:', error, flush=True)
-                # A failed shutdown gets another grace period, rather than a tight loop.
-                policy.critical_since = None
-        time.sleep(5)
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    loop = GLib.MainLoop()
+
+    def refresh(*_):
+        try:
+            publish(snapshot(bus))
+        except dbus.DBusException:
+            publish(unavailable())
+            loop.quit()  # runit restarts the adapter; D-Bus activates UPower.
+
+    def owner_changed(name, old, new):
+        if old and not new:
+            publish(unavailable())
+            loop.quit()
+
+    bus.add_signal_receiver(refresh, signal_name='PropertiesChanged',
+                            dbus_interface='org.freedesktop.DBus.Properties',
+                            bus_name=SERVICE)
+    bus.add_signal_receiver(refresh, signal_name='DeviceAdded', bus_name=SERVICE)
+    bus.add_signal_receiver(refresh, signal_name='DeviceRemoved', bus_name=SERVICE)
+    bus.add_signal_receiver(owner_changed, signal_name='NameOwnerChanged',
+                            dbus_interface='org.freedesktop.DBus', arg0=SERVICE)
+    publish(snapshot(bus))
+    loop.run()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--once', action='store_true', help='Print live readings without starting protection')
+    parser.add_argument('--once', action='store_true', help='Print live UPower readings')
     args = parser.parse_args()
     if args.once:
-        print(json.dumps(snapshot(), indent=2))
+        print(json.dumps(status(), indent=2))
     else:
         monitor()

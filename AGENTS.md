@@ -10,3 +10,6 @@
   maintained Linux components without requiring a desktop environment.
 - When custom infrastructure is necessary, explain the concrete gap that existing
   Linux facilities cannot reasonably cover.
+
+- Applications intentionally run as root. Keep permission separation and per-app
+  permission gates out of scope unless the owner requests them.

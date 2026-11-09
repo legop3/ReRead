@@ -22,10 +22,16 @@ Terminal=false
 ```
 
 ReRead discovers entries marked `X-ReRead=true`, using Name and Comment on Home.
-Hidden/NoDisplay entries are excluded. Exec launches an executable with arguments,
-without a shell. File/URL field codes are not passed: the current launcher starts
-apps without a document. Use one entry per foreground application. Its desktop
-basename is the stable UI identity, e.g. `reread-camera`.
+Home uses GLib/GIO's DesktopAppInfo for discovery, translated metadata and Exec
+expansion. Standard Hidden/NoDisplay, TryExec and OnlyShowIn/NotShowIn rules apply;
+the desktop identity is `ReRead`. GIO handles quoting, escapes, field codes and
+`Path=` working directories. Apps start without documents/URLs, so the document
+field codes receive no inputs. No shell is added by the launcher.
+Use `Terminal=false` and omit `DBusActivatable` (or set it false): a foreground
+app must be a direct process so Home can track its lifetime and reclaim the
+screen. Terminal apps and D-Bus-activated services do not fit that contract.
+Use one entry per foreground app. Its desktop ID without `.desktop` is the
+stable UI identity, e.g. `reread-camera`.
 
 Every foreground app **must supply an icon** through the standard `Icon=` key.
 Install its SVG or PNG in the normal hicolor theme, for example
@@ -50,7 +56,7 @@ photos/documents intended for transfer belong in `/var/lib/reader/files/`.
 Never ship runtime data in a package or delete it in removal scripts. Editable
 system defaults belong in `/etc/reread/apps/` and `DEBIAN/conffiles`.
 
-Apps are trusted local Linux processes, currently running with the handheld UI's
+Apps are trusted local Linux processes, intentionally running with the handheld UI's
 root privileges. This is not an app sandbox. They must not replace platform
 services, touch raw hardware already owned by a service, or reset global settings.
 
@@ -147,8 +153,11 @@ signal. Other toolkits may observe it directly. Hold value 1 means unlocked,
 its first event remains unverified. Power bypasses Hold; global volume bindings
 respect it. Normal Linux interfaces remain available from any language.
 
-Battery state is `/run/reader-battery.json`, sampled by the existing Linux
-power-supply monitor. UI services do not emulate these Linux subsystems.
+Battery readings and critical actions come from standard UPower on the system
+D-Bus. `/run/reader-battery.json` is an optional UI snapshot written by a small
+signal-driven adapter. It owns no battery polling or shutdown timer. Use UPower
+directly from other toolkits/languages; its configuration is
+`/etc/UPower/UPower.conf`.
 
 Camera is a single-owner native service with HTTP/JSON over
 `/run/reader-camera.sock`. GET `/live?after=<sequence>` supplies a JPEG and X-Frame

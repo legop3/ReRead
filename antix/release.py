@@ -45,6 +45,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
                          ('reader-service.sh', 'reader-service'),
                          ('volume-key.sh', 'reader-volume-key'),
                          ('battery.py', 'reader_battery.py'),
+                         ('upower-configure.py', 'reader-upower-configure'),
                          ('audio.py', 'reader-audio'),
                          ('brightness.py', 'reader-brightness'),
                          ('camera.py', 'reader_camera.py'),
@@ -123,7 +124,6 @@ Cflags: -I/usr/include/reread
     copy(backlight / 'reader_backlight.ko', 'lib/modules/' + kernel + '/extra/reader_backlight.ko')
     write('usr/share/reader/version', version + '\n')
     write('usr/share/reader/kernel-version', kernel + '\n')
-    write('etc/reader/power.json', '{"warning_percent":12,"critical_percent":6,"shutdown_delay_seconds":30}\n')
     write('etc/sv/reader-battery/run', '#!/bin/sh\nmkdir -p /var/log/reader\nexec /usr/local/sbin/reader_battery.py >>/var/log/reader/battery.log 2>&1\n', 0o755)
     (root / 'etc/runit/runsvdir/default/reader-battery').symlink_to('/etc/sv/reader-battery')
     write('etc/sv/reader/run', '#!/bin/sh\nexec /usr/local/sbin/reader-service\n', 0o755)
@@ -134,13 +134,13 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-dbus, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-dbus, python3-gi, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Breaks: reread-app-camera (<< 0.3.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
 ''')
-    write('DEBIAN/conffiles', '/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/power.json\n/etc/reader/display.json\n')
+    write('DEBIAN/conffiles', '/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n')
     copy(base / 'antix/postinst.sh', 'DEBIAN/postinst', 0o755)
     output.mkdir(parents=True, exist_ok=True)
     package = output / ('reread_' + version + '_i386.deb')

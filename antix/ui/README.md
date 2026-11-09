@@ -39,9 +39,10 @@ Only the foreground process paints the framebuffer and handles navigation.
 Input devices are shared nonexclusively with the system services; apps must not
 use EVIOCGRAB to steal Power/volume events. Home closes its navigation readers
 while an app runs. On exit or launch failure it returns and reopens them. Apps
-exit on Back at their root or Favorites (Home). The launcher sets Linux's
-parent-death signal before exec so an app does not remain orphaned. No shell is
-involved in app execution. USB arrow/Enter/Escape keys also work.
+exit on Back at their root or Favorites (Home). GIO handles standard desktop entries and process spawning; the launch callback
+sets Linux's parent-death signal. A Linux pidfd lets Qt observe app exit without
+polling. Home returns after normal exit, a crash or a launch error. No shell is
+added by the launcher. USB arrow/Enter/Escape keys also work.
 
 Udev hwdb applies the model-specific control map. Zoom now uses Linux's actual
 Zoom In (418) and Zoom Out (419) codes; ReRead's semantic button IDs are stable.

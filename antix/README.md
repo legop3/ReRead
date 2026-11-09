@@ -214,27 +214,32 @@ and the read-only probe. Sustained-load thermal limits remain unverified.
 
 ## Battery and charging
 
-ReRead 0.1.2 adds a small `reader-battery` runit service using Linux's standard
-power_supply readings. The Reader screen and web Overview show battery level
-and external-power/charging status; low/critical warnings appear in both.
-Charging remains controlled by the hardware. The Reader firmware reports
-Discharging even on AC when charging is paused; ReRead labels this combination
-Not charging and retains the raw status separately.
+ReRead 0.10.0 uses the distribution's **UPower** daemon for battery readings,
+warnings and critical-power actions. D-Bus activates it through its normal
+service definition; no desktop is required. The `reader-battery` runit service
+is now a signal-driven UI adapter, not a polling/shutdown daemon. It writes
+`/run/reader-battery.json` and a readable status line; `GET /api/battery` reads
+UPower directly. Charging remains controlled by hardware.
 
-Defaults are a warning at **12%** and a **30-second shutdown countdown at 6%**
-while on battery. Connecting external power cancels the countdown. Missing or
-unknown battery/power readings never initiate shutdown, and live readings are
-checked again before calling antiX's clean power-off command. Edit
-`/etc/reader/power.json` and restart `reader-battery` to change thresholds.
-This file is preserved during package updates. Logs: `/var/log/reader/battery.log`.
-Read current status through `GET /api/battery` or `/run/reader-battery.json`.
+On first migration, existing ReRead thresholds are transferred to
+`/etc/UPower/UPower.conf`: normally low warning 12%, critical warning 7%, and
+PowerOff action 6%. An already-customised UPower threshold policy is retained.
+UPower supplies its own 20-second action grace period. ReRead shows an imminent
+action warning instead of inventing a second countdown. The old
+`/etc/reader/power.json` is no longer used after migration. Later package updates
+do not rewrite UPower settings. Restart the UPower daemon after editing its
+configuration. Migration records `/var/lib/reader/upower-configured`.
 
-Adapter removal/reconnection, changing gauge data and the live service/API
-have been checked on the Reader. Low/critical shutdown paths were checked with
-simulated readings and a mocked power-off command; the physical battery was
-not drained to critical. Active charging from a depleted pack is not yet
-verified. The service runs while awake; S3 low-battery protection remains
-separate work. See [the investigation](../analysis/battery.md).
+The Reader can report Discharging on AC when charging is paused; the UI labels
+that combination Not charging. That presentation adjustment does not override
+UPower warning/action decisions. The API retains nullable legacy charge fields
+and adds standard UPower energy, power and time-to-empty readings.
+
+Actual charger removal/reconnection, UPower state and live charging were checked
+on the Reader. The physical battery has not been drained to critical to exercise
+UPower's shutdown action. Userspace protection does not run during S3. See
+[the current integration](../analysis/linux-battery-apps.md) and
+[the original hardware investigation](../analysis/battery.md).
 
 ## Audio
 

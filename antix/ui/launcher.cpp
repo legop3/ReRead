@@ -1,23 +1,16 @@
+#include <gio/gdesktopappinfo.h>
 #include "reader-ui.hpp"
 #include <sys/statvfs.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
 using namespace ReRead;
-// Lifecycle belongs to the launcher, including apps that use no ReRead library.
-class AppProcess : public QProcess {
-  pid_t launcherPid = getpid();
-protected:
-  void setupChildProcess() override {
-    if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 || getppid() != launcherPid)
-      _exit(127);
-  }
-public:
-  using QProcess::QProcess;
-};
 class Launcher : public Screen {
   struct App {
-    QString name, description, exec, id;
+    QString name, description, desktop, id;
     QIcon icon;
   };
   QList<App> apps;
@@ -28,7 +21,9 @@ class Launcher : public Screen {
   QList<QIcon> icons;
   static constexpr int columns = 3, pageSize = 6;
   QImage photo;
-  QProcess *child = nullptr;
+  GPid child = 0;
+  int childFd = -1;
+  QSocketNotifier *childWatch = nullptr;
   QMap<QString, int> positions;
   bool adjustmentPage() const {
     return page == "display" || page == "sound" || (page == "power" && selected == 0);
@@ -64,46 +59,30 @@ class Launcher : public Screen {
     if (page == "home") {
       showControls = false;
       apps.clear();
-      for (const auto &file : QDir("/usr/share/applications")
-                                  .entryList({"*.desktop"}, QDir::Files)) {
-        QFile entry("/usr/share/applications/" + file);
-        if (!entry.open(QIODevice::ReadOnly))
-          continue;
-        QMap<QString, QString> desktop;
-        bool group = false;
-        for (const auto &line :
-             QString::fromUtf8(entry.readAll()).split('\n')) {
-          if (line.startsWith('[')) {
-            group = line.trimmed() == "[Desktop Entry]";
-            continue;
-          }
-          int equals = line.indexOf('=');
-          if (group && equals > 0 && !line.startsWith('#')) {
-            QString value = line.mid(equals + 1).trimmed();
-            value.replace("\\n", "\n")
-                .replace("\\s", " ")
-                .replace("\\t", "\t")
-                .replace("\\r", "\r")
-                .replace("\\\\", "\\");
-            desktop[line.left(equals).trimmed()] = value;
-          }
-        }
-        if (desktop.value("Type") != "Application" ||
-            desktop.value("X-ReRead") != "true" ||
-            desktop.value("Hidden") == "true" ||
-            desktop.value("NoDisplay") == "true")
-          continue;
-        App app{desktop.value("Name"), desktop.value("Comment"),
-                desktop.value("Exec"), file.left(file.size() - 8),
-                icon(desktop.value("Icon"))};
-        if (app.name.isEmpty() || app.exec.isEmpty())
-          continue;
-        if (desktop.value("Icon").isEmpty())
-          qWarning() << file << "needs an Icon= entry; using the fallback icon";
+      GList *entries = g_app_info_get_all();
+      for (GList *item = entries; item; item = item->next) {
+        if (!G_IS_DESKTOP_APP_INFO(item->data)) continue;
+        auto entry = G_DESKTOP_APP_INFO(item->data);
+        auto info = G_APP_INFO(entry);
+        if (!g_desktop_app_info_get_boolean(entry,"X-ReRead") ||
+            !g_app_info_should_show(info)) continue;
+        const char *filename = g_desktop_app_info_get_filename(entry);
+        const char *id = g_app_info_get_id(info);
+        if (!filename || !id) continue;
+        gchar *art = g_desktop_app_info_get_string(entry,"Icon");
+        App app{QString::fromUtf8(g_app_info_get_display_name(info)),
+                QString::fromUtf8(g_app_info_get_description(info)),
+                QString::fromUtf8(filename),QString::fromUtf8(id),
+                icon(QString::fromUtf8(art))};
+        if (app.id.endsWith(".desktop")) app.id.chop(8);
+        if (!art || !*art) qWarning() << id << "needs an Icon= entry; using the fallback icon";
+        g_free(art);
         apps.append(app);
-        icons << app.icon;
-        labels << app.name;
-        details << app.description;
+      }
+      g_list_free_full(entries,g_object_unref);
+      std::sort(apps.begin(),apps.end(),[](const App &a,const App &b){return a.id<b.id;});
+      for (const auto &app: apps) {
+        icons << app.icon; labels << app.name; details << app.description;
       }
       labels << "Files"
              << "Settings";
@@ -194,51 +173,62 @@ class Launcher : public Screen {
     photo = QImage();
     refresh();
   }
+  static void childSetup(gpointer data) {
+    // GIO owns Exec parsing/spawning; retain the foreground parent-death rule.
+    pid_t parent = *static_cast<pid_t *>(data);
+    if (prctl(PR_SET_PDEATHSIG,SIGTERM) != 0 || getppid() != parent) _exit(127);
+  }
+  static void launched(GDesktopAppInfo *, GPid pid, gpointer data) {
+    auto self = static_cast<Launcher *>(data);
+    self->child = pid;
+    self->childFd = syscall(SYS_pidfd_open,pid,0);
+  }
+  void appFinished() {
+    int status = 0;
+    if (waitpid(child,&status,WNOHANG) != child) return;
+    g_spawn_close_pid(child); child = 0;
+    if (childWatch) { childWatch->setEnabled(false);childWatch->deleteLater();childWatch=nullptr; }
+    if (childFd >= 0) { ::close(childFd);childFd=-1; }
+    foreground(true); refresh();
+    if (!WIFEXITED(status) || WEXITSTATUS(status))
+      toast("App closed unexpectedly. See apps.log over USB.");
+  }
   void launch(const App &app) {
-    auto args = QProcess::splitCommand(app.exec);
-    if (args.isEmpty())
-      return;
-    // .desktop Exec field codes are not shell syntax. ReRead apps take no files
-    // at launch.
-    for (int i = args.size() - 1; i >= 0; i--)
-      if (args[i].startsWith('%'))
-        args.removeAt(i);
-    QString executable = args.takeFirst();
-    child = new AppProcess(this);
-    auto env = QProcessEnvironment::systemEnvironment();
-    // An independent Qt app may use its toolkit's own Linux input backend.
-    // Apps choosing Device disable duplicate toolkit input themselves.
-    env.remove("QT_QPA_FB_DISABLE_INPUT");
+    GDesktopAppInfo *entry = g_desktop_app_info_new_from_filename(app.desktop.toUtf8());
+    if (!entry) { toast("Unable to read this application entry.");return; }
+    // Foreground ownership needs a direct process, not terminal/D-Bus activation.
+    if (g_desktop_app_info_get_boolean(entry,"Terminal") ||
+        g_desktop_app_info_get_boolean(entry,"DBusActivatable")) {
+      g_object_unref(entry);toast("This app needs a direct foreground executable.");return;
+    }
+    auto context = g_app_launch_context_new();
+    g_app_launch_context_unsetenv(context,"QT_QPA_FB_DISABLE_INPUT");
     QString data = "/var/lib/reader/apps/" + app.id;
     QDir().mkpath(data);
-    env.insert("READER_APP_ID", app.id);
-    env.insert("READER_APP_DATA_DIR", data);
-    env.insert("XDG_DATA_HOME", data);
-    child->setProcessEnvironment(env);
-    child->setStandardOutputFile("/var/log/reader/apps.log", QIODevice::Append);
-    child->setStandardErrorFile("/var/log/reader/apps.log", QIODevice::Append);
-    connect(child,
-            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
-            [this](int code, QProcess::ExitStatus) {
-              child->deleteLater();
-              child = nullptr;
-              foreground(true);
-              refresh();
-              if (code)
-                toast("App closed unexpectedly. See apps.log over USB.");
-            });
-    connect(child, &QProcess::errorOccurred, this,
-            [this](QProcess::ProcessError error) {
-              if (error == QProcess::FailedToStart) {
-                child->deleteLater();
-                child = nullptr;
-                foreground(true);
-                refresh();
-                toast("Unable to start this app.");
-              }
-            });
+    g_app_launch_context_setenv(context,"READER_APP_ID",app.id.toUtf8());
+    g_app_launch_context_setenv(context,"READER_APP_DATA_DIR",data.toUtf8());
+    g_app_launch_context_setenv(context,"XDG_DATA_HOME",data.toUtf8());
+    int log = open("/var/log/reader/apps.log",O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC,0644);
+    pid_t parent = getpid(); GError *error = nullptr;
     foreground(false);
-    child->start(executable, args);
+    gboolean ok = g_desktop_app_info_launch_uris_as_manager_with_fds(
+      entry,nullptr,context,G_SPAWN_DO_NOT_REAP_CHILD,childSetup,&parent,
+      launched,this,STDIN_FILENO,log,log,&error);
+    if (log >= 0) ::close(log);
+    g_object_unref(context);g_object_unref(entry);
+    if (!ok || !child) {
+      if (error) {qWarning() << error->message;g_error_free(error);}
+      foreground(true);refresh();toast("Unable to start this app.");return;
+    }
+    if (childFd >= 0) {
+      childWatch = new QSocketNotifier(childFd,QSocketNotifier::Read,this);
+      connect(childWatch,&QSocketNotifier::activated,this,[this](int){appFinished();});
+    } else {
+      // The supported Reader kernel has pidfd_open. Reap an already-exited
+      // child immediately; report an unsupported kernel rather than lose Home.
+      kill(child,SIGKILL);waitpid(child,nullptr,0);g_spawn_close_pid(child);child=0;
+      foreground(true);refresh();toast("Cannot track the application process.");
+    }
   }
   void button(reader_button id, int value) override {
     if (value == 0)
@@ -435,6 +425,11 @@ class Launcher : public Screen {
   }
 
 public:
+  ~Launcher() override {
+    if (child) kill(child,SIGTERM);
+    delete childWatch;
+    if (childFd >= 0) ::close(childFd);
+  }
   Launcher() : Screen("ReRead") {
     refresh();
     auto watcher = new QFileSystemWatcher(this);
@@ -446,6 +441,7 @@ public:
   }
 };
 int main(int argc, char **argv) {
+  qputenv("XDG_CURRENT_DESKTOP","ReRead");
   QApplication app(argc, argv);
   // LinuxFB has no desktop platform theme to populate icon search paths.
   QStringList iconPaths{QDir::homePath() + "/.icons"}, pixmapPaths;

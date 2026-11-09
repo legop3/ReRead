@@ -34,7 +34,7 @@ Screen::Screen(const QString &name) : title(name) {
             auto state = readJson(batteryPath);
             QJsonObject visible;
             for (const auto &key : {"capacity_percent", "external_power",
-                                    "level", "shutdown_in_seconds"})
+                                    "level", "action_pending"})
               visible[key] = state[key];
             auto signature =
                 QJsonDocument(visible).toJson(QJsonDocument::Compact);
@@ -166,8 +166,8 @@ void Screen::paintEvent(QPaintEvent *) {
   const QString level = battery.value("level").toString();
   if (level == "critical" || level == "low" || level == "warning") {
     warning = level == "critical" ? "Critical battery — connect power" : "Low battery — connect power";
-    if (!battery.value("shutdown_in_seconds").isNull())
-      warning += " · shutdown in " + QString::number(battery.value("shutdown_in_seconds").toInt()) + "s";
+    if (battery.value("action_pending").toBool())
+      warning = "Battery exhausted — shutting down soon; connect power";
   }
   QString message = device->isLocked() ? "Hold locked — slide switch to unlock" : !warning.isEmpty() ? warning : notice;
   if (!message.isEmpty()) {

@@ -91,7 +91,7 @@ async function refreshBattery(){const s=await get('/api/battery');
  const level=s.capacity_percent===null?s.status:s.capacity_percent+'%';
  $('battery').textContent=level+(s.external_power===true?' · External power · '+s.status:s.external_power===false&&s.present?' · On battery':'');
  const warning=$('battery-warning');warning.hidden=true;
- if(s.level==='critical'){warning.textContent='Battery critically low ('+level+'). Shutting down in '+s.shutdown_in_seconds+' seconds. Connect power to cancel.';warning.hidden=false;}
+ if(s.level==='critical'){warning.textContent='Battery critically low ('+level+'). '+(s.action_pending?'Shutting down soon. ':'')+'Connect power.';warning.hidden=false;}
  else if(s.level==='low'){warning.textContent='Battery low ('+level+'). Connect power.';warning.hidden=false;}
  else if(!s.monitor_running){warning.textContent='Battery protection service is unavailable.';warning.hidden=false;}
 }

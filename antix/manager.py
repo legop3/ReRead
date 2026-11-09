@@ -1,5 +1,4 @@
 """ReRead release/app inventory and one persistent package-management job."""
-import configparser
 import fcntl
 import json
 import os
@@ -9,6 +8,7 @@ import subprocess
 import tarfile
 import tempfile
 import time
+from gi.repository import GLib
 
 STATE = Path('/var/lib/reader')
 STAGING = STATE / 'updates'
@@ -111,15 +111,18 @@ def check_app_icons(path):
                 if not (member.isfile() and name.startswith('usr/share/applications/')
                         and name.endswith('.desktop')):
                     continue
-                desktop = configparser.ConfigParser(interpolation=None, strict=False)
-                desktop.read_string(archive.extractfile(member).read().decode('utf-8'))
-                entry = desktop['Desktop Entry'] if desktop.has_section('Desktop Entry') else {}
-                if (entry.get('X-ReRead') == 'true' and entry.get('Hidden') != 'true'
-                        and entry.get('NoDisplay') != 'true' and not entry.get('Icon', '').strip()):
+                desktop = GLib.KeyFile.new()
+                text = archive.extractfile(member).read().decode('utf-8')
+                desktop.load_from_data(text, len(text.encode('utf-8')), GLib.KeyFileFlags.NONE)
+                keys = desktop.get_keys('Desktop Entry')[0] if desktop.has_group('Desktop Entry') else []
+                def value(key):
+                    return desktop.get_string('Desktop Entry', key) if key in keys else ''
+                if (value('X-ReRead') == 'true' and value('Hidden') != 'true'
+                        and value('NoDisplay') != 'true' and not value('Icon').strip()):
                     raise ValueError(f'{Path(name).name} needs an Icon= entry and application artwork.')
         if process.wait():
             raise ValueError('Unable to read application desktop entries.')
-    except (tarfile.TarError, configparser.Error, UnicodeError) as error:
+    except (tarfile.TarError, GLib.Error, UnicodeError) as error:
         raise ValueError('Unable to read application desktop entries.') from error
     finally:
         process.stdout.close()

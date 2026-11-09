@@ -17,6 +17,10 @@ g++ -m32 -std=c++17 -O2 -fPIC -Wall -Wextra -Werror $qt_cflags -I"$source_dir/..
 ln -sf libreader-ui.so.3 "$build_dir/libreader-ui.so"
 for executable in launcher camera; do
     extra_cflags= extra_libs=
+    if [ "$executable" = launcher ]; then
+        extra_cflags=$(pkg-config --cflags gio-unix-2.0)
+        extra_libs=$(pkg-config --libs gio-unix-2.0)
+    fi
     if [ "$executable" = camera ]; then
         extra_cflags=$(pkg-config --cflags Qt5Network)
         extra_libs=$(pkg-config --libs Qt5Network)

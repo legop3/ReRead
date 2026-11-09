@@ -30,6 +30,7 @@ for service in reader-web reader-ssh; do
     rm -f "/etc/runit/runsvdir/default/$service"
 done
 ldconfig
+/usr/local/sbin/reader-upower-configure
 live=no
 [ ! -p /etc/sv/reader/supervise/control ] || live=yes
 # Use one runit supervisor per daemon, retiring instances started by distro

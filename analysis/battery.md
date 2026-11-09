@@ -1,5 +1,8 @@
 # Battery and charging
 
+> Historical investigation and ReRead 0.1.2 implementation. ReRead 0.10.0 replaces
+> the custom policy with UPower; see [current integration](linux-battery-apps.md).
+
 ## Physical observations
 
 The Intel Reader uses its standard ACPI battery and AC adapter devices under
@@ -98,7 +101,7 @@ a new grace period before retrying. Charging regulation remains in hardware.
 
 - Actual adapter removal/reconnection and changing capacity/voltage verified.
 - Normalized live HTTP status, installed service and on-device status file verified.
-- [test-battery.py](../antix/test-battery.py) covers absent/unknown data,
+- The original test-battery.py (since replaced with UPower adapter tests) covered absent/unknown data,
   percentage fallback, charging/discharging interpretation, warning/critical
   thresholds, grace timing, recovery, and AC reconnection at the final recheck.
   It mocks the power-off command while asserting the actual command/arguments.

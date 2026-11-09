@@ -1,79 +1,52 @@
-"""Battery fixtures and shutdown/cancellation paths; never powers off hardware."""
-import contextlib
-import io
-from pathlib import Path
-import tempfile
+"""Check UPower-to-UI translation; no battery policy or power-off commands."""
 from unittest.mock import patch
 import battery
 
 
-def sample(percent=50, external=False, present=True):
-    return dict(present=present, external_power=external, capacity_percent=percent,
-                status='Discharging', raw_status='Discharging')
+class Interface:
+    def __init__(self, properties):
+        self.properties = properties
+    def GetAll(self, _):
+        return self.properties
+    def GetDisplayDevice(self):
+        return 'display'
+    def EnumerateDevices(self):
+        return ['battery']
 
 
-def daemon_check(final_external):
-    # Second sample expires the grace period; third sample is the live recheck.
-    readings = [sample(5), sample(5), sample(5, external=final_external)]
-    with patch.object(battery, 'settings', return_value=battery.DEFAULTS), \
-            patch.object(battery, 'snapshot', side_effect=readings), \
-            patch.object(battery, 'publish') as publish, \
-            patch.object(battery.time, 'monotonic', side_effect=[0, 31, 31]), \
-            patch.object(battery.time, 'sleep', side_effect=[None, StopIteration]), \
-            patch.object(battery.subprocess, 'run') as shutdown, \
-            contextlib.redirect_stdout(io.StringIO()):
-        try:
-            battery.monitor()
-        except StopIteration:
-            pass
-        if final_external:
-            shutdown.assert_not_called()
-            assert publish.call_args.args[0]['shutdown_in_seconds'] is None
-        else:
-            shutdown.assert_called_once_with(['/sbin/poweroff'], check=True, timeout=20)
+class Bus:
+    def __init__(self, external=False, present=True, state=2, warning=1):
+        self.properties = {
+            battery.ROOT: dict(OnBattery=not external),
+            'display': dict(IsPresent=present, State=state, Percentage=42.5,
+                            WarningLevel=warning, Energy=11.2, EnergyFull=26.2,
+                            EnergyRate=3.5, TimeToEmpty=7200),
+            'battery': dict(Type=2, PowerSupply=True, Voltage=8.1),
+        }
+    def get_object(self, service, path):
+        assert service == battery.SERVICE
+        return Interface(self.properties[path])
 
 
 def main():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        for name, values in {
-            'adapter': dict(type='Mains', online='1'),
-            'pack': dict(type='Battery', present='1', capacity='97', status='Discharging',
-                         voltage_now='8307000', charge_now='3449000', charge_full='3541000'),
-        }.items():
-            (root / name).mkdir()
-            for key, value in values.items():
-                (root / name / key).write_text(value)
-        s = battery.snapshot(root)
-        assert s['status'] == 'Not charging' and s['raw_status'] == 'Discharging'
-        assert s['capacity_percent'] == 97 and s['current_ua'] is None
-        (root / 'pack/status').write_text('Charging')
-        assert battery.snapshot(root)['status'] == 'Charging'
-        (root / 'adapter/online').write_text('0')
-        assert battery.snapshot(root)['external_power'] is False
-        (root / 'pack/capacity').unlink()
-        assert battery.snapshot(root)['capacity_percent'] == 97
-        (root / 'pack/charge_now').unlink()
-        assert battery.snapshot(root)['capacity_percent'] is None
-        (root / 'pack/present').write_text('0')
-        assert battery.snapshot(root)['present'] is False
-        (root / 'pack/present').unlink()
-        assert battery.snapshot(root)['present'] is None
-        (root / 'adapter/online').unlink()
-        assert battery.snapshot(root)['external_power'] is None
-    policy = battery.Policy(battery.DEFAULTS)
-    assert policy.update(sample(12), 0)['level'] == 'low'
-    assert policy.update(sample(6), 0)['shutdown_in_seconds'] == 30
-    assert policy.update(sample(6), 29)['shutdown_in_seconds'] == 1
-    assert policy.update(sample(6, external=True), 30)['shutdown_in_seconds'] is None
-    assert policy.update(sample(6), 31)['shutdown_in_seconds'] == 30
-    for uncertain in [sample(None), sample(5, external=None), sample(5, present=None), sample(5, present=False)]:
-        assert policy.update(uncertain, 100)['shutdown_in_seconds'] is None
-    assert policy.update(sample(6), 101)['shutdown_in_seconds'] == 30
-    assert policy.update(sample(8), 110)['shutdown_in_seconds'] is None
-    daemon_check(final_external=False)
-    daemon_check(final_external=True)
-    print('PASS: real-reading fixtures, unknown/absent cases, critical delay, clean-shutdown command and last-second AC cancellation.')
+    with patch.object(battery.dbus, 'Interface', side_effect=lambda obj, _: obj):
+        sample = battery.snapshot(Bus())
+        assert sample['capacity_percent'] == 42 and sample['external_power'] is False
+        assert sample['voltage_uv'] == 8_100_000 and sample['energy_wh'] == 11.2
+        sample = battery.snapshot(Bus(external=True))
+        assert sample['status'] == 'Not charging' and sample['raw_status'] == 'Discharging'
+        sample = battery.snapshot(Bus(external=True, state=1))
+        assert sample['status'] == 'Charging'
+        sample = battery.snapshot(Bus(external=True, warning=5))
+        # A presentation quirk must never suppress UPower's own action decision.
+        assert sample['action_pending'] and sample['level'] == 'critical'
+        assert sample['shutdown_in_seconds'] is None
+        assert 'shutting down soon' in battery.description(sample)
+        sample = battery.snapshot(Bus(present=False))
+        assert sample['capacity_percent'] is None and sample['status'] == 'No battery'
+    with patch.object(battery, 'snapshot', side_effect=battery.dbus.DBusException('offline')):
+        assert battery.status()['monitor_running'] is False
+    print('PASS: UPower units, AC presentation quirk, action warnings, absent battery and unavailable service')
 
 
 if __name__ == '__main__':
