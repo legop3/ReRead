@@ -511,17 +511,32 @@ class Archive : public Screen {
     p.setPen(QPen(outline,1));p.drawLine(safe.x()+8,safe.y()+49,safe.right()-8,safe.y()+49);
     int bottom=safe.bottom()-46;
     p.drawLine(safe.x()+8,bottom,safe.right()-8,bottom);
-    QString shortcuts=page==HOME?"ARROWS  Browse      OK  Open      BACK  Home":
-      page==BROWSE?"ARROWS  Explore      OK  Open      PLAY  Next page      OPTIONS  Sort":
-      page==ITEM?"OK  Open      BACK  Browse":
-      page==FILES?"OK  View / listen      OPTIONS  Download      BACK  Item":
-      page==VIEW?"ZOOM +/-  Scale      ARROWS  Pan      OPTIONS  Download":
-      page==READER?"UP/DOWN  Pages      ZOOM +/-  Font      OPTIONS  Download":
-      page==PLAYER?"PLAY / OK  Pause      LEFT/RIGHT  Seek      OPTIONS  Download":
-      page==DOWNLOAD_CONFIRM?"OK  Download      BACK  Cancel":
-      page==DOWNLOADING?"BACK  Cancel download":
-      "BACK  Return";
-    txt(p,QRect(safe.x()+12,bottom+3,safe.width()-20,38),shortcuts,17,muted);
+    using Hint=QPair<reader_button,QString>;
+    QList<Hint> hints;
+    if(page==HOME)hints={{READER_UP,"Move"},{READER_OK,"Open"},{READER_BACK,"Home"}};
+    else if(page==BROWSE)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_PLAY,"More"},{READER_OPTIONS,"Sort"}};
+    else if(page==ITEM)hints={{READER_OK,"Select"},{READER_BACK,"Browse"}};
+    else if(page==FILES)hints={{READER_UP,"Choose"},{READER_OK,"Open"},{READER_OPTIONS,"Save"},{READER_BACK,"Item"}};
+    else if(page==VIEW)hints={{READER_ZOOM_IN,"Zoom"},{READER_UP,"Pan"},{READER_OPTIONS,"Save"},{READER_BACK,"Files"}};
+    else if(page==READER)hints={{READER_DOWN,"Page"},{READER_ZOOM_IN,"Text size"},{READER_OPTIONS,"Save"},{READER_BACK,"Files"}};
+    else if(page==PLAYER)hints={{READER_PLAY,"Pause"},{READER_LEFT,"Seek"},{READER_OPTIONS,"Save"},{READER_BACK,"Files"}};
+    else if(page==DOWNLOAD_CONFIRM)hints={{READER_OK,"Download"},{READER_BACK,"Cancel"}};
+    else if(page==DOWNLOADING)hints={{READER_BACK,"Cancel download"}};
+    else hints={{READER_BACK,"Return"}};
+    QFont hintFont=p.font();hintFont.setPixelSize(17);
+    QFontMetrics metrics(hintFont);
+    int total=0;
+    for(const auto &hint:hints)total+=47+metrics.horizontalAdvance(hint.second)+15;
+    double scale=qMin(1.0,double(safe.width()-12)/qMax(1,total));
+    p.save();p.translate(safe.x()+12,bottom+5);p.scale(scale,scale);
+    int cursor=0;
+    for(const auto &hint:hints) {
+      int width=42+metrics.horizontalAdvance(hint.second);
+      buttonIcon(p,QRect(cursor,2,31,31),hint.first);
+      txt(p,QRect(cursor+37,0,width-34,34),hint.second,17,muted);
+      cursor+=width+20;
+    }
+    p.restore();
   }
 protected:
   void draw(QPainter &p,const QRect &r) override {
