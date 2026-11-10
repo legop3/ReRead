@@ -31,4 +31,9 @@ antix/apps/files/build.sh build/antix/ui
 
 `test-navigation.cpp` exercises navigation, image zoom, text/details, live updates,
 canceling deletion, and confirmed deletion of disposable files/folders offscreen.
-It never targets the Reader's shared data.
+It also runs the real entry point to verify that Qt's duplicate LinuxFB keyboard
+handler is disabled. It never targets the Reader's shared data.
+
+Hardware validation for 0.1.1: one evdev OK press enters exactly one directory;
+Back at the shared root and Favorites both exit with status 0. These checks used
+a disposable directory, leaving shared user files untouched.

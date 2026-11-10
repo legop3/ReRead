@@ -183,6 +183,9 @@ public:
   }
 };
 int main(int argc,char **argv) {
+  // Screen already reads evdev; Qt's LinuxFB keyboard handler would deliver
+  // each navigation press a second time.
+  qputenv("QT_QPA_FB_DISABLE_INPUT","1");
   QApplication app(argc,argv);app.setFont(QFont("DejaVu Sans"));
   Files window;window.showFullScreen();return app.exec();
 }
