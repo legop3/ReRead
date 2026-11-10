@@ -513,9 +513,11 @@ class Booru : public Screen {
       chrome();
       return;
     }
-    if(page==GALLERY||page==POST)rememberSelectedPostTags();
+    const bool fromBrowsing=page==GALLERY||page==POST;
+    if(fromBrowsing)rememberSelectedPostTags();
     if(page==HOME){
       postTagSnapshot.clear();postCategorySnapshot.clear();contextPostId=0;
+      searchIndex=0;
     }
     if(page==DOWNLOADING){
       if(downloadReturnPage==GALLERY||downloadReturnPage==POST)
@@ -530,7 +532,7 @@ class Booru : public Screen {
     stop(imageJob);
     page=SEARCH;
     // Coming from a post, the first and most relevant choice is its tag list.
-    searchIndex=editorReturnPage==POST && !postTagSnapshot.isEmpty()
+    searchIndex=fromBrowsing && !postTagSnapshot.isEmpty()
                 ?queryTerms.size():qBound(0,searchIndex,editorRows().size()-1);
     status.clear();
     chrome();
