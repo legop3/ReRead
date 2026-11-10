@@ -61,20 +61,12 @@ class Booru : public Screen {
   QHash<QString,int> popularTagCounts;
   int tagPage=1;
   bool tagHasMore=true,tagLoading=false;
-  // 0 popular, 1 post, 2 current query terms
-  int tagSource=0, tagCategory=0;
+  int tagCategory=0;
   QStringList categories={"All","General","Artists","Copyright","Characters","Species"};
   QList<int> categoryCodes={-1,0,1,3,4,5};
-  QMap<QString,int> tagFilters;
-  QStringList sorts={"Newest","Oldest","Top score","Most favorited","Hot","Random","Recently updated"};
-  QStringList sortTerms={"","order:id","order:score","order:favcount","order:hot","order:random","order:updated"};
-  QStringList ratings={"Any","Safe","Questionable","Explicit"};
-  QStringList mediaTypes={"Any","Non-video","JPEG","PNG","GIF","WebP","MP4","WebM"};
-  QStringList scoreLevels={"Any","10+","50+","100+"};
-  int sortIndex=0,ratingIndex=0,mediaIndex=0,scoreIndex=0,searchIndex=0,tagIndex=0;
-  bool tagsFromSearch=false, searchFromGallery=false, galleryFromExplore=false;
+  int searchIndex=0;
+  bool searchFromGallery=false, galleryFromExplore=false;
   QStringList postTagSnapshot;
-  bool postTagsChanged=false;
   QString prefix;
   QStringList suggestions;
   bool lookupResultsFocus=false;
@@ -141,7 +133,7 @@ class Booru : public Screen {
   QString termPrefix(const QString &type) const {return type+":";}
   void setTerm(const QString &group,const QStringList &values){
     const QString prefix=termPrefix(group);
-    int current=-1;
+    int current=0;
     for(const QString &term:queryTerms){
       if(term.startsWith(prefix)){current=values.indexOf(term);break;}
     }
@@ -247,6 +239,7 @@ class Booru : public Screen {
       }else if(append){tagPage=qMax(1,tagPage-1);tagHasMore=true;}
       status=!ok?"Unable to load tags (HTTP "+QString::number(code)+")":
                    popularTags.isEmpty()?"No tags available":QString();
+      if(page==LOOKUP && lookupMode==1)suggestions=popularTags;
       update();
     });
   }
@@ -256,18 +249,17 @@ class Booru : public Screen {
     searchIndex=0;
   }
   void openTagBrowser(int source){
-    tagSource=source;tagIndex=0;page=INFO;status.clear();
-    if(source==1){
-      postTagSnapshot.clear();
-      if(const Post *p=current()){
-        postTagSnapshot=p->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-        postTagSnapshot.removeDuplicates();
-        postTagSnapshot.sort(Qt::CaseInsensitive);
-      }
-      postTagsChanged=false;
+    lookupMode=source==0?1:2;
+    page=LOOKUP;prefix.clear();suggestions.clear();suggestionIndex=0;
+    lookupResultsFocus=true;status.clear();
+    if(lookupMode==1){tagCategory=0;fetchPopularTags();}
+    else {
+      if(const Post *post=current()){
+        suggestions=post->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+        suggestions.removeDuplicates();suggestions.sort(Qt::CaseInsensitive);
+      }else suggestions=postTagSnapshot;
     }
     chrome();
-    if(source==0)fetchPopularTags();
   }
   QString lookupKey(int index) const {
     return index<keyboardLetters.size()?QString(keyboardLetters[index]):
@@ -317,6 +309,7 @@ class Booru : public Screen {
     update();
   }
   void openTagFinder(){
+    lookupMode=0;
     page=LOOKUP;prefix.clear();suggestions.clear();
     keyIndex=suggestionIndex=0;lookupResultsFocus=false;status.clear();chrome();
   }
