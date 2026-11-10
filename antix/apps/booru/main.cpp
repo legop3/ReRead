@@ -70,6 +70,7 @@ class Booru : public Screen {
   int settingIndex=0, hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
   bool autoOpenImages=false, more=false, loadingMore=false, favoritePending=false;
+  bool apiRetryPending=false;
   int apiRetries=0;
 
   QString preferencesPath() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-booru")+"/preferences.json";}
@@ -158,7 +159,7 @@ class Booru : public Screen {
     if(query.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts).size()>40){
       status="Search exceeds the server's 40-tag limit";update();return;
     }
-    stop(tagApi);stop(api);loadingMore=false;
+    stop(tagApi);stop(api);loadingMore=false;apiRetryPending=false;
     search=query;page=GALLERY;chrome();fetchPage();
   }
   void chrome() {
@@ -221,7 +222,7 @@ class Booru : public Screen {
   }
   void fetchPage(bool append=false,bool retry=false) {
     if(api)return;
-    if(!retry)apiRetries=0;
+    if(!retry){apiRetries=0;apiRetryPending=false;}
     loadingMore=append;
     if(!append){
       for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
@@ -247,6 +248,7 @@ class Booru : public Screen {
       r->deleteLater();
       if(!ok){
         if((statusCode==429||statusCode==503)&&apiRetries<2){
+          apiRetryPending=true;
           ++apiRetries;
           bool valid=false;const int seconds=retryAfter.toInt(&valid);
           const int delay=valid?qBound(1,seconds,60)*1000:apiRetries*3000;
@@ -255,6 +257,8 @@ class Booru : public Screen {
           const QString expectedSearch=search;
           const int expectedPage=pageNumber;
           QTimer::singleShot(delay,this,[this,append,expectedSearch,expectedPage]{
+            if(!apiRetryPending)return;
+            apiRetryPending=false;
             if((page==GALLERY||page==POST)&&search==expectedSearch&&
                 pageNumber==expectedPage&&!api)fetchPage(append,true);
           });
@@ -264,7 +268,7 @@ class Booru : public Screen {
         status="Posts request failed (HTTP "+QString::number(statusCode)+"): "+error;
         update();return;
       }
-      apiRetries=0;
+      apiRetries=0;apiRetryPending=false;
       QJsonParseError e;auto doc=QJsonDocument::fromJson(b,&e);
       if(e.error!=QJsonParseError::NoError||!doc.isObject()){
         if(append){--pageNumber;more=true;}
@@ -292,7 +296,7 @@ class Booru : public Screen {
     });
   }
   void maybeLoadMore(){
-    if((page!=GALLERY && page!=POST) || api || loadingMore || !more || posts.isEmpty())return;
+    if((page!=GALLERY && page!=POST) || api || loadingMore || apiRetryPending || !more || posts.isEmpty())return;
     if(selected<posts.size()-6)return;
     ++pageNumber;
     fetchPage(true);
@@ -486,7 +490,7 @@ class Booru : public Screen {
     else if(page==INFO){stop(tagApi);page=tagsFromSearch?SEARCH:POST;}
     else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
     else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
-    else if(page==GALLERY){stop(api);loadingMore=false;page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
+    else if(page==GALLERY){stop(api);loadingMore=false;apiRetryPending=false;page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
     else {close();return;}
     status.clear();chrome();
   }
@@ -573,7 +577,7 @@ protected:
           text(p,QRect(layout.info.x()+8,layout.info.y()+72,layout.info.width()-16,180),
                "Filter: "+QString(rule==1?"Include":rule==-1?"Exclude":"Off")+
                (tagCatalogMode?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
-               "\n\nOK: Include / Exclude / Off\nOptions: Search",22);
+               "\n\nSelect tags to include or exclude from the search.",22);
           label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
                 QString::number(tagFilters.size())+" filters active",19);
         }else if(status.isEmpty())text(p,layout.info,"No tags found",23);
