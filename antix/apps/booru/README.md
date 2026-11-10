@@ -10,7 +10,7 @@ From the ReRead checkout:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Output: `out/antix/reread-app-booru_0.7.0_i386.deb`. Install through the Reader's web Apps page or Software. The app build does not rebuild or modify core ReRead.
+Output: `out/antix/reread-app-booru_0.7.1_i386.deb`. Install through the Reader's web Apps page or Software. The app build does not rebuild or modify core ReRead.
 
 ## Browse without a keyboard
 
@@ -26,11 +26,11 @@ The home screen has **Explore / build search**, **Recent posts**, **My favorites
 - Filtering by rating, file type and minimum score.
 - Saving the completed search to Home, without typing (maximum 12 per server).
 
-**Changes are staged, not silently sent to the server.** Explore and the tag browsers explicitly show **NOT SEARCHED YET** for a new search or **CHANGES NOT APPLIED** when your filters differ from the loaded results. Choose **SHOW RESULTS**, or press Options from Explore or a tag browser, to execute the full query. The grid reloads with the new results. This allows selecting several tags together without generating one HTTP request per button press.
+**There is exactly one active search.** Every tag Include / Exclude / Off action immediately updates its query and schedules a fresh results request. Changes to sorting, rating, file type or score work the same way. Several rapid button presses are coalesced into a single request after 250 ms; there is no pending search, separate Apply step, or confirmation. The Explore and tag views show the active query and whether its results are updating.
 
-From results, press Options to refine the current search. Back cancels changes and returns to results. Inside a post, press Play to inspect and select its tags; Options applies the resulting search. Back from the tag browser keeps the changes available in Explore or returns to the post.
+Press Options or choose **VIEW RESULTS** to navigate to the current gallery; this does not submit a different search. From the gallery press Options to edit that same active search, and Back returns to its results without discarding any changes. A tag picker opened from a post keeps that post's tag list available while matching posts update; when the search has changed, Back returns to the refreshed gallery rather than the stale post.
 
-The gallery displays six thumbnails per screen, retaining selection while results automatically append in batches of 30. OK opens a post card; View opens the image through the default MIME handler. On the card, OK favorites (with configured credentials), Options downloads the original and Back returns to the same gallery position. Left/Right chooses adjacent cards. You may enable automatic image opening through Home → Options.
+The gallery displays six thumbnails per screen, retaining selection while results automatically append in batches of 30. Post-preview navigation requests the current post's thumbnail first, then neighboring posts, independent of the gallery's old six-tile window. Both views use the same paced queue; stalled transfers time out after 15 seconds and transient failures retry with a cooldown. OK opens a post card; View opens the image through the default MIME handler. On the card, OK favorites (with configured credentials), Options downloads the original and Back returns to the same gallery position. Left/Right chooses adjacent cards. You may enable automatic image opening through Home → Options.
 
 Hold Guide for contextual controls; release to hide. Favorites closes Booru. Power, volume, Hold and suspend remain owned by ReRead.
 
@@ -48,4 +48,4 @@ There is no built-in general keyboard input or image decoder/player beyond thumb
 
 ## Tests
 
-`test-opening.cpp` covers search composition, tag inclusion/exclusion, D-pad tag-prefix entry and suggestion selection, the Explore navigation path, bookmark persistence, image MIME dispatch, and cache behavior using local fixtures. These are source tests, not proof of real hardware or live-server behavior.
+`test-opening.cpp` covers live search changes without an Apply action, current-post thumbnail priorities, tag inclusion/exclusion, D-pad tag-prefix entry and suggestion selection, Explore navigation, bookmark persistence, image MIME dispatch, and cache behavior using local fixtures. These are source tests, not proof of real hardware or live-server behavior.
