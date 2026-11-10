@@ -67,7 +67,7 @@ class Booru : public Screen {
   QStringList sorts={"Newest","Oldest","Top score","Most favorited","Hot","Random","Recently updated"};
   QStringList sortTerms={"","order:id","order:score","order:favcount","order:hot","order:random","order:updated"};
   QStringList ratings={"Any","Safe","Questionable","Explicit"};
-  QStringList mediaTypes={"Any","Still images","JPEG","PNG","GIF","MP4"};
+  QStringList mediaTypes={"Any","Non-video","JPEG","PNG","GIF","WebP","MP4","WebM"};
   QStringList scoreLevels={"Any","10+","50+","100+"};
   int sortIndex=0,ratingIndex=0,mediaIndex=0,scoreIndex=0,searchIndex=0,tagIndex=0;
   bool tagsFromSearch=false, searchFromGallery=false, galleryFromExplore=false;
@@ -144,7 +144,7 @@ class Booru : public Screen {
     if(sortIndex)parts<<sortTerms[sortIndex];
     if(ratingIndex)parts<<"rating:"+QStringList{"","s","q","e"}[ratingIndex];
     if(mediaIndex==1)parts<<"-type:mp4"<<"-type:webm"<<"-type:swf";
-    else if(mediaIndex>1)parts<<"type:"+QStringList{"","","jpg","png","gif","mp4"}[mediaIndex];
+    else if(mediaIndex>1)parts<<"type:"+QStringList{"","","jpg","png","gif","webp","mp4","webm"}[mediaIndex];
     if(scoreIndex)parts<<"score:>="+QStringList{"","10","50","100"}[scoreIndex];
     return parts.join(" ");
   }
@@ -208,7 +208,9 @@ class Booru : public Screen {
       else if(token=="type:jpg")mediaIndex=2;
       else if(token=="type:png")mediaIndex=3;
       else if(token=="type:gif")mediaIndex=4;
-      else if(token=="type:mp4")mediaIndex=5;
+      else if(token=="type:webp")mediaIndex=5;
+      else if(token=="type:mp4")mediaIndex=6;
+      else if(token=="type:webm")mediaIndex=7;
       else if(token=="score:>=10")scoreIndex=1;
       else if(token=="score:>=50")scoreIndex=2;
       else if(token=="score:>=100")scoreIndex=3;
