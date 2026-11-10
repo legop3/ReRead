@@ -129,10 +129,6 @@ protected:
     QString name=desktop.value("Desktop Entry/Icon").toString();
     return QIcon::fromTheme(name,QIcon("/usr/share/icons/reread/scalable/apps/application-x-executable.svg"));
   }
-  void caption(QPainter &p,const QRect &r,const QString &value,int px=22,bool bold=false,QColor ink=Qt::white) {
-    auto font=p.font();font.setPixelSize(px);font.setBold(bold);p.setFont(font);p.setPen(ink);
-    p.drawText(r,Qt::AlignVCenter,QFontMetrics(font).elidedText(value,Qt::ElideRight,r.width()));
-  }
   void draw(QPainter &p, const QRect &r) override {
     const QColor accent=palette().color(QPalette::Link);
     if(page=="home") {
@@ -143,49 +139,47 @@ protected:
         if(i==selected)p.fillRect(row,Qt::white);
         p.fillRect(QRect(row.x()+5,row.y()+9,48,48),Qt::black);
         QIcon::fromTheme(symbols[i]).paint(&p,QRect(row.x()+11,row.y()+15,36,36));
-        caption(p,row.adjusted(65,0,-8,0),labels[i],23,i==selected,i==selected?Qt::black:Qt::white);
+        label(p,row.adjusted(65,0,-8,0),labels[i],23,i==selected,i==selected?Qt::black:Qt::white);
       }
       const int x=r.x()+width+18,w=r.right()-x;
       p.setPen(QPen(Qt::white,1));p.drawLine(x-18,r.top(),x-18,r.bottom());
-      caption(p,QRect(x,r.y(),w,28),"SYSTEM",19,true,accent);
-      caption(p,QRect(x,r.y()+35,w,48),"ReRead "+state.value("version").toString("…"),34,true);
+      label(p,QRect(x,r.y(),w,28),"SYSTEM",19,true,accent);
+      label(p,QRect(x,r.y()+35,w,48),"ReRead "+state.value("version").toString("…"),34,true);
       int upgrades=0;for(const auto &v:state.value("catalog").toObject().value("packages").toArray())
         if(v.toObject().value("upgrade").toBool())++upgrades;
-      caption(p,QRect(x,r.y()+92,w,34),QString::number(state.value("apps").toArray().size())+" apps installed",24);
+      label(p,QRect(x,r.y()+92,w,34),QString::number(state.value("apps").toArray().size())+" apps installed",24);
       auto checked=state.value("catalog").toObject().value("checked");
-      caption(p,QRect(x,r.y()+132,w,34),!checked.isDouble()?"Check for available updates":QString::number(upgrades)+" updates available",24,true,accent);
-      caption(p,QRect(x,r.y()+184,w,26),"LAST CHECK",18,true,accent);
-      caption(p,QRect(x,r.y()+214,w,30),checked.isDouble()?QDateTime::fromSecsSinceEpoch(qint64(checked.toDouble())).toString("d MMM yyyy · HH:mm"):"Not checked yet",23);
-      caption(p,QRect(x,r.y()+266,w,26),"OPERATION",18,true,accent);
-      caption(p,QRect(x,r.y()+297,w,32),running()?"Package operation running":state.value("job").toObject().value("message").toString("Ready"),23);
-      if(!error.isEmpty())caption(p,QRect(x,r.bottom()-32,w,30),error,20,true,QColor("#ff3030"));
+      label(p,QRect(x,r.y()+132,w,34),!checked.isDouble()?"Check for available updates":QString::number(upgrades)+" updates available",24,true,accent);
+      label(p,QRect(x,r.y()+184,w,26),"LAST CHECK",18,true,accent);
+      label(p,QRect(x,r.y()+214,w,30),checked.isDouble()?QDateTime::fromSecsSinceEpoch(qint64(checked.toDouble())).toString("d MMM yyyy · HH:mm"):"Not checked yet",23);
+      label(p,QRect(x,r.y()+266,w,26),"OPERATION",18,true,accent);
+      label(p,QRect(x,r.y()+297,w,32),running()?"Package operation running":state.value("job").toObject().value("message").toString("Ready"),23);
+      if(!error.isEmpty())label(p,QRect(x,r.bottom()-32,w,30),error,20,true,QColor("#ff3030"));
     } else if(page=="apps") {
-      const int width=r.width()*3/5,visible=qMax(1,(r.height()-42)/64),first=(selected/visible)*visible;
-      caption(p,QRect(r.x(),r.y(),width,30),QString::number(packages.size())+" applications",22,true,accent);
-      for(int i=first;i<qMin(first+visible,packages.size());++i) {
-        QRect row(r.x(),r.y()+42+(i-first)*64,width-18,60);bool focus=i==selected;
-        if(focus)p.fillRect(row,Qt::white);
+      const auto layout=listInfo(p,r.adjusted(0,42,0,0),packages.size(),selected,64,0.6);
+      label(p,QRect(r.x(),r.y(),layout.entries.width(),30),QString::number(packages.size())+" applications",22,true,accent);
+      for(int i=layout.first;i<qMin(layout.first+layout.visible,packages.size());++i) {
+        QRect row=listInfoRow(p,layout,i,selected,4);bool focus=i==selected;
         p.fillRect(QRect(row.x()+5,row.y()+5,50,50),Qt::black);
         appIcon(packages[i]).paint(&p,QRect(row.x()+10,row.y()+10,40,40));
-        caption(p,row.adjusted(66,-16,-8,0),labels[i],24,focus,focus?Qt::black:Qt::white);
-        caption(p,QRect(row.x()+66,row.y()+34,row.width()-74,22),details[i],18,false,focus?Qt::black:Qt::white);
+        label(p,row.adjusted(66,-16,-8,0),labels[i],24,focus,palette().color(focus?QPalette::HighlightedText:QPalette::Text));
+        label(p,QRect(row.x()+66,row.y()+34,row.width()-74,22),details[i],18,false,palette().color(focus?QPalette::HighlightedText:QPalette::Text));
       }
-      QRect side(r.x()+width+16,r.y()+42,r.width()-width-16,r.height()-42);
-      p.setPen(QPen(Qt::white,1));p.drawLine(side.left()-16,r.y()+42,side.left()-16,r.bottom());
+      const QRect side=layout.info;
       if(packages.isEmpty()) {text(p,side,"Check for apps first.\n\nRepositories can be managed through the web interface.",23);return;}
       auto info=installed(packages[selected]),available=candidate(packages[selected]);
       appIcon(packages[selected]).paint(&p,QRect(side.x(),side.y(),64,64));
-      caption(p,QRect(side.x(),side.y()+76,side.width(),34),labels[selected],26,true);
+      label(p,QRect(side.x(),side.y()+76,side.width(),34),labels[selected],26,true);
       QString description=info.value("description").toString(available.value("description").toString());
       auto font=p.font();font.setBold(false);p.setFont(font);
       text(p,QRect(side.x(),side.y()+120,side.width(),140),description.isEmpty()?"Application package":description,22);
-      caption(p,QRect(side.x(),side.bottom()-60,side.width(),28),info.isEmpty()?"AVAILABLE TO INSTALL":available.value("upgrade").toBool()?"UPDATE AVAILABLE":"INSTALLED",19,true,accent);
-      caption(p,QRect(side.x(),side.bottom()-27,side.width(),26),QString::number(selected+1)+" of "+QString::number(packages.size()),18);
+      label(p,QRect(side.x(),side.bottom()-60,side.width(),28),info.isEmpty()?"AVAILABLE TO INSTALL":available.value("upgrade").toBool()?"UPDATE AVAILABLE":"INSTALLED",19,true,accent);
+      label(p,QRect(side.x(),side.bottom()-27,side.width(),26),QString::number(selected+1)+" of "+QString::number(packages.size()),18);
     } else if(page=="operation") {
       auto job=state.value("job").toObject();auto phase=job.value("state").toString();
       QColor status=phase=="failed"?QColor("#ff3030"):running()?accent:QColor("#00df40");
-      caption(p,QRect(r.x(),r.y(),r.width(),38),phase.isEmpty()?"No operation yet":phase.toUpper(),27,true,status);
-      caption(p,QRect(r.x(),r.y()+42,r.width(),34),job.value("message").toString("Package activity will appear here"),23);
+      label(p,QRect(r.x(),r.y(),r.width(),38),phase.isEmpty()?"No operation yet":phase.toUpper(),27,true,status);
+      label(p,QRect(r.x(),r.y()+42,r.width(),34),job.value("message").toString("Package activity will appear here"),23);
       p.setPen(QPen(Qt::white,1));p.drawLine(r.left(),r.y()+88,r.right(),r.y()+88);
       auto lines=state.value("log").toString().replace('\r','\n').split('\n',Qt::SkipEmptyParts);
       int count=qMax(1,(r.height()-104)/25);logOffset=qBound(0,logOffset,qMax(0,lines.size()-count));
@@ -196,8 +190,8 @@ protected:
     } else if(page=="app"||page=="system") {
       const QString name=page=="system"?"reread":chosen;
       if(page=="app")appIcon(name).paint(&p,QRect(r.x(),r.y(),72,72));
-      caption(p,QRect(r.x()+(page=="app"?90:0),r.y(),r.width()-90,36),subtitle,30,true);
-      caption(p,QRect(r.x()+(page=="app"?90:0),r.y()+40,r.width()-90,30),candidate(name).isEmpty()?"No catalog information":"Available "+candidate(name).value("version").toString(),23,false,accent);
+      label(p,QRect(r.x()+(page=="app"?90:0),r.y(),r.width()-90,36),subtitle,30,true);
+      label(p,QRect(r.x()+(page=="app"?90:0),r.y()+40,r.width()-90,30),candidate(name).isEmpty()?"No catalog information":"Available "+candidate(name).value("version").toString(),23,false,accent);
       list(p,r.adjusted(0,94,0,0),labels,details,selected);
     } else list(p,r,labels,details,selected);
   }

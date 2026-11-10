@@ -31,6 +31,18 @@ public:
   void dispatch(reader_button id, int value);
   void foreground(bool enabled);
   void toast(const QString &text);
+  struct ListInfoLayout {
+    QRect entries, info;
+    int first, visible, rowHeight;
+    QRect row(int index, int gap = 2) const;
+  };
+  ListInfoLayout listInfo(QPainter &, const QRect &, int items, int selected,
+                          int rowHeight = 60, qreal listShare = 0.62);
+  QRect listInfoRow(QPainter &, const ListInfoLayout &, int index, int selected,
+                    int gap = 2);
+  void label(QPainter &, const QRect &, const QString &, int pixels = 22,
+             bool bold = false, QColor color = QColor(),
+             Qt::TextElideMode elide = Qt::ElideRight);
   void list(QPainter &, const QRect &, const QStringList &labels,
             const QStringList &details, int selected);
   void text(QPainter &, const QRect &, const QString &, int pixels = 26,

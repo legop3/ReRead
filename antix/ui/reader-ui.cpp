@@ -209,6 +209,35 @@ void Screen::paintEvent(QPaintEvent *) {
     text(p,box.adjusted(12,0,-12,0),message,23,palette().color(QPalette::ToolTipText));
   }
 }
+QRect Screen::ListInfoLayout::row(int index, int gap) const {
+  if(index<first || index>=first+visible)return {};
+  return QRect(entries.x(),entries.y()+(index-first)*rowHeight,
+               entries.width(),qMax(1,rowHeight-qMax(0,gap)));
+}
+Screen::ListInfoLayout Screen::listInfo(QPainter &p,const QRect &area,int items,
+                                       int selected,int rowHeight,qreal listShare) {
+  const int split=area.x()+qRound(area.width()*qBound(0.3,listShare,0.75));
+  const int height=qMax(1,qMin(qMax(1,rowHeight),area.height()));
+  const int visible=qMax(1,area.height()/height);
+  const int index=qBound(0,selected,qMax(0,items-1));
+  p.save();p.setPen(QPen(palette().windowText(),1));
+  p.drawLine(split,area.top(),split,area.bottom());p.restore();
+  return {QRect(area.x(),area.y(),qMax(1,split-area.x()-18),area.height()),
+          QRect(split+18,area.y(),qMax(1,area.right()-split-18),area.height()),
+          (index/visible)*visible,visible,height};
+}
+QRect Screen::listInfoRow(QPainter &p,const ListInfoLayout &layout,int index,
+                          int selected,int gap) {
+  const auto rect=layout.row(index,gap);
+  if(index==selected)p.fillRect(rect,palette().highlight());
+  return rect;
+}
+void Screen::label(QPainter &p,const QRect &r,const QString &value,int pixels,
+                   bool bold,QColor color,Qt::TextElideMode elide) {
+  p.save();auto font=p.font();font.setPixelSize(pixels);font.setBold(bold);p.setFont(font);
+  p.setPen(color.isValid()?color:palette().color(QPalette::Text));
+  p.drawText(r,Qt::AlignVCenter,QFontMetrics(font).elidedText(value,elide,r.width()));p.restore();
+}
 void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
                   const QStringList &details, int selected) {
   int visible = qMax(1, r.height() / 84);

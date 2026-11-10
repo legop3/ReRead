@@ -37,6 +37,15 @@ int main(int argc,char **argv) {
   require(image.save(fixture.path()+"/A/Camera/photo.png"),"Create fixture");
   QFile text(fixture.path()+"/z.txt");require(text.open(QIODevice::WriteOnly),"Create text");text.write("Hello Files\n");text.close();
   Files window;window.show();QCoreApplication::processEvents();
+  // Shared collection layout: pagination and row bounds with a nonzero origin.
+  QImage canvas(960,544,QImage::Format_RGB32);QPainter painter(&canvas);
+  auto layout=window.listInfo(painter,QRect(20,30,900,300),200,199,50);
+  require(layout.first==198 && layout.visible==6,"Shared layout pages selection into view");
+  require(layout.entries.contains(layout.row(199)),"Shared row stays inside list pane");
+  require(!layout.entries.intersects(layout.info),"List and info panes do not overlap");
+  require(layout.row(197).isEmpty(),"Off-page rows have no rectangle");
+  require(window.listInfo(painter,QRect(20,30,900,10),0,0,50).first==0,"Empty short list");
+  painter.end();
   press(window,READER_OK);require(window.subtitle.startsWith("A ·"),"Enter folder");
   press(window,READER_OK);require(window.subtitle.startsWith("A/Camera ·"),"Enter nested folder");
   press(window,READER_OK);require(!window.showHeader,"Image preview");

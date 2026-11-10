@@ -62,6 +62,16 @@ Guide supplies contextual help; Options opens app settings. The helper observes
 central dim/Hold/audio state and login1's `PrepareForSleep` signal. There is no
 per-app suspend timer or mixer/power-button handler.
 
+## Collection views
+
+Use `Screen::listInfo` for a collection with selection details. It returns list
+and info rectangles, the visible row range and row geometry. `listInfoRow` paints
+selection; `label` supplies consistent typography and elision. Files and Software
+use these helpers while supplying their own icons, columns and detail content.
+Keep `list` for short action menus and confirmations. The helpers are optional
+and add no model, application lifecycle or background service. New helper symbols
+are additive to UI SONAME 3; apps using them need a matching core library.
+
 ## App packaging and SDK
 
 See [the app contract](../apps/README.md). Native apps build against ordinary Qt

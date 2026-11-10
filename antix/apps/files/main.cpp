@@ -156,30 +156,26 @@ class Files : public Screen {
   }
   void drawBrowser(QPainter &p,const QRect &r) {
     auto label=[&](const QRect &box,const QString &value,int px,QColor ink,bool bold=false) {
-      auto font=p.font();font.setPixelSize(px);font.setBold(bold);p.setFont(font);p.setPen(ink);
-      p.drawText(box,Qt::AlignVCenter,QFontMetrics(font).elidedText(value,Qt::ElideMiddle,box.width()));
+      Screen::label(p,box,value,px,bold,ink,Qt::ElideMiddle);
     };
     const QColor ink=palette().color(QPalette::Text),accent=palette().color(QPalette::Link);
     label(QRect(r.x(),r.y(),r.width()-150,36),directory.isEmpty()?"Shared files /":"Shared files / "+directory,24,accent,true);
     label(QRect(r.right()-140,r.y(),140,36),QString::number(names.size())+" items",21,ink);
-    const int split=r.x()+r.width()*2/3;
-    p.setPen(QPen(ink,1));p.drawLine(split,r.y()+46,split,r.bottom());
-    const int width=split-r.x()-18;
+    auto layout=listInfo(p,r.adjusted(0,76,0,0),names.size(),selected,50,2.0/3);
+    const int split=layout.info.left()-18;
+    const int width=layout.entries.width();
     label(QRect(r.x()+46,r.y()+42,width-180,28),"Name",18,ink);
     label(QRect(split-145,r.y()+42,128,28),"Kind / size",18,ink);
-    const int rowHeight=50,visible=qMax(1,(r.height()-76)/rowHeight);
-    const int first=(selected/visible)*visible;
-    for(int i=first;i<qMin(first+visible,names.size());++i) {
-      const QRect row(r.x(),r.y()+76+(i-first)*rowHeight,width,rowHeight-2);
+    for(int i=layout.first;i<qMin(layout.first+layout.visible,names.size());++i) {
+      const QRect row=listInfoRow(p,layout,i,selected);
       const bool focus=i==selected;const auto color=focus?palette().color(QPalette::HighlightedText):ink;
-      if(focus)p.fillRect(row,palette().highlight());
       QFileInfo file(QDir(path()).filePath(names[i]));
       entryIcon(p,QRect(row.x()+7,row.y()+9,30,30),file.isDir(),focus);
       label(QRect(row.x()+46,row.y(),row.width()-182,row.height()),names[i],24,color,focus);
       label(QRect(row.right()-128,row.y(),120,row.height()),file.isDir()?"Folder":size(file.size()),19,color);
     }
     if(names.isEmpty())text(p,QRect(r.x()+12,r.y()+85,width-24,r.height()-90),"Empty folder\nUpload files through the web interface.",24);
-    const QRect side(split+20,r.y()+56,r.right()-split-20,r.height()-56);
+    const QRect side=layout.info.adjusted(0,-20,0,0);
     if(names.isEmpty()) {text(p,side,"Shared storage\n\nFiles and applications use this same folder.",23);return;}
     QFileInfo file(chosen());
     entryIcon(p,QRect(side.x(),side.y(),64,64),file.isDir());
