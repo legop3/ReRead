@@ -16,6 +16,7 @@ struct Host {
 struct Post {
   int id=0;
   QString preview, sample, original, ext, rating, tags;
+  QMap<int,QStringList> categorizedTags;
   bool favorite=false;
 };
 QString str(const QJsonValue &v) { return v.isString()?v.toString():QString(); }
@@ -59,12 +60,14 @@ class Booru : public Screen {
   int lookupMode=0; // 0 typed tag search, 1 popular tags, 2 tags from a post
   QStringList popularTags;
   QHash<QString,int> popularTagCounts;
+  QList<int> suggestionCategories;
   int tagPage=1;
   bool tagHasMore=true,tagLoading=false;
 
   int searchIndex=0;
   bool searchFromGallery=false, galleryFromExplore=false;
   QStringList postTagSnapshot;
+  QMap<int,QStringList> postCategorySnapshot;
   QString prefix;
   QStringList suggestions;
   bool lookupResultsFocus=false;
@@ -78,6 +81,61 @@ class Booru : public Screen {
   int apiRetries=0;
   quint64 searchRevision=0;
 
+  // Category IDs and post-sidebar ordering match e621ng TagCategory.
+  static QList<int> siteCategoryOrder(){
+    return {6,1,2,3,4,5,0,7,8};
+  }
+  static QString categoryName(int category){
+    static const QStringList names={"General","Artists","Contributors","Copyrights",
+      "Characters","Species","Invalid","Meta","Lore"};
+    return category>=0&&category<names.size()?names[category]:"Other";
+  }
+  static QColor categoryColor(int category){
+    // e621 default Hexagon theme category colors, with darker variants used
+    // as text when the shared ReRead surface is light.
+    static const QStringList colors={"#b4c7d9","#f2ac08","#c0c0c0","#dd00dd",
+       "#00aa00","#ed5d1f","#ff3d3d","#ffffff","#228822"};
+    if(category<0||category>=colors.size())return QColor();
+    return QColor(colors[category]);
+  }
+  QColor categoryTextColor(int category) const {
+    const QColor source=categoryColor(category);
+    if(!source.isValid())return palette().color(QPalette::Text);
+    const QColor background=palette().color(QPalette::Base);
+    if(background.lightness()<120)return source;
+    // Maintain the same category hue but ensure text is readable on white.
+    return QColor::fromHsl(source.hslHue()<0?0:source.hslHue(),
+      qMax(95,source.hslSaturation()),qMin(100,source.lightness()));
+  }
+  static QMap<int,QStringList> parseCategories(const QJsonObject &tags){
+    QMap<int,QStringList> result;
+    const QStringList keys={"general","artist","contributor","copyright",
+      "character","species","invalid","meta","lore"};
+    for(int i=0;i<keys.size();++i){
+      QStringList names;
+      for(const auto &v:tags.value(keys[i]).toArray())
+        if(v.isString()&&!v.toString().isEmpty())names<<v.toString();
+      if(!names.isEmpty()){
+        names.removeDuplicates();
+        names.sort(Qt::CaseInsensitive);
+        result.insert(i,names);
+      }
+    }
+    return result;
+  }
+  void setSuggestionsFromCategories(const QMap<int,QStringList> &categories){
+    suggestions.clear();suggestionCategories.clear();
+    for(int category:siteCategoryOrder()){
+      for(const QString &name:categories.value(category)){
+        suggestions<<name;suggestionCategories<<category;
+      }
+    }
+    suggestionIndex=0;
+  }
+  int suggestionCategory(int index) const {
+    return index>=0&&index<suggestionCategories.size()?
+      suggestionCategories[index]:-1;
+  }
   QString preferencesPath() const {
     const QString legacy=qEnvironmentVariable("READER_APP_DATA_DIR");
     const QString dir=legacy.isEmpty()?
@@ -275,14 +333,18 @@ class Booru : public Screen {
   }
   void openTagBrowser(int source){
     lookupMode=source==0?1:2;
-    page=LOOKUP;prefix.clear();suggestions.clear();suggestionIndex=0;
+    page=LOOKUP;prefix.clear();suggestions.clear();suggestionCategories.clear();suggestionIndex=0;
     lookupResultsFocus=true;status.clear();
     if(lookupMode==1)fetchPopularTags();
     else {
-      if(const Post *post=current()){
-        suggestions=post->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-        suggestions.removeDuplicates();suggestions.sort(Qt::CaseInsensitive);
-      }else suggestions=postTagSnapshot;
+      // The post may already have disappeared when search results refreshed.
+      // Preserve the original API tag categories captured on entering editor.
+      if(!postCategorySnapshot.isEmpty())setSuggestionsFromCategories(postCategorySnapshot);
+      else if(const Post *post=current())setSuggestionsFromCategories(post->categorizedTags);
+      else {
+        suggestions=postTagSnapshot;
+        suggestionCategories.fill(0,suggestions.size());
+      }
     }
     chrome();
   }
@@ -335,7 +397,7 @@ class Booru : public Screen {
   }
   void openTagFinder(){
     lookupMode=0;
-    page=LOOKUP;prefix.clear();suggestions.clear();
+    page=LOOKUP;prefix.clear();suggestions.clear();suggestionCategories.clear();
     keyIndex=suggestionIndex=0;lookupResultsFocus=false;status.clear();chrome();
   }
   void applySearch(){
@@ -482,8 +544,10 @@ class Booru : public Screen {
         p.sample=str(o.value("sample").toObject().value("url"));
         auto file=o.value("file").toObject();p.original=str(file.value("url"));p.ext=str(file.value("ext")).toLower();
         p.rating=str(o.value("rating"));p.favorite=o.value("is_favorited").toBool();
-        auto tag=o.value("tags").toObject();QStringList all;
-        for(const auto &x:tag)for(auto v:x.toArray())if(v.isString())all<<v.toString();
+        const QJsonObject tag=o.value("tags").toObject();
+        p.categorizedTags=parseCategories(tag);
+        QStringList all;
+        for(int category:siteCategoryOrder())all<<p.categorizedTags.value(category);
         p.tags=all.join(" ");
         posts<<p;
       }
@@ -596,11 +660,11 @@ class Booru : public Screen {
   }
   Post *current(){return selected>=0&&selected<posts.size()?&posts[selected]:nullptr;}
   void rememberSelectedPostTags(){
-    postTagSnapshot.clear();
+    postTagSnapshot.clear();postCategorySnapshot.clear();
     if(const Post *p=current()){
+      postCategorySnapshot=p->categorizedTags;
       postTagSnapshot=p->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
       postTagSnapshot.removeDuplicates();
-      postTagSnapshot.sort(Qt::CaseInsensitive);
     }
   }
   QString cacheRoot() const {
