@@ -302,9 +302,6 @@ class Booru : public Screen {
     }
     return {};
   }
-  QString tagState(const QString &tag) const {
-    return queryTerms.contains(tag)?"Include":queryTerms.contains("-"+tag)?"Exclude":"Off";
-  }
   void activeSearchChanged(){
     const QString query=builtSearch();
     if(query==search){update();return;}
@@ -453,7 +450,6 @@ class Booru : public Screen {
     if(!api&&!searchTimer.isActive()&&!hasResults)fetchPage();
     else requestThumbs();
   }
-  void applySearch(){showResults();}
   QString editorReturnLabel() const {
     return editorReturnPage==POST&&!editorChanged &&
            selected>=0&&selected<posts.size() &&
@@ -929,7 +925,7 @@ class Booru : public Screen {
       lookupTimer.stop();stop(lookupApi);stop(tagApi);
       page=SEARCH;
     }else if(page==SEARCH){
-      applySearch();
+      showResults();
       return;
     }else if(page==DOWNLOADING){
       stop(transfer);
@@ -1160,9 +1156,31 @@ protected:
         if(post) {
           QRect picture(area.x()+8,area.y()+8,area.width()/2-20,area.height()-24);
           imageIn(p,picture,thumbnails.value(post->id));
-          QRect description(area.x()+area.width()/2,area.y()+20,area.width()/2-12,area.height()-40);
-          text(p,description,"Post #"+QString::number(post->id)+" · "+post->rating+
-            "\n\nOpen image for full-size viewing.\n\n"+post->tags.left(240),23);
+          const QRect description(area.x()+area.width()/2,area.y()+14,
+                                  area.width()/2-12,area.height()-32);
+          label(p,QRect(description.x(),description.y(),description.width(),43),
+                "Post #"+QString::number(post->id),30,true,
+                palette().color(QPalette::Link));
+          label(p,QRect(description.x(),description.y()+48,description.width(),31),
+                "Rating: "+post->rating+"  ·  "+post->ext+
+                (post->favorite?"  ·  Favorited":""),20);
+          int y=description.y()+96;
+          int shown=0;
+          for(const int category:siteCategoryOrder()){
+            const auto &names=post->categorizedTags.value(category);
+            if(names.isEmpty())continue;
+            if(y+61>description.bottom())break;
+            label(p,QRect(description.x(),y,description.width(),27),
+                  categoryName(category)+" ("+QString::number(names.size())+")",
+                  19,true,categoryTextColor(category));
+            label(p,QRect(description.x(),y+28,description.width(),30),
+                  names.mid(0,3).join(", ")+(names.size()>3?" …":""),17);
+            y+=64;++shown;
+          }
+          if(!shown)
+            text(p,QRect(description.x(),y,description.width(),
+                         qMax(30,description.bottom()-y)),
+                 post->tags.left(200),19);
         }
         if(page==DOWNLOADING) {
           const QRect box(area.x()+95,area.center().y()-46,area.width()-190,92);
