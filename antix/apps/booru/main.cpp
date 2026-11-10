@@ -441,13 +441,25 @@ class Booru : public Screen {
     page=LOOKUP;prefix.clear();suggestions.clear();suggestionCategories.clear();
     keyIndex=suggestionIndex=0;lookupResultsFocus=false;status.clear();chrome();
   }
-  void applySearch(){
-    // "Show results" only navigates. All tag/filter edits already update the
-    // active query and schedule its results; there is no staged search.
+  void showResults(){
     lookupTimer.stop();stop(lookupApi);stop(tagApi);
-    page=GALLERY;chrome();
+    // Return to the post only if its original results are still valid.
+    const bool samePost=editorReturnPage==POST && !editorChanged &&
+       selected>=0 && selected<posts.size() &&
+       posts[selected].id==contextPostId;
+    page=samePost?POST:GALLERY;
+    editorReturnPage=GALLERY;
+    editorChanged=false;
+    status.clear();
+    chrome();
     if(!api&&!searchTimer.isActive()&&!hasResults)fetchPage();
     else requestThumbs();
+  }
+  void applySearch(){showResults();}
+  QString editorReturnLabel() const {
+    return editorReturnPage==POST&&!editorChanged &&
+           selected>=0&&selected<posts.size() &&
+           posts[selected].id==contextPostId?"Post":"Results";
   }
   void chrome(){
     showHeader=false;
@@ -456,54 +468,62 @@ class Booru : public Screen {
       controls={{READER_UP,"Choose"},
                 {READER_OK,hosts.size()>1&&homeIndex==sections().size()-1?
                    "Switch server":"Open"},
-                {READER_OPTIONS,"Edit search"},{READER_BACK,"Exit"}};
+                {READER_OPTIONS,"Search"},{READER_BACK,"Exit"}};
     }else if(page==SEARCH){
       controls={{READER_UP,"Select"},
-                {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
-                {READER_OPTIONS,"View results"},{READER_BACK,"Results"}};
+                {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Open"},
+                {READER_OPTIONS,editorReturnLabel()},
+                {READER_BACK,editorReturnLabel()}};
       if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
-        controls.prepend({READER_LEFT,"Previous / Include"});
-        controls.prepend({READER_RIGHT,"Next / Exclude"});
+        controls.prepend({READER_LEFT,"Include / previous"});
+        controls.prepend({READER_RIGHT,"Exclude / next"});
       }
     }else if(page==LOOKUP){
       controls={{READER_UP,lookupMode==0&&!lookupResultsFocus?"Choose character":"Choose tag"},
                 {READER_OK,lookupMode==0&&!lookupResultsFocus?"Type character":"Add tag"},
-                {READER_OPTIONS,"Edit search"},{READER_BACK,"Search editor"}};
+                {READER_OPTIONS,"Search editor"},{READER_BACK,"Search editor"}};
       if(lookupMode==0){
         controls.append({READER_VIEW_TOGGLE,"Keyboard / matches"});
         controls.append({READER_ZOOM_OUT,"Delete character"});
       }
-    }else if(page==GALLERY||page==POST){
-      controls={{page==POST?READER_LEFT:READER_UP,
-                 page==POST?"Previous / next":"Browse grid"},
-                {READER_OK,page==POST?"Open image":"Post details"},
-                {READER_VIEW_TOGGLE,"View image"},
-                {READER_PLAY,"Toggle favorite"},
-                {READER_SHOOT,"Download original"},
-                {READER_OPTIONS,"Edit search"},
-                {READER_BACK,page==POST?"Gallery":"Home"}};
+    }else if(page==GALLERY){
+      controls={{READER_UP,"Browse grid"},{READER_OK,"Post details"},
+                {READER_PLAY,"Favorite"},{READER_SHOOT,"Download"},
+                {READER_OPTIONS,"Search"},{READER_BACK,"Home"}};
+    }else if(page==POST){
+      controls={{READER_LEFT,"Previous / next"},
+                {READER_OK,"Open image"},{READER_PLAY,"Favorite"},
+                {READER_SHOOT,"Download"},{READER_OPTIONS,"Search / tags"},
+                {READER_BACK,"Results"}};
     }else if(page==DOWNLOADING){
-      controls={{READER_OPTIONS,"Edit search"},{READER_BACK,"Cancel download"}};
-    }else{
-      controls={{READER_OPTIONS,"Edit search"},{READER_BACK,"Return"}};
+      controls={{READER_OPTIONS,"Search editor"},{READER_BACK,"Cancel download"}};
     }
-    controls.append({READER_FAVORITES,"Close app"});
     update();
   }
   void openSearchEditor(){
-    if(page==GALLERY||page==POST)rememberSelectedPostTags();
-    stop(imageJob);
+    if(page==SEARCH){showResults();return;}
     if(page==LOOKUP){
       lookupTimer.stop();stop(lookupApi);stop(tagApi);
+      page=SEARCH;
+      chrome();
+      return;
     }
+    if(page==GALLERY||page==POST)rememberSelectedPostTags();
     if(page==DOWNLOADING){
+      if(downloadReturnPage==GALLERY||downloadReturnPage==POST)
+        rememberSelectedPostTags();
       stop(transfer);
       if(saving)saving->cancelWriting();
       saving.reset();
     }
-    if(page==SEARCH){applySearch();return;} // Options toggles back to results.
+    editorReturnPage=(page==POST || (page==DOWNLOADING&&downloadReturnPage==POST))
+                     ?POST:GALLERY;
+    editorChanged=false;
+    stop(imageJob);
     page=SEARCH;
-    searchIndex=qBound(0,searchIndex,editorRows().size()-1);
+    // Coming from a post, the first and most relevant choice is its tag list.
+    searchIndex=editorReturnPage==POST && !postTagSnapshot.isEmpty()
+                ?queryTerms.size():qBound(0,searchIndex,editorRows().size()-1);
     status.clear();
     chrome();
   }
@@ -521,6 +541,7 @@ class Booru : public Screen {
     apiRetryPending=false;loadingMore=false;hasResults=false;more=false;
     hostIndex=(hostIndex+1)%hosts.size();
     homeIndex=sections().size()-1;
+    editorReturnPage=GALLERY;editorChanged=false;contextPostId=0;
     posts.clear();selected=first=0;pageNumber=1;
     postTagSnapshot.clear();postCategorySnapshot.clear();
     initializeSearch("");
@@ -530,8 +551,9 @@ class Booru : public Screen {
   void openHomeSelection(){
     if(hosts.size()>1&&homeIndex==sections().size()-1){switchServer();return;}
     // Search editor is a *resume* action. Do not reset or refetch its query.
-    if(homeIndex==0){page=SEARCH;status.clear();chrome();return;}
-    postTagSnapshot.clear();postCategorySnapshot.clear();
+    if(homeIndex==0){editorReturnPage=GALLERY;editorChanged=false;page=SEARCH;status.clear();chrome();return;}
+    postTagSnapshot.clear();postCategorySnapshot.clear();contextPostId=0;
+    editorReturnPage=GALLERY;editorChanged=false;
     if(homeIndex==1)initializeSearch("");
     else if(homeIndex==2){
       if(host().username.isEmpty()){
@@ -775,8 +797,9 @@ class Booru : public Screen {
   }
   Post *current(){return selected>=0&&selected<posts.size()?&posts[selected]:nullptr;}
   void rememberSelectedPostTags(){
-    postTagSnapshot.clear();postCategorySnapshot.clear();
     if(const Post *p=current()){
+      postTagSnapshot.clear();postCategorySnapshot.clear();
+      contextPostId=p->id;
       postCategorySnapshot=p->categorizedTags;
       postTagSnapshot=p->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
       postTagSnapshot.removeDuplicates();
