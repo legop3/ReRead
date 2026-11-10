@@ -254,14 +254,22 @@ public:
 
     window.page=Booru::GALLERY;window.chrome();
     require(hint(window,READER_OK)=="Post details" &&
-            hint(window,READER_SHOOT)=="Download original" &&
-            hint(window,READER_PLAY)=="Toggle favorite",
-            "Results Guide maps OK, Shoot and Play consistently");
+            hint(window,READER_SHOOT)=="Download" &&
+            hint(window,READER_PLAY)=="Favorite" &&
+            hint(window,READER_OPTIONS)=="Search",
+            "Results Guide has one clear action per button");
+    require(hint(window,READER_VIEW_TOGGLE).isEmpty() &&
+            hint(window,READER_FAVORITES).isEmpty(),
+            "No redundant image or Home/close action in gallery Guide");
     window.page=Booru::POST;window.chrome();
     require(hint(window,READER_OK)=="Open image" &&
-            hint(window,READER_SHOOT)=="Download original" &&
-            hint(window,READER_PLAY)=="Toggle favorite",
-            "Preview Guide maps OK, Shoot and Play consistently");
+            hint(window,READER_SHOOT)=="Download" &&
+            hint(window,READER_PLAY)=="Favorite" &&
+            hint(window,READER_OPTIONS)=="Search / tags",
+            "Post Guide is consistent and exposes search/tags");
+    require(hint(window,READER_VIEW_TOGGLE).isEmpty() &&
+            hint(window,READER_FAVORITES).isEmpty(),
+            "Post Guide contains no duplicate image or global Home action");
     window.page=Booru::SEARCH;window.searchIndex=0;window.chrome();
     window.initializeSearch("rating:s");
     window.page=Booru::SEARCH;window.searchIndex=0;
@@ -272,8 +280,8 @@ public:
     window.searchTimer.stop();
     window.chrome();
     require(hint(window,READER_BACK)=="Results" &&
-            hint(window,READER_OPTIONS)=="View results",
-            "Editor Guide matches its actual navigation");
+            hint(window,READER_OPTIONS)=="Results",
+            "Editor Guide matches its actual return target");
     window.page=Booru::LOOKUP;window.lookupMode=0;window.lookupResultsFocus=false;
     window.chrome();
     require(hint(window,READER_OK)=="Type character",
