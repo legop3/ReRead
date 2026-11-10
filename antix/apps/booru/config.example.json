@@ -1,0 +1,23 @@
+{
+  "hosts": [
+    {
+      "name": "e926",
+      "url": "https://e926.net",
+      "username": "",
+      "api_key": "",
+      "searches": [
+        "landscape order:score",
+        "cat rating:s"
+      ]
+    },
+    {
+      "name": "e621",
+      "url": "https://e621.net",
+      "username": "",
+      "api_key": "",
+      "searches": [
+        "order:favcount"
+      ]
+    }
+  ]
+}
