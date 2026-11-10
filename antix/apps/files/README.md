@@ -7,6 +7,8 @@ removes the browser, never shared files. No background file service is added.
 Files uses `REREAD_FILES_DIR` (default `/var/lib/reader/files`) and normal Qt
 filesystem APIs. The web browser and Camera use that same directory. It provides:
 
+- A dedicated browser layout: folder path, compact icon rows, name/type/size
+  columns and a selected-item inspector with modification time and position.
 - Folder navigation with remembered parent selection and live directory updates.
 - Name, newest-first or size sorting, with folders first.
 - Image preview, previous/next image, zoom and panning.

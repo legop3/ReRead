@@ -145,11 +145,57 @@ class Files : public Screen {
     if(id==READER_UP || id==READER_DOWN) { selected=qBound(0,selected+(id==READER_DOWN?1:-1),qMax(0,names.size()-1));update(); }
     if(id==READER_OK && value==1) open();
   }
+  void entryIcon(QPainter &p,const QRect &r,bool folder,bool selected=false) {
+    const QIcon icon("/usr/share/icons/reread/scalable/apps/"+QString(folder?"folder.svg":"text-x-generic.svg"));
+    auto pixmap=icon.pixmap(r.size());
+    if(selected) {
+      QPainter tint(&pixmap);tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+      tint.fillRect(pixmap.rect(),palette().color(QPalette::HighlightedText));
+    }
+    p.drawPixmap(r,pixmap);
+  }
+  void drawBrowser(QPainter &p,const QRect &r) {
+    auto label=[&](const QRect &box,const QString &value,int px,QColor ink,bool bold=false) {
+      auto font=p.font();font.setPixelSize(px);font.setBold(bold);p.setFont(font);p.setPen(ink);
+      p.drawText(box,Qt::AlignVCenter,QFontMetrics(font).elidedText(value,Qt::ElideMiddle,box.width()));
+    };
+    const QColor ink=palette().color(QPalette::Text),accent=palette().color(QPalette::Link);
+    label(QRect(r.x(),r.y(),r.width()-150,36),directory.isEmpty()?"Shared files /":"Shared files / "+directory,24,accent,true);
+    label(QRect(r.right()-140,r.y(),140,36),QString::number(names.size())+" items",21,ink);
+    const int split=r.x()+r.width()*2/3;
+    p.setPen(QPen(ink,1));p.drawLine(split,r.y()+46,split,r.bottom());
+    const int width=split-r.x()-18;
+    label(QRect(r.x()+46,r.y()+42,width-180,28),"Name",18,ink);
+    label(QRect(split-145,r.y()+42,128,28),"Kind / size",18,ink);
+    const int rowHeight=50,visible=qMax(1,(r.height()-76)/rowHeight);
+    const int first=(selected/visible)*visible;
+    for(int i=first;i<qMin(first+visible,names.size());++i) {
+      const QRect row(r.x(),r.y()+76+(i-first)*rowHeight,width,rowHeight-2);
+      const bool focus=i==selected;const auto color=focus?palette().color(QPalette::HighlightedText):ink;
+      if(focus)p.fillRect(row,palette().highlight());
+      QFileInfo file(QDir(path()).filePath(names[i]));
+      entryIcon(p,QRect(row.x()+7,row.y()+9,30,30),file.isDir(),focus);
+      label(QRect(row.x()+46,row.y(),row.width()-182,row.height()),names[i],24,color,focus);
+      label(QRect(row.right()-128,row.y(),120,row.height()),file.isDir()?"Folder":size(file.size()),19,color);
+    }
+    if(names.isEmpty())text(p,QRect(r.x()+12,r.y()+85,width-24,r.height()-90),"Empty folder\nUpload files through the web interface.",24);
+    const QRect side(split+20,r.y()+56,r.right()-split-20,r.height()-56);
+    if(names.isEmpty()) {text(p,side,"Shared storage\n\nFiles and applications use this same folder.",23);return;}
+    QFileInfo file(chosen());
+    entryIcon(p,QRect(side.x(),side.y(),64,64),file.isDir());
+    label(QRect(side.x(),side.y()+76,side.width(),34),file.fileName(),24,ink,true);
+    QString info=file.isDir()?"Folder":QMimeDatabase().mimeTypeForFile(file.filePath()).comment()+"\n"+size(file.size());
+    info+="\n\nModified\n"+file.lastModified().toString("d MMM yyyy\nHH:mm");
+    auto normal=p.font();normal.setBold(false);p.setFont(normal);
+    text(p,QRect(side.x(),side.y()+120,side.width(),150),info,21);
+    buttonIcon(p,QRect(side.x(),side.bottom()-56,26,26),READER_OK);
+    label(QRect(side.x()+34,side.bottom()-55,side.width()-34,26),file.isDir()?"Open folder":"Open file",20,accent);
+    label(QRect(side.x(),side.bottom()-27,side.width(),26),QString::number(selected+1)+" of "+QString::number(names.size())+" · "+QStringList{"Name","Newest","Size"}[sort]+" order",18,ink);
+  }
   void draw(QPainter &p,const QRect &r) override {
     if(busy) {text(p,r,"Deleting "+relative(target)+"…",28);return;}
     if(page=="browse") {
-      if(names.isEmpty()) text(p,r,"This folder is empty.\nAdd files using the USB web interface.",26);
-      else list(p,r,labels,details,selected);
+      drawBrowser(p,r);
     } else if(page=="options") {
       list(p,r,{"Details","Delete…","Sort: "+QStringList{"Name","Newest","Size"}[sort],"Refresh"},
            {target.isEmpty()?"No item selected":QFileInfo(target).fileName(),"Permanently remove the selected item","Folders stay first","Reload this folder"},action);
