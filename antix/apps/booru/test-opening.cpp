@@ -28,6 +28,13 @@ public:
    window.tagFilters.insert("cat",-1);
    require(window.builtSearch().contains("-cat") && !window.builtSearch().contains(" cat "),
            "Negative tags replace positive base tags");
+   window.initializeSearch("dog");
+   window.toggleBookmark();
+   require(window.bookmarks().contains("dog"),"Bookmark the composed search");
+   require(readJson(window.preferencesPath()).value("bookmarks").toObject()
+             .value("https://e926.net").toArray().contains("dog"),"Persist search bookmarks");
+   window.toggleBookmark();
+   require(!window.bookmarks().contains("dog"),"Remove a bookmark without text input");
    window.initializeSearch("");
    window.page=Booru::POST;window.button(READER_PLAY,1);
    require(window.page==Booru::INFO && window.currentTags().contains("cat"),"Post offers tag discovery");
