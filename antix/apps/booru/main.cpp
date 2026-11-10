@@ -327,12 +327,12 @@ class Booru : public Screen {
     showHeader=false;
 
     if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Home"}};
-    else if(page==SEARCH) controls={{READER_UP,"Navigate"},{READER_OK,"Change"},{READER_OPTIONS,"Show results"},{READER_BACK,searchFromGallery?"Results":"Home"}};
-    else if(page==LOOKUP) controls={{READER_UP,"Select"},{READER_OK,"Choose"},{READER_VIEW_TOGGLE,"Switch panel"},{READER_ZOOM_OUT,"Delete letter"},{READER_OPTIONS,"Show results"},{READER_BACK,"Explore"}};
+    else if(page==SEARCH) controls={{READER_UP,"Navigate"},{READER_OK,"Change"},{READER_OPTIONS,"View results"},{READER_BACK,searchFromGallery?"Results":"Home"}};
+    else if(page==LOOKUP) controls={{READER_UP,"Select"},{READER_OK,"Choose"},{READER_VIEW_TOGGLE,"Switch panel"},{READER_ZOOM_OUT,"Delete letter"},{READER_OPTIONS,"View results"},{READER_BACK,"Explore"}};
     else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
     else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Refine search"},{READER_BACK,galleryFromExplore?"Explore":"Home"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
-    else if(page==INFO) controls={{READER_UP,"Browse tags"},{READER_OK,"Toggle tag"},{READER_OPTIONS,"Show results"},{READER_BACK,"Explore"}};
+    else if(page==INFO) controls={{READER_UP,"Browse tags"},{READER_OK,"Toggle tag"},{READER_OPTIONS,"View results"},{READER_BACK,"Explore"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
     else controls={{READER_BACK,"Gallery"}};
     update();
@@ -462,21 +462,25 @@ class Booru : public Screen {
     ++pageNumber;
     fetchPage(true);
   }
+  QList<int> thumbnailTargets() const {
+    QList<int> wanted;
+    if(page==POST){
+      if(selected>=0&&selected<posts.size())wanted<<selected;
+      for(int distance=1;distance<=3;++distance){
+        if(selected+distance<posts.size())wanted<<selected+distance;
+        if(selected-distance>=0)wanted<<selected-distance;
+      }
+    }else if(page==GALLERY){
+      for(int i=first;i<qMin(first+6,posts.size());++i)wanted<<i;
+    }
+    return wanted;
+  }
   void requestThumbs(){
     if((page!=GALLERY && page!=POST) || thumbnailsPaused || api ||
        tagApi || transfer || posts.isEmpty())return;
     // Gallery requests its six visible tiles. Post mode requests the current
     // thumbnail FIRST and then nearby cards, regardless of gallery scroll offset.
-    QList<int> wanted;
-    if(page==POST){
-      wanted<<selected;
-      for(int distance=1;distance<=3;++distance){
-        if(selected+distance<posts.size())wanted<<selected+distance;
-        if(selected-distance>=0)wanted<<selected-distance;
-      }
-    }else{
-      for(int i=first;i<qMin(first+6,posts.size());++i)wanted<<i;
-    }
+    const QList<int> wanted=thumbnailTargets();
     if(thumbJobs.size()>=2)return;
     const qint64 now=QDateTime::currentMSecsSinceEpoch();
     const int interval=550;
@@ -672,6 +676,7 @@ class Booru : public Screen {
     }
     else {close();return;}
     status.clear();chrome();
+    if(page==GALLERY){requestThumbs();maybeLoadMore();}
   }
   void navigate(int dx,int dy){
     if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
@@ -748,15 +753,15 @@ protected:
         text(p,QRect(right.x()+5,right.y()+76,right.width()-10,150),
              prefix.isEmpty()?"Select letters to find matching tags.":"Finding matches...",21);
       label(p,QRect(right.x(),right.bottom()-43,right.width(),37),
-            !hasResults?"NOT SEARCHED YET":builtSearch()==search?"Results match":"CHANGES NOT APPLIED",18,
+            !hasResults?"UPDATING POSTS":"ACTIVE SEARCH",18,
             true,palette().color(QPalette::Link));
     } else if(page==SEARCH) {
       const QStringList names={"Find tag by name","Browse popular tags","Tag category","Tags on selected post","Edit active tags",
         "Sort order","Rating","File type","Minimum score",
-        bookmarks().contains(builtSearch())?"Remove saved search":"Save this search","SHOW RESULTS"};
+        bookmarks().contains(builtSearch())?"Remove saved search":"Save this search","VIEW RESULTS"};
       const QStringList descriptions={"Build a tag prefix using the D-pad","Explore tags without typing",
         categories[tagCategory],"Find related tags","Remove or change tags",sorts[sortIndex],ratings[ratingIndex],
-        mediaTypes[mediaIndex],scoreLevels[scoreIndex],"Available from Home","Run this search"};
+        mediaTypes[mediaIndex],scoreLevels[scoreIndex],"Available from Home","Open matching posts"};
       const auto layout=listInfo(p,area,names.size(),searchIndex,53,0.54);
       for(int i=layout.first;i<qMin(layout.first+layout.visible,names.size());++i){
         const QRect line=listInfoRow(p,layout,i,searchIndex);
@@ -781,8 +786,8 @@ protected:
            active.isEmpty()?"No tag restrictions":active.join("   "),21);
       const QString query=builtSearch();
       label(p,QRect(right.left(),right.bottom()-88,right.width(),30),
-            !hasResults?"NOT SEARCHED YET":query==search?"Current results":"CHANGES NOT APPLIED",18,true,
-            palette().color(hasResults&&query==search?QPalette::Text:QPalette::Link));
+            !hasResults?"UPDATING POSTS":"ACTIVE SEARCH",18,true,
+            palette().color(QPalette::Link));
       label(p,QRect(right.left(),right.bottom()-50,right.width(),38),
             query.isEmpty()?"All posts":query,17);
     } else if(page==HOME) {
@@ -845,7 +850,7 @@ protected:
           text(p,QRect(layout.info.x()+8,layout.info.y()+72,layout.info.width()-16,180),
                "Filter: "+rule+
                (tagSource==0?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
-               (!hasResults?"\n\nNOT SEARCHED YET":builtSearch()==search?"\n\nResults match":"\n\nCHANGES NOT APPLIED"),22);
+               (!hasResults?"\n\nUpdating matching posts...":"\n\nActive search updated"),22);
           label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
                 tagSource==0?"Page "+QString::number(tagPage)+" · "+QString::number(names.size())+" tags":
                   QString::number(tagFilters.size())+" overrides",19);
