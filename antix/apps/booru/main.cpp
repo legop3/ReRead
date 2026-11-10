@@ -675,7 +675,7 @@ protected:
         const QRect cell(left.x()+x*(width+gap),left.y()+99+y*(height+gap),width,height);
         const bool chosen=!lookupResultsFocus&&keyIndex==i;
         if(chosen)p.fillRect(cell,palette().highlight());
-        else {p.setPen(palette().mid());p.drawRect(cell.adjusted(1,1,-1,-1));}
+        else {p.setPen(QPen(palette().mid(),1));p.drawRect(cell.adjusted(1,1,-1,-1));}
         label(p,cell.adjusted(3,0,-3,0),lookupKey(i),21,chosen,
               palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
       }
@@ -688,7 +688,7 @@ protected:
         const QRect line(right.x(),right.y()+52+j*49,right.width(),44);
         const bool chosen=lookupResultsFocus&&i==suggestionIndex;
         if(chosen)p.fillRect(line,palette().highlight());
-        else {p.setPen(palette().mid());p.drawLine(line.left(),line.bottom(),line.right(),line.bottom());}
+        else {p.setPen(QPen(palette().mid(),1));p.drawLine(line.left(),line.bottom(),line.right(),line.bottom());}
         const QString name=suggestions[i];
         label(p,line.adjusted(10,0,-8,0),
               (tagState(name)=="Include"?"+ ":tagState(name)=="Exclude"?"− ":"")+name,
