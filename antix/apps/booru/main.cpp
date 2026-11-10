@@ -83,7 +83,12 @@ class Booru : public Screen {
   bool apiRetryPending=false;
   int apiRetries=0;
 
-  QString preferencesPath() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-booru")+"/preferences.json";}
+  QString preferencesPath() const {
+    const QString legacy=qEnvironmentVariable("READER_APP_DATA_DIR");
+    const QString dir=legacy.isEmpty()?
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation):legacy;
+    return dir+"/preferences.json";
+  }
   QString filesDir() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
   const Host &host() const {return hosts[hostIndex];}
   QStringList bookmarks() const {return bookmarksByHost.value(host().url);}
