@@ -413,7 +413,6 @@ class Booru : public Screen {
     // "Show results" only navigates. All tag/filter edits already update the
     // active query and schedule its results; there is no staged search.
     lookupTimer.stop();stop(lookupApi);stop(tagApi);
-    searchFromGallery=false;galleryFromExplore=true;
     page=GALLERY;chrome();
     if(!api&&!searchTimer.isActive()&&!hasResults)fetchPage();
     else requestThumbs();
@@ -832,26 +831,32 @@ class Booru : public Screen {
     });
   }
   void back(){
-    if(page==SETTINGS)page=HOME;
-    else if(page==LOOKUP){
-      lookupTimer.stop();stop(lookupApi);stop(tagApi);page=SEARCH;
-    }else if(page==SEARCH)page=searchFromGallery?GALLERY:HOME;
-    else if(page==DOWNLOADING){
-      stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=downloadReturnPage;
-    }else if(page==POST||page==CONFIRM){
+    // A single hierarchy prevents Back from oscillating between two screens:
+    // Home -> Search -> Results -> Post. Pickers return to Search.
+    if(page==HOME){close();return;}
+    if(page==LOOKUP){
+      lookupTimer.stop();stop(lookupApi);stop(tagApi);
+      page=SEARCH;
+    }else if(page==SEARCH){
+      page=HOME;
+    }else if(page==DOWNLOADING){
+      stop(transfer);
+      if(saving)saving->cancelWriting();
+      saving.reset();
+      page=downloadReturnPage;
+    }else if(page==POST){
       stop(imageJob);
       if(selected<first)first=(selected/3)*3;
       if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
       page=GALLERY;
     }else if(page==GALLERY){
-      page=SEARCH;searchFromGallery=false;
-    }else{close();return;}
+      page=SEARCH;
+    }
     chrome();
     if(page==GALLERY){requestThumbs();maybeLoadMore();}
   }
   void navigate(int dx,int dy){
-    if(page==SETTINGS)settingIndex=qBound(0,settingIndex+dy+dx,1);
-    else if(page==HOME)homeIndex=qBound(0,homeIndex+dy+dx,sections().size()-1);
+    if(page==HOME)homeIndex=qBound(0,homeIndex+dy+dx,sections().size()-1);
     else if(page==SEARCH){
       if(dy)searchIndex=qBound(0,searchIndex+dy,editorRows().size()-1);
       if(dx && searchIndex<queryTerms.size())changeTerm(searchIndex,dx);
@@ -885,9 +890,7 @@ protected:
   void draw(QPainter &p,const QRect &r) override {
     // Screen paints ReRead's palette and standard controls. No app-created header.
     const QRect area=r.adjusted(4,3,-4,-3);
-    if(page==SETTINGS) {
-      list(p,area,{"Server", "Open images automatically"},{host().name,autoOpenImages?"On":"Off · use View on a post"},settingIndex);
-    } else if(page==LOOKUP) {
+    if(page==LOOKUP) {
       if(lookupMode==0){
         const QRect left(area.x()+4,area.y()+4,area.width()*45/100,area.height()-8);
         const QRect right(left.right()+20,area.y()+4,area.right()-left.right()-24,area.height()-8);
@@ -1013,9 +1016,11 @@ protected:
       label(p,QRect(side.left(),side.top(),side.width(),45),"Booru",30,true,palette().color(QPalette::Link));
       label(p,QRect(side.left(),side.top()+54,side.width(),38),host().name,23,true);
       text(p,QRect(side.left(),side.top()+109,side.width(),190),
-           homeIndex==0?"Build searches with tags, ratings and sorting. No keyboard required.":
-           homeIndex==1?"Browse the latest posts.":
-           homeIndex==2?"Browse your account favorites.":"Open a saved search.",23);
+           homeIndex==0?"Continue editing the current search.":
+           homeIndex==1?"Start a new search with recent posts.":
+           homeIndex==2?"Start a search for your account favorites.":
+           homeIndex==sections().size()-1?"Switch between configured servers.":
+           "Open and edit a saved search.",23);
     } else if(page==GALLERY) {
       const int gap=12;
       const int cw=(area.width()-2*gap)/3;
@@ -1085,7 +1090,7 @@ protected:
     // reassignment of OK, Shoot or Play.
     if((page==GALLERY||page==POST)&&key==READER_SHOOT){download();return;}
     if((page==GALLERY||page==POST)&&key==READER_PLAY){favorite();return;}
-    if(key==READER_VIEW_TOGGLE&&page==POST){loadFull();return;}
+    if(key==READER_VIEW_TOGGLE&&(page==POST||page==GALLERY)){loadFull();return;}
     if(key==READER_VIEW_TOGGLE&&page==LOOKUP&&lookupMode==0){
       lookupResultsFocus=!lookupResultsFocus;update();return;
     }
@@ -1093,17 +1098,7 @@ protected:
       changePrefix("DEL");return;
     }
     if(key!=READER_OK)return;
-    if(page==SETTINGS){
-      if(settingIndex==0){
-        hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;
-        thumbTimer.stop();
-        for(auto reply:thumbJobs){reply->disconnect(this);reply->abort();reply->deleteLater();}
-        thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
-        thumbAttempts.clear();thumbRetryAt.clear();thumbnails.clear();
-        posts.clear();selected=first=0;initializeSearch("");
-      }else{autoOpenImages=!autoOpenImages;savePreferences();}
-      update();
-    }else if(page==SEARCH){
+    if(page==SEARCH){
       if(searchIndex<queryTerms.size()){removeTerm(searchIndex);return;}
       const int action=searchIndex-queryTerms.size();
       if(action==0)openTagFinder();
@@ -1137,7 +1132,8 @@ protected:
         }
       }else changePrefix(lookupKey(keyIndex));
     }else if(page==HOME){
-      postTagSnapshot.clear();
+      if(homeIndex==sections().size()-1){switchServer();return;}
+      postTagSnapshot.clear();postCategorySnapshot.clear();
       if(homeIndex==1)initializeSearch("");
       else if(homeIndex==2){
         if(host().username.isEmpty()){toast("Add your username in web settings");return;}
@@ -1145,7 +1141,6 @@ protected:
       }else if(homeIndex>=3)initializeSearch(bookmarks().value(homeIndex-3));
       ++searchRevision;searchTimer.stop();stop(api);
       hasResults=false;posts.clear();selected=first=0;
-      searchFromGallery=false;galleryFromExplore=true;
       page=SEARCH;chrome();searchTimer.start(0);
     }else if(page==GALLERY&&!posts.isEmpty()){
       page=POST;chrome();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();
@@ -1161,7 +1156,7 @@ public:
     connect(&thumbTimer,&QTimer::timeout,this,[this]{requestThumbs();});
     searchTimer.setSingleShot(true);
     connect(&searchTimer,&QTimer::timeout,this,[this]{
-      if(!api && page!=HOME && page!=SETTINGS)fetchPage();
+      if(!api && page!=HOME)fetchPage();
     });
     lookupTimer.setSingleShot(true);
     connect(&lookupTimer,&QTimer::timeout,this,[this]{if(page==LOOKUP)fetchSuggestions();});
