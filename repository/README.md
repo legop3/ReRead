@@ -54,6 +54,10 @@ their log/status across management-server restarts and inhibit automatic idle sl
    commit and attach the new `.deb` files. Only attach an app package when its
    version changes: different bytes under the same package/version are rejected.
    Installer images may be attached separately when rebuilt for that release.
+   Pages deployment rules currently allow branch `main` and tags `v*` and
+   `files-v*`. Before using another app's release tag pattern, add that pattern
+   under **Settings → Environments → github-pages → Deployment branches and tags**;
+   a release workflow deploys from its tag even though it checks out `main`.
 3. Publish the release. The **Publish APT repository** Actions workflow collects
    `.deb` files from all published stable releases, generates indexes with
    `apt-ftparchive`, signs them with GnuPG, and deploys to Pages. Drafts and
