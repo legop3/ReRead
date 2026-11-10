@@ -5,6 +5,11 @@
 static void require(bool ok,const char *message){if(!ok)throw std::runtime_error(message);}
 namespace {
 class BooruTest {
+ static QString hint(const Booru &window,reader_button key){
+   for(const auto &control:window.controls)
+     if(control.button==key)return control.action;
+   return {};
+ }
 public:
  static int demo(QApplication &app,const QString &image) {
   Booru window;Post post;post.id=42;post.sample="https://example.invalid/demo.svg";post.tags="Local integration fixture. No network or account requests.";
@@ -109,7 +114,7 @@ public:
 
     window.posts.clear();window.posts.append(post);window.selected=0;
     window.page=Booru::POST;
-    window.button(READER_PLAY,1);
+    window.button(READER_OPTIONS,1);
     require(window.page==Booru::SEARCH&&window.postTagSnapshot.contains("cat"),
             "Post tags are accessible from the SAME editor");
     window.searchIndex=window.queryTerms.size()+2;
@@ -131,6 +136,12 @@ public:
     const auto near=window.thumbnailTargets();
     require(!near.isEmpty()&&near.first()==13&&near.contains(14)&&!near.contains(0),
             "Post preview thumbnail queue follows current selection");
+    window.button(READER_RIGHT,1);
+    require(window.selected==14,"Right moves to next preview post");
+    window.button(READER_LEFT,1);
+    require(window.selected==13,"Left moves to previous preview post");
+    window.button(READER_UP,1);
+    require(window.selected==13,"Unused post Up is not rebound to a hidden action");
     window.page=Booru::GALLERY;window.first=9;
     const auto gallery=window.thumbnailTargets();
     require(gallery.first()==9&&gallery.last()==14,
@@ -153,20 +164,88 @@ public:
     QImage placeholder(20,10,QImage::Format_ARGB32);
     placeholder.fill(Qt::white);
     window.thumbnails.insert(post.id,placeholder);
-    // Consistent controls: Options is Edit Search everywhere; never download.
-    for(const auto place:{Booru::HOME,Booru::SETTINGS,Booru::SEARCH,
-                          Booru::LOOKUP,Booru::GALLERY,Booru::POST,
-                          Booru::DOWNLOADING}){
-      window.page=place;
+    // Every screen uses the same Options action, including modal download.
+    for(const auto place:{Booru::HOME,Booru::SEARCH,Booru::LOOKUP,
+                          Booru::GALLERY,Booru::POST,Booru::DOWNLOADING}){
+      window.page=place;window.chrome();
+      require(hint(window,READER_OPTIONS)=="Edit search",
+              "Guide always describes Options as Edit search");
       window.button(READER_OPTIONS,1);
       require(window.page==Booru::SEARCH&&!window.transfer&&!window.saving,
-              "Options always opens the search editor without downloading");
+              "Options opens one editor and never downloads or favorites");
+      window.button(READER_OPTIONS,2);
+      require(window.page==Booru::SEARCH,"Repeated Options does not re-enter");
     }
+    // Back always moves toward Home, never between gallery and editor forever.
+    window.page=Booru::POST;window.button(READER_BACK,1);
+    require(window.page==Booru::GALLERY,"Post Back returns results");
+    window.button(READER_BACK,1);
+    require(window.page==Booru::SEARCH,"Results Back returns editor");
+    window.button(READER_BACK,1);
+    require(window.page==Booru::HOME,"Editor Back returns Home");
+    window.page=Booru::LOOKUP;window.button(READER_BACK,1);
+    require(window.page==Booru::SEARCH,"Tag picker Back returns editor");
+    window.page=Booru::DOWNLOADING;window.downloadReturnPage=Booru::GALLERY;
+    window.button(READER_BACK,1);
+    require(window.page==Booru::GALLERY,"Download Back cancels to origin");
+
+    // Home shortcuts have explicit behavior; server changing is reachable.
+    window.initializeSearch("dog");
+    window.page=Booru::HOME;window.homeIndex=0;
+    window.button(READER_OK,1);
+    require(window.page==Booru::SEARCH&&window.search=="dog",
+            "Search editor on Home resumes existing query");
+    window.button(READER_BACK,1);
+    require(window.page==Booru::HOME,"Home is the editor's parent");
+    window.homeIndex=1;window.button(READER_OK,1);
+    require(window.page==Booru::GALLERY&&window.search.isEmpty(),
+            "Recent posts shortcut opens the actual gallery with an empty search");
+    window.stop(window.api);
+    window.button(READER_BACK,1);
+    require(window.page==Booru::SEARCH,"Recent results Back reaches editor");
+    window.button(READER_BACK,1);
+    require(window.page==Booru::HOME,"Recent search Back reaches Home");
+    Host other;other.name="Alternative";other.url="https://other.example.invalid";
+    window.hosts.append(other);window.homeIndex=window.sections().size()-1;
+    window.button(READER_OK,1);
+    require(window.page==Booru::HOME&&window.hostIndex==1,
+            "Switch server is reachable with Home OK");
+    window.button(READER_OK,1);
+    require(window.hostIndex==0,"Switch server cycles back to configured server");
+    window.homeIndex=0;
+
+    window.page=Booru::GALLERY;window.chrome();
+    require(hint(window,READER_OK)=="Post details" &&
+            hint(window,READER_SHOOT)=="Download original" &&
+            hint(window,READER_PLAY)=="Toggle favorite",
+            "Results Guide maps OK, Shoot and Play consistently");
+    window.page=Booru::POST;window.chrome();
+    require(hint(window,READER_OK)=="Open image" &&
+            hint(window,READER_SHOOT)=="Download original" &&
+            hint(window,READER_PLAY)=="Toggle favorite",
+            "Preview Guide maps OK, Shoot and Play consistently");
+    window.page=Booru::SEARCH;window.searchIndex=0;window.chrome();
+    require(hint(window,READER_BACK)=="Home" &&
+            hint(window,READER_OPTIONS)=="Edit search",
+            "Editor Guide matches its actual navigation");
+    window.page=Booru::LOOKUP;window.lookupMode=0;window.lookupResultsFocus=false;
+    window.chrome();
+    require(hint(window,READER_OK)=="Type character",
+            "Character picker Guide shows correct OK function");
+    window.lookupResultsFocus=true;window.chrome();
+    require(hint(window,READER_OK)=="Add tag",
+            "Tag results Guide shows correct OK function");
     window.page=Booru::GALLERY;window.selected=0;
+    window.button(READER_PLAY,1);
+    require(window.page==Booru::GALLERY&&!window.favoritePending,
+            "Favorite Play is explicit and does not move between screens");
     window.button(READER_SHOOT,1);
     require(window.page==Booru::GALLERY && window.status=="No downloadable file",
             "Shoot, not Options, performs the download action in the gallery");
     window.page=Booru::POST;
+    window.button(READER_PLAY,1);
+    require(window.page==Booru::POST&&!window.favoritePending,
+            "Preview Play alone toggles favorites");
     window.button(READER_SHOOT,1);
     require(window.page==Booru::POST && window.status=="No downloadable file",
             "Shoot is also the download action on post previews");
