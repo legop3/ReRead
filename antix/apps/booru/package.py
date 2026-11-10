@@ -78,14 +78,18 @@ Name=Booru
 Comment=Browse posts on compatible booru servers
 Exec=/usr/lib/reread/apps/booru/reader-booru-app
 Icon=reread-booru
-Categories=Network;AudioVideo;
+Categories=Network;Graphics;
 X-ReRead=true
 Terminal=false
 """)
-    write("usr/share/reread/apps/reread-app-booru.json", '{"name":"Internet Booru","description":"Browse and stream boorud media","desktop":"reread-booru.desktop"}\n')
+    write("usr/share/reread/apps/reread-app-booru.json", '{"name":"Booru","description":"Browse booru galleries","desktop":"reread-booru.desktop"}\n')
     icon=stage/"usr/share/icons/hicolor/scalable/apps/reread-booru.svg"
     icon.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy(SOURCE/"reread-booru.svg",icon)
+    docs=stage/"usr/share/doc/reread-app-booru"
+    docs.mkdir(parents=True,exist_ok=True)
+    shutil.copy(SOURCE/"config.example.json",docs/"config.example.json")
+    shutil.copy(SOURCE/"README.md",docs/"README.md")
     target=stage/"usr/lib/reread/apps/booru/reader-booru-app"
     target.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy(binary,target)
