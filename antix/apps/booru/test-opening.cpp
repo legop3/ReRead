@@ -91,7 +91,7 @@ public:
     require(window.page==Booru::LOOKUP && window.lookupMode==2 &&
             window.suggestions.contains("cat"),"Post tag chooser only adds terms");
     window.suggestionIndex=0;window.button(READER_OK,1);
-    require(window.search.contains("cat") || window.search.contains("dog"),
+    require(window.search.contains("cat"),
             "Post tag selection changes the active query");
     window.searchTimer.stop();window.button(READER_BACK,1);
     require(window.page==Booru::SEARCH,"Post tag chooser returns to editor");
@@ -110,7 +110,7 @@ public:
     window.posts.clear();window.posts.append(post);window.selected=0;window.first=0;
     cachedPath=window.cachePath(QUrl(post.sample),post.id);
     require(window.cacheImage(cachedPath,
-       "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"20\\" height=\\"10\\"><rect width=\\"20\\" height=\\"10\\" fill=\\"red\\"/></svg>"),
+       "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\"><rect width=\"20\" height=\"10\" fill=\"red\"/></svg>"),
        "Store sample image");
     QFile old(window.cacheRoot()+"/old-image");
     require(old.open(QIODevice::WriteOnly),"Create disposable cache pressure");
