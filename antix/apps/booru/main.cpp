@@ -43,6 +43,7 @@ class Booru : public Screen {
   Page page=HOME;
   QNetworkAccessManager net;
   QList<Host> hosts;
+  QHash<QString,QStringList> bookmarksByHost;
   QList<Post> posts;
   QMap<int,QImage> thumbnails;
   QSet<int> pendingThumbnails, failedThumbnails;
@@ -76,10 +77,33 @@ class Booru : public Screen {
   QString preferencesPath() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-booru")+"/preferences.json";}
   QString filesDir() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
   const Host &host() const {return hosts[hostIndex];}
+  QStringList bookmarks() const {return bookmarksByHost.value(host().url);}
   QStringList sections() const {
     QStringList s={"Recent","My favorites"};
     for(const auto &x:host().searches)s<<x;
+    for(const auto &x:bookmarks())s<<"★ "+x.left(80);
     return s;
+  }
+  void savePreferences(){
+    auto data=readJson(preferencesPath());
+    data["auto_open_images"]=autoOpenImages;
+    QJsonObject map;
+    for(auto it=bookmarksByHost.cbegin();it!=bookmarksByHost.cend();++it)
+      map[it.key()]=QJsonArray::fromStringList(it.value());
+    data["bookmarks"]=map;writeJson(preferencesPath(),data);
+  }
+  void toggleBookmark(){
+    const QString query=builtSearch();
+    if(query.isEmpty()){status="Choose a search before bookmarking";update();return;}
+    QStringList saved=bookmarks();
+    if(saved.contains(query)){saved.removeAll(query);status="Bookmark removed";}
+    else {
+      saved.prepend(query);
+      while(saved.size()>12)saved.removeLast();
+      status="Bookmarked for this server";
+    }
+    bookmarksByHost.insert(host().url,saved);
+    savePreferences();update();
   }
   QStringList currentTags() const {
     if(tagCatalogMode)return popularTags;
@@ -496,7 +520,7 @@ class Booru : public Screen {
   }
   void navigate(int dx,int dy){
     if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
-    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,7);}
+    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,8);}
     else if(page==INFO){tagIndex=qBound(0,tagIndex+dx+dy,qMax(0,currentTags().size()-1));}
     else if(page==HOME){
       int max=sections().size()-1;homeIndex=qBound(0,homeIndex+dx+dy,max);
@@ -522,10 +546,11 @@ protected:
       list(p,area,{"Server", "Open images automatically"},{host().name,autoOpenImages?"On":"Off · use View on a post"},settingIndex);
     } else if(page==SEARCH) {
       const int active=int(tagFilters.size());
-      list(p,area,{"Popular tags","Tags from selected post","Sort","Rating","Media type","Minimum score","Clear filters","Apply search"},
+      list(p,area,{"Popular tags","Tags from selected post","Sort","Rating","Media type","Minimum score","Clear filters",
+                   bookmarks().contains(builtSearch())?"Remove bookmark":"Bookmark search","Apply search"},
         {QString::number(active)+" active tag filters","Pick tags on the current post",sorts[sortIndex],
          ratings[ratingIndex],mediaTypes[mediaIndex],scoreLevels[scoreIndex],
-         "Restore search defaults",builtSearch().left(90)},searchIndex);
+         "Restore search defaults","Reuse this combination on Home",builtSearch().left(90)},searchIndex);
     } else if(page==HOME) {
       const QStringList names=sections();
       QStringList details;
@@ -628,7 +653,7 @@ protected:
     else if(key==READER_OK&&state==1) {
       if(page==SETTINGS){
         if(settingIndex==0){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;}
-        else {autoOpenImages=!autoOpenImages;writeJson(preferencesPath(),{{"auto_open_images",autoOpenImages}});}
+        else {autoOpenImages=!autoOpenImages;savePreferences();}
         update();
       } else if(page==SEARCH){
         if(searchIndex==0){page=INFO;tagsFromSearch=true;tagCatalogMode=true;tagIndex=0;chrome();fetchPopularTags();}
@@ -638,6 +663,7 @@ protected:
         else if(searchIndex==4){mediaIndex=(mediaIndex+1)%mediaTypes.size();update();}
         else if(searchIndex==5){scoreIndex=(scoreIndex+1)%scoreLevels.size();update();}
         else if(searchIndex==6){initializeSearch(initialSearch);update();}
+        else if(searchIndex==7)toggleBookmark();
         else applySearch();
       } else if(page==INFO){
         const auto tags=currentTags();
@@ -652,7 +678,8 @@ protected:
         if(homeIndex==1){
           if(host().username.isEmpty()){status="Set account in web Apps / Booru settings";update();return;}
           search="fav:"+host().username;
-        } else search=homeIndex==0?QString():host().searches.value(homeIndex-2);
+        } else if(homeIndex-2<host().searches.size())search=host().searches.value(homeIndex-2);
+        else search=bookmarks().value(homeIndex-2-host().searches.size());
         initializeSearch(search);
         pageNumber=1;page=GALLERY;chrome();fetchPage();
       }else if(page==GALLERY&&!posts.isEmpty()){page=POST;chrome();if(autoOpenImages)loadFull();maybeLoadMore();}
@@ -663,7 +690,16 @@ public:
   Booru():Screen("booru"){
     thumbTimer.setSingleShot(true);
     connect(&thumbTimer,&QTimer::timeout,this,[this]{requestThumbs();});
-    autoOpenImages=readJson(preferencesPath()).value("auto_open_images").toBool(false);
+    const auto prefs=readJson(preferencesPath());
+    autoOpenImages=prefs.value("auto_open_images").toBool(false);
+    const auto saved=prefs.value("bookmarks").toObject();
+    for(auto it=saved.begin();it!=saved.end();++it){
+      QStringList searches;
+      for(const auto &v:it.value().toArray())
+        if(v.isString()&&!v.toString().isEmpty()&&searches.size()<12)
+          searches<<v.toString().left(500);
+      if(!searches.isEmpty())bookmarksByHost.insert(it.key(),searches);
+    }
     if(!parseConfig()){Host x;x.name="Configuration error";x.url="https://e926.net";hosts<<x;}
     chrome();
   }
