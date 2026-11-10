@@ -89,12 +89,29 @@ class Booru : public Screen {
     return req;
   }
   bool parseConfig() {
-    QFile f(dataDir()+"/config.json");
+    QString path=filesDir()+"/Booru/config.json";
+    if(!QFile::exists(path)) {
+      QDir().mkpath(filesDir()+"/Booru");
+      QSaveFile initial(path);
+      if(initial.open(QIODevice::WriteOnly)) {
+        QJsonObject exampleHost;
+        exampleHost["name"]="e926";
+        exampleHost["url"]="https://e926.net";
+        exampleHost["username"]="";
+        exampleHost["api_key"]="";
+        exampleHost["searches"]=QJsonArray{"order:score", "cat rating:s"};
+        QJsonObject example;
+        example["hosts"]=QJsonArray{exampleHost};
+        initial.write(QJsonDocument(example).toJson(QJsonDocument::Indented));
+        initial.commit();
+      }
+    }
+    QFile f(path);
     if(f.exists()) {
-      if(!f.open(QIODevice::ReadOnly)){status="Cannot read config.json";return false;}
+      if(!f.open(QIODevice::ReadOnly)){status="Cannot read Files/Booru/config.json";return false;}
       QJsonParseError err;
       QJsonDocument doc=QJsonDocument::fromJson(f.readAll(),&err);
-      if(err.error!=QJsonParseError::NoError||!doc.isObject()){status="Invalid config.json";return false;}
+      if(err.error!=QJsonParseError::NoError||!doc.isObject()){status="Invalid Files/Booru/config.json";return false;}
       for(auto v:doc.object().value("hosts").toArray()) {
         auto h=v.toObject();
         Host x;
@@ -107,7 +124,7 @@ class Booru : public Screen {
         hosts<<x;
         if(hosts.size()>=8)break;
       }
-      if(hosts.isEmpty()){status="No valid HTTPS hosts in config.json";return false;}
+      if(hosts.isEmpty()){status="No valid HTTPS hosts in Files/Booru/config.json";return false;}
     } else {
       Host x;x.name="e926";x.url="https://e926.net";hosts<<x;
     }
@@ -202,7 +219,7 @@ class Booru : public Screen {
   }
   void favorite(){
     Post *p=current();if(!p||favoritePending)return;
-    if(host().username.isEmpty()||host().key.isEmpty()){status="Configure an account to manage favorites.";update();return;}
+    if(host().username.isEmpty()||host().key.isEmpty()){status="Set account in Files/Booru/config.json";update();return;}
     int id=p->id;bool add=!p->favorite;favoritePending=true;status=add?"Adding favorite...":"Removing favorite...";update();
     QUrl url(host().url+(add?"/favorites.json":"/favorites/"+QString::number(id)+".json"));
     auto req=request(url,true);req.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
@@ -352,7 +369,7 @@ protected:
     else if(key==READER_OK&&state==1) {
       if(page==HOME){
         if(homeIndex==1){
-          if(host().username.isEmpty()){status="Set username and API key in config.json";update();return;}
+          if(host().username.isEmpty()){status="Set account in Files/Booru/config.json";update();return;}
           search="fav:"+host().username;
         } else search=homeIndex==0?QString():host().searches.value(homeIndex-2);
         pageNumber=1;page=GALLERY;fetchPage();
