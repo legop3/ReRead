@@ -203,7 +203,7 @@ class Booru : public Screen {
     q.addQueryItem("limit","60");q.addQueryItem("page",QString::number(tagPage));url.setQuery(q);
     auto r=net.get(request(url,true));tagApi=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>256*1024)r->abort();});
-    connect(r,&QNetworkReply::finished,this,[this,r,append,revision]{
+    connect(r,&QNetworkReply::finished,this,[this,r,append]{
       if(tagApi!=r){r->deleteLater();return;}tagApi=nullptr;tagLoading=false;
       const int code=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       const QByteArray b=r->readAll();
