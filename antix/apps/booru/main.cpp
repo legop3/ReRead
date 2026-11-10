@@ -424,7 +424,7 @@ class Booru : public Screen {
     }else if(page==SEARCH){
       controls={{READER_UP,"Select"},
                 {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
-                {READER_OPTIONS,"Edit search"},{READER_BACK,"Results"}};
+                {READER_OPTIONS,"View results"},{READER_BACK,"Results"}};
       if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
         controls.prepend({READER_LEFT,"Previous / Include"});
         controls.prepend({READER_RIGHT,"Next / Exclude"});
@@ -465,7 +465,7 @@ class Booru : public Screen {
       if(saving)saving->cancelWriting();
       saving.reset();
     }
-    if(page==SEARCH)return; // Options already means edit this search.
+    if(page==SEARCH){applySearch();return;} // Options toggles back to results.
     page=SEARCH;
     searchIndex=qBound(0,searchIndex,editorRows().size()-1);
     status.clear();
