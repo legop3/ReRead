@@ -104,9 +104,11 @@ class Booru : public Screen {
     if(!source.isValid())return palette().color(QPalette::Text);
     const QColor background=palette().color(QPalette::Base);
     if(background.lightness()<120)return source;
-    // Maintain the same category hue but ensure text is readable on white.
-    return QColor::fromHsl(source.hslHue()<0?0:source.hslHue(),
-      qMax(95,source.hslSaturation()),qMin(100,source.lightness()));
+    // Keep neutral meta/contributor categories neutral on ReRead's light UI.
+    if(source.hslSaturation()<25)return QColor("#555555");
+    // Maintain e621's category hue while providing legible light-UI text.
+    return QColor::fromHsl(source.hslHue(),qMax(95,source.hslSaturation()),
+                           qMin(100,source.lightness()));
   }
   static QMap<int,QStringList> parseCategories(const QJsonObject &tags){
     QMap<int,QStringList> result;
@@ -866,7 +868,7 @@ protected:
           const bool chosen=lookupResultsFocus&&i==suggestionIndex;
           if(chosen)p.fillRect(line,palette().highlight());
           p.fillRect(QRect(line.left()+2,line.top()+11,5,line.height()-22),
-                     categoryColor(suggestionCategory(i)));
+                     categoryTextColor(suggestionCategory(i)));
           label(p,line.adjusted(13,0,-8,0),suggestions[i],21,chosen,
                 palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
         }
@@ -901,7 +903,7 @@ protected:
           const QRect cell=listInfoRow(p,layout,i,selectedRow);
           const QColor color=categoryTextColor(category);
           if(header){
-            p.fillRect(QRect(cell.left()+5,cell.center().y()-10,5,20),categoryColor(category));
+            p.fillRect(QRect(cell.left()+5,cell.center().y()-10,5,20),categoryTextColor(category));
             label(p,cell.adjusted(18,0,-9,0),rows[i],21,true,color);
           }else{
             // Preserve e621 category color regardless of selection highlight.
