@@ -79,6 +79,7 @@ class Booru : public Screen {
   int settingIndex=0, hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
   bool autoOpenImages=false, more=false, loadingMore=false, favoritePending=false;
+  bool hasResults=false;
   bool apiRetryPending=false;
   int apiRetries=0;
 
@@ -346,7 +347,7 @@ class Booru : public Screen {
       thumbTimer.stop();thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
       thumbAttempts.clear();thumbRetryAt.clear();
       posts.clear();selected=0;first=0;
-      pageNumber=1;more=false;
+      pageNumber=1;more=false;hasResults=false;
     }
     status=append?QString():"Loading posts...";
     update();
@@ -407,7 +408,7 @@ class Booru : public Screen {
         p.tags=all.join(" ");
         posts<<p;
       }
-      more=items.size()>=30;
+      more=items.size()>=30;hasResults=true;
       status=posts.isEmpty()?"No posts found.":QString();
       requestThumbs();update();
     });
@@ -691,8 +692,8 @@ protected:
         text(p,QRect(right.x()+5,right.y()+76,right.width()-10,150),
              prefix.isEmpty()?"Select letters to find matching tags.":"Finding matches...",21);
       label(p,QRect(right.x(),right.bottom()-43,right.width(),37),
-            builtSearch()==search?"Search unchanged":"CHANGES NOT APPLIED",18,
-            builtSearch()!=search,palette().color(QPalette::Link));
+            !hasResults?"NOT SEARCHED YET":builtSearch()==search?"Results match":"CHANGES NOT APPLIED",18,
+            true,palette().color(QPalette::Link));
     } else if(page==SEARCH) {
       const QStringList names={"Find tag by name","Browse popular tags","Tag category","Tags on selected post","Edit active tags",
         "Sort order","Rating","File type","Minimum score",
@@ -724,8 +725,8 @@ protected:
            active.isEmpty()?"No tag restrictions":active.join("   "),21);
       const QString query=builtSearch();
       label(p,QRect(right.left(),right.bottom()-88,right.width(),30),
-            query==search?"Current results":"CHANGES NOT APPLIED",18,true,
-            palette().color(query==search?QPalette::Text:QPalette::Link));
+            !hasResults?"NOT SEARCHED YET":query==search?"Current results":"CHANGES NOT APPLIED",18,true,
+            palette().color(hasResults&&query==search?QPalette::Text:QPalette::Link));
       label(p,QRect(right.left(),right.bottom()-50,right.width(),38),
             query.isEmpty()?"All posts":query,17);
     } else if(page==HOME) {
@@ -788,7 +789,7 @@ protected:
           text(p,QRect(layout.info.x()+8,layout.info.y()+72,layout.info.width()-16,180),
                "Filter: "+rule+
                (tagSource==0?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
-               (builtSearch()==search?"\n\nSearch unchanged":"\n\nCHANGES NOT APPLIED"),22);
+               (!hasResults?"\n\nNOT SEARCHED YET":builtSearch()==search?"\n\nResults match":"\n\nCHANGES NOT APPLIED"),22);
           label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
                 tagSource==0?"Page "+QString::number(tagPage)+" · "+QString::number(names.size())+" tags":
                   QString::number(tagFilters.size())+" overrides",19);
@@ -884,7 +885,7 @@ protected:
       }else if(page==HOME){
         if(homeIndex==0){
           initializeSearch("");searchFromGallery=false;searchIndex=0;
-          posts.clear();selected=first=0;
+          posts.clear();selected=first=0;hasResults=false;
           page=SEARCH;status.clear();chrome();return;
         }
         if(homeIndex==1)initializeSearch("");
