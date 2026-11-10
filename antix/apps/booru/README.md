@@ -30,11 +30,23 @@ The app supports e621-style `/posts.json`, `/favorites.json`, and `/favorites/{p
 
 - Home: D-pad selects Recent, My favorites, or a configured saved search; OK opens; Options rotates between configured hosts; Back exits.
 - Gallery: D-pad moves through 3×2 cards, OK views, the next 30 posts load automatically near the end, Back returns to Home.
-- Viewer: unobstructed fullscreen without header/footer; D-pad Left/Right switches posts at 1× and prefetches following pages, or pans in the expected direction when zoomed (with bounded edges). Plus/Minus zoom through 13 levels from fit-to-screen to 10×. OK toggles online account favorite. Play shows post ID, rating, and tags; Options downloads the original file explicitly into `Files/Pictures/Booru`. Back closes viewer.
+- Opening a gallery post downloads its image sample into the app cache and opens it
+  with the system's default image viewer. Zoom, pan and rotation belong to that viewer.
+- Back from the viewer returns to Booru's post card: View reopens the image, OK
+  toggles the online favorite, Play shows details, Options saves the original,
+  and Back returns to the same gallery selection. Left/Right opens adjacent posts.
 - Favorites button returns to ReRead Home immediately. Power, volume, Hold, and suspend remain with the platform.
 
-Images are fetched on demand into bounded RAM, not saved unless explicitly downloaded. Originals are capped at 64 MiB on download; sample decode at 9 MiB and 2304 px, thumbnail requests 512 KiB. Video formats are not supported. Favorites require an account.
+Thumbnails stay in bounded RAM. Full viewing uses ordinary GIO/MIME dispatch and
+local files under `$XDG_CACHE_HOME/reread-booru/images` (normally
+`~/.cache/reread-booru/images`). The 64 MiB LRU cache survives app exit so another
+process can read it; it is separate from explicitly saved originals in shared
+storage. Samples are limited to 9 MiB; explicit original downloads to 64 MiB;
+thumbnail requests to 512 KiB. Each cached post has its own directory so a viewer
+cannot navigate into unrelated cached posts. Non-image samples are rejected;
+video playback remains a later step. Favorites require an account.
 
 ## Limitations / testing
 
-Initial implementation. Compile and device testing have not yet been completed. Some API servers may return incompatible JSON or rate limit requests. Avoid storing keys on an untrusted device: the web/SSH management environment and all apps run with trusted local privileges.
+The MIME-opening test uses disposable cache/configuration, a local image and an
+isolated desktop handler; it sends no requests or account changes to a live site. Some API servers may return incompatible JSON or rate limit requests. Avoid storing keys on an untrusted device: the web/SSH management environment and all apps run with trusted local privileges.

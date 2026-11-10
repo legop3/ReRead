@@ -1,3 +1,4 @@
+#include <gio/gio.h>
 #include "reader-ui.hpp"
 #include <QtWidgets>
 #include <QtNetwork>
@@ -35,10 +36,10 @@ QString safeName(QString name) {
   name.replace(QRegularExpression("[^a-zA-Z0-9_.-]"),"_");
   return name.left(90);
 }
-}
 
 class Booru : public Screen {
-  enum Page { HOME, GALLERY, VIEW, INFO, CONFIRM, DOWNLOADING };
+  friend class BooruTest;
+  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING };
   Page page=HOME;
   QNetworkAccessManager net;
   QList<Host> hosts;
@@ -48,14 +49,10 @@ class Booru : public Screen {
   QList<QNetworkReply*> thumbJobs;
   QNetworkReply *api=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
-  QImage full;
   QString status, search, downloadName;
-  int hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1, zoom=0;
-  int panX=0,panY=0;
+  int hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
   bool more=false, loadingMore=false, favoritePending=false;
-  static constexpr int zoomSteps=13;
-  const double zooms[zoomSteps]={1.0,1.15,1.3,1.5,1.75,2.0,2.5,3.0,4.0,5.0,6.0,8.0,10.0};
 
   QString filesDir() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
   const Host &host() const {return hosts[hostIndex];}
@@ -66,11 +63,11 @@ class Booru : public Screen {
   }
   void chrome() {
     showHeader=false;
-    showControls=page!=VIEW;
+    showControls=true;
     controlsOverlay=page==DOWNLOADING;
     if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Host"},{READER_BACK,"Home"}};
     else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_BACK,"Searches"}};
-    else if(page==VIEW) controls={{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
+    else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
     else if(page==INFO) controls={{READER_BACK,"Image"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
     else controls={{READER_BACK,"Gallery"}};
@@ -143,7 +140,7 @@ class Booru : public Screen {
     if(!append){
       for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
       thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();thumbnails.clear();
-      posts.clear();selected=0;first=0;full=QImage();
+      posts.clear();selected=0;first=0;
       pageNumber=1;more=false;
     }
     status=append?QString():"Loading posts...";
@@ -192,7 +189,7 @@ class Booru : public Screen {
     });
   }
   void maybeLoadMore(){
-    if((page!=GALLERY && page!=VIEW) || api || loadingMore || !more || posts.isEmpty())return;
+    if((page!=GALLERY && page!=POST) || api || loadingMore || !more || posts.isEmpty())return;
     if(selected<posts.size()-6)return;
     ++pageNumber;
     fetchPage(true);
@@ -222,28 +219,66 @@ class Booru : public Screen {
     }
   }
   Post *current(){return selected>=0&&selected<posts.size()?&posts[selected]:nullptr;}
-  void loadFull() {
-    stop(imageJob);full=QImage();zoom=0;panX=panY=0;
-    Post *p=current();if(!p)return;
-    QUrl u=imageUrl(!p->sample.isEmpty()?p->sample:p->original);
-    if(!u.isValid()){status="No viewable image for this post";update();return;}
-    status="Loading image...";update();
-    auto r=net.get(request(u,false));imageJob=r;
-    connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>9*1024*1024)r->abort();});
-    connect(r,&QNetworkReply::finished,this,[this,r]{
-      if(imageJob!=r){r->deleteLater();return;}imageJob=nullptr;
-      QByteArray b=r->readAll();bool ok=r->error()==QNetworkReply::NoError&&b.size()<=9*1024*1024;
-      QString err=r->errorString();r->deleteLater();
-      if(ok){
-        QBuffer buf(&b);buf.open(QIODevice::ReadOnly);QImageReader reader(&buf);
-        reader.setAutoTransform(true);
-        auto sz=reader.size();
-        if(sz.isValid()&&(sz.width()>2304||sz.height()>2304))
-          reader.setScaledSize(sz.scaled(2304,2304,Qt::KeepAspectRatio));
-        full=reader.read();
+  QString cacheRoot() const {
+    return QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation)+"/reread-booru/images";
+  }
+  QString cachePath(const QUrl &url,int id) const {
+    auto hash=QCryptographicHash::hash(url.toEncoded(),QCryptographicHash::Sha256).toHex();
+    // One image per directory: a document viewer must not browse unrelated cached posts.
+    return cacheRoot()+"/"+QString::fromLatin1(hash)+"/post-"+QString::number(id);
+  }
+  void trimCache(const QString &keep) {
+    QList<QFileInfo> files; qint64 bytes=0;
+    QDirIterator it(cacheRoot(),QDir::Files|QDir::NoSymLinks,QDirIterator::Subdirectories);
+    while(it.hasNext()){it.next();auto file=it.fileInfo();files<<file;bytes+=file.size();}
+    std::sort(files.begin(),files.end(),[](const QFileInfo &a,const QFileInfo &b){return a.lastModified()<b.lastModified();});
+    for(const auto &file:files) {
+      if(bytes<=64LL*1024*1024)break;
+      if(file.filePath()!=keep && QFile::remove(file.filePath())) {
+        bytes-=file.size();QDir().rmdir(file.absolutePath());
       }
-      status=full.isNull()?(ok?"Unsupported image format":err):QString();
-      update();
+    }
+  }
+  void openCached(const QString &file) {
+    auto context=g_app_launch_context_new();
+    g_app_launch_context_unsetenv(context,"READER_APP_ID");
+    g_app_launch_context_unsetenv(context,"READER_APP_DATA_DIR");
+    GError *error=nullptr;auto uri=QUrl::fromLocalFile(file).toEncoded();
+    bool opened=g_app_info_launch_default_for_uri(uri.constData(),context,&error);
+    g_object_unref(context);
+    status=opened?QString():error?QString::fromUtf8(error->message):"Unable to open image";
+    if(error)g_error_free(error);
+    update();
+  }
+  bool cacheImage(const QString &file,const QByteArray &bytes) {
+    if(bytes.size()>9*1024*1024 || !QMimeDatabase().mimeTypeForData(bytes).name().startsWith("image/")) {
+      status="No supported image sample for this post";update();return false;
+    }
+    QDir().mkpath(QFileInfo(file).absolutePath());QSaveFile output(file);
+    if(!output.open(QIODevice::WriteOnly) || output.write(bytes)!=bytes.size() || !output.commit()) {
+      status="Cannot write image cache";update();return false;
+    }
+    trimCache(file);return true;
+  }
+  void loadFull() {
+    stop(imageJob);
+    Post *p=current();if(!p)return;
+    QUrl url=imageUrl(!p->sample.isEmpty()?p->sample:p->original);
+    if(!url.isValid()){status="No viewable image for this post";update();return;}
+    auto file=cachePath(url,p->id);
+    if(QFileInfo(file).isFile()) {
+      QFile cached(file);if(cached.open(QIODevice::ReadOnly))cached.setFileTime(QDateTime::currentDateTime(),QFileDevice::FileModificationTime);
+      openCached(file);return;
+    }
+    status="Loading image...";update();
+    auto r=net.get(request(url,false));imageJob=r;
+    connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>9*1024*1024)r->abort();});
+    connect(r,&QNetworkReply::finished,this,[this,r,file]{
+      if(imageJob!=r){r->deleteLater();return;}imageJob=nullptr;
+      auto bytes=r->readAll();bool ok=r->error()==QNetworkReply::NoError;
+      auto message=r->errorString();r->deleteLater();
+      if(!ok){status=message;update();return;}
+      if(cacheImage(file,bytes))openCached(file);
     });
   }
   void favorite(){
@@ -289,24 +324,16 @@ class Booru : public Screen {
               received<=64LL*1024*1024&&saving->write(b)==b.size()&&saving->commit();
       if(saving&&!ok)saving->cancelWriting();
       saving.reset();r->deleteLater();
-      status=ok?"Saved to Files / Pictures / Booru":"Download failed";page=VIEW;chrome();
+      status=ok?"Saved to Files / Pictures / Booru":"Download failed";page=POST;chrome();
     });
   }
   void back(){
-    if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=VIEW;}
-    else if(page==INFO){page=VIEW;}
-    else if(page==VIEW||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
+    if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
+    else if(page==INFO){page=POST;}
+    else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
     else if(page==GALLERY){stop(api);loadingMore=false;page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
     else {close();return;}
     status.clear();chrome();
-  }
-  void clampPan(){
-    if(full.isNull()||zoom==0){panX=panY=0;return;}
-    QSize scaled=full.size();scaled.scale(size(),Qt::KeepAspectRatio);
-    const int maxX=qMax(0,int((scaled.width()*zooms[zoom]-width())/2));
-    const int maxY=qMax(0,int((scaled.height()*zooms[zoom]-height())/2));
-    panX=qBound(-maxX,panX,maxX);
-    panY=qBound(-maxY,panY,maxY);
   }
   void navigate(int dx,int dy){
     if(page==HOME){
@@ -318,11 +345,10 @@ class Booru : public Screen {
       if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
       requestThumbs();
       maybeLoadMore();
-    }else if(page==VIEW){
-      // The D-pad moves the viewport through the picture, not the picture itself.
-      if(zoom>0){panX-=dx*80;panY-=dy*80;clampPan();}
-      else if(dx){const int next=qBound(0,selected+dx,posts.size()-1);
+    }else if(page==POST){
+      if(dx){const int next=qBound(0,selected+dx,posts.size()-1);
         if(next!=selected){selected=next;loadFull();maybeLoadMore();}}
+
     }
     update();
   }
@@ -362,7 +388,7 @@ protected:
               palette().color(active?QPalette::HighlightedText:QPalette::Text));
       }
       if(posts.isEmpty()&&status.isEmpty())text(p,area,"No posts found.",25);
-    } else if(page==VIEW||page==INFO||page==CONFIRM||page==DOWNLOADING) {
+    } else if(page==POST||page==INFO||page==CONFIRM||page==DOWNLOADING) {
       Post *post=current();
       if(page==INFO) {
         // Post information is content, not a second application title bar.
@@ -370,14 +396,12 @@ protected:
               post?"Post #"+QString::number(post->id)+" · "+post->rating:"Post",27,true);
         text(p,area.adjusted(12,56,-12,-8),post?post->tags:"",21);
       } else {
-        if(!full.isNull()) {
-          QSizeF sz=full.size();sz.scale(r.size(),Qt::KeepAspectRatio);
-          const double scale=zooms[zoom];
-          QSizeF scaled(sz.width()*scale,sz.height()*scale);
-          QRectF dest(0,0,scaled.width(),scaled.height());
-          dest.moveCenter(QPointF(r.center().x()+panX,r.center().y()+panY));
-          p.save();p.setClipRect(r);p.setRenderHint(QPainter::SmoothPixmapTransform);
-          p.drawImage(dest,full);p.restore();
+        if(post) {
+          QRect picture(area.x()+8,area.y()+8,area.width()/2-20,area.height()-24);
+          imageIn(p,picture,thumbnails.value(post->id));
+          QRect description(area.x()+area.width()/2,area.y()+20,area.width()/2-12,area.height()-40);
+          text(p,description,"Post #"+QString::number(post->id)+" · "+post->rating+
+            "\n\nOpen image for full-size viewing.\n\n"+post->tags.left(240),23);
         }
         if(page==DOWNLOADING) {
           const QRect box(area.x()+95,area.center().y()-46,area.width()-190,92);
@@ -408,12 +432,11 @@ protected:
     else if(key==READER_DOWN)navigate(0,1);
     else if(key==READER_LEFT)navigate(-1,0);
     else if(key==READER_RIGHT)navigate(1,0);
-    else if(page==VIEW&&key==READER_ZOOM_IN&&state==1){zoom=qMin(zoomSteps-1,zoom+1);clampPan();update();}
-    else if(page==VIEW&&key==READER_ZOOM_OUT&&state==1){zoom=qMax(0,zoom-1);clampPan();update();}
+    else if(page==POST&&key==READER_VIEW_TOGGLE&&state==1){loadFull();}
     else if(key==READER_OPTIONS&&state==1){
       if(page==HOME){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;status.clear();update();}
-      else if(page==VIEW)download();
-    }else if(key==READER_PLAY&&state==1&&page==VIEW){page=INFO;chrome();}
+      else if(page==POST)download();
+    }else if(key==READER_PLAY&&state==1&&page==POST){page=INFO;chrome();}
     else if(key==READER_OK&&state==1) {
       if(page==HOME){
         if(homeIndex==1){
@@ -421,8 +444,8 @@ protected:
           search="fav:"+host().username;
         } else search=homeIndex==0?QString():host().searches.value(homeIndex-2);
         pageNumber=1;page=GALLERY;chrome();fetchPage();
-      }else if(page==GALLERY&&!posts.isEmpty()){page=VIEW;chrome();loadFull();maybeLoadMore();}
-      else if(page==VIEW)favorite();
+      }else if(page==GALLERY&&!posts.isEmpty()){page=POST;chrome();loadFull();maybeLoadMore();}
+      else if(page==POST)favorite();
     }
   }
 public:
@@ -436,6 +459,7 @@ public:
     if(saving)saving->cancelWriting();
   }
 };
+} // namespace
 int main(int argc,char **argv){
   QApplication app(argc,argv);app.setFont(QFont("DejaVu Sans"));
   Booru window;window.show();return app.exec();

@@ -49,8 +49,8 @@ def main():
     subprocess.run(["ln", "-sfn", "libreader-ui.so.4",
                     str(BUILD / "libreader-ui.so")], check=True)
     binary = BUILD / "reader-booru-app"
-    flags = pkg("Qt5Widgets", "Qt5Network")
-    libs = pkg("Qt5Widgets", "Qt5Network", mode="--libs")
+    flags = pkg("Qt5Widgets", "Qt5Network", "gio-2.0")
+    libs = pkg("Qt5Widgets", "Qt5Network", "gio-2.0", mode="--libs")
     subprocess.run(["g++", "-m32", "-std=c++17", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
                     *flags, "-I" + str(BASE / "antix/ui"), "-I" + str(BASE / "antix"),
                     str(SOURCE / "main.cpp"), "-L" + str(BUILD), "-lreader-ui", "-lreader-device",
@@ -67,10 +67,11 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.17.0), libqt5network5t64
+Depends: reread (>= 0.18.0), libqt5network5t64
+Recommends: reread-app-images
 Description: Booru browser for ReRead
  Browse e926/e621-compatible galleries and manage account favorites with buttons.
- Show images in memory; save originals to the shared Files folder explicitly.
+ Open cached image samples through the default MIME handler; save originals explicitly.
 """)
     write("usr/share/applications/reread-booru.desktop", """[Desktop Entry]
 Type=Application

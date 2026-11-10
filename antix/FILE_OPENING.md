@@ -59,8 +59,9 @@ Images is a small Qt front end for physical controls, icon hints and the screen'
 safe inset. Qt and its distro image plugins do the decoding. Files dispatches
 regular files through GIO, retaining its inline text fallback only when no text
 handler exists. Missing non-text handlers show file details and an explanation.
-Audio/text handlers and conversion of Internet Archive, Booru and Camera's full
-review actions are intentionally later steps. Browsing thumbnails are not file
+Booru also caches image samples and dispatches them through GIO; its thumbnails
+and post actions remain inside Booru. Audio/text handlers and conversion of
+Internet Archive and Camera's full review actions are later steps. Browsing thumbnails are not file
 opening and can remain within those applications.
 
 References: [freedesktop MIME defaults](https://specifications.freedesktop.org/mime-apps/latest/default.html),

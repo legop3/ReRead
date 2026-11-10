@@ -92,3 +92,10 @@ Offscreen tests cover GIO filename preservation, view-only rotation, error exit,
 and existing Files navigation/deletion. Text/audio and other apps' viewing
 actions remain for later steps. No new installer image has been built for this
 step; source fresh-image dependencies/default packages include Images.
+
+Booru 0.3 moves full image samples to GIO/default Images. Its old full-image
+renderer and zoom/pan implementation are removed. A bounded 64 MiB XDG cache
+keeps image files available across app exit; explicit saves remain in shared
+storage. Tests cover cache eviction, cached GIO opening, unchanged files on
+non-image responses, and cache lifetime. An isolated on-device post fixture
+opened Images and returned to Booru without network or account requests.

@@ -197,6 +197,6 @@ first separately packaged foreground app and follows this same contract.
 
 Use normal GIO or `gio open FILE` to open a file in its default application;
 see [file opening](../FILE_OPENING.md). Do not execute a hardcoded viewer or
-copy its display code into a browser. The current migration moves image viewing
-out of Files; Internet Archive, Booru, Camera review and text/audio viewers will
-move in later steps. Their thumbnails and browsing previews may stay local.
+copy its display code into a browser. Files and Booru use the system image
+handler; Internet Archive, Camera review and text/audio viewers will move in
+later steps. Their thumbnails and browsing previews may stay local.
