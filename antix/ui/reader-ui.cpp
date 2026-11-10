@@ -2,6 +2,18 @@
 #include <memory>
 namespace ReRead {
 Screen::Screen(const QString &name) : title(name) {
+  QPalette colors;
+  colors.setColor(QPalette::Window, QColor("#f4f4f2"));
+  colors.setColor(QPalette::WindowText, QColor("#202020"));
+  colors.setColor(QPalette::Base, Qt::white);
+  colors.setColor(QPalette::Text, QColor("#202020"));
+  colors.setColor(QPalette::Mid, QColor("#a0a0a0"));
+  colors.setColor(QPalette::Dark, QColor("#505050"));
+  colors.setColor(QPalette::Highlight, QColor("#e2e2de"));
+  colors.setColor(QPalette::HighlightedText, QColor("#202020"));
+  colors.setColor(QPalette::Button, QColor("#ececea"));
+  colors.setColor(QPalette::ButtonText, QColor("#202020"));
+  setPalette(colors);
   setWindowFlags(Qt::FramelessWindowHint);
   setCursor(Qt::BlankCursor);
   resize(960, 544);
@@ -117,6 +129,10 @@ void Screen::text(QPainter &p, const QRect &r, const QString &t, int size,
   auto f = p.font();
   f.setPixelSize(size);
   p.setFont(f);
+  // Older app binaries compiled the previous light-text default into calls.
+  // Preserve their ABI while allowing them to inherit the new foreground.
+  if (!color.isValid() || color == QColor("#eef3f8"))
+    color = palette().color(QPalette::WindowText);
   p.setPen(color);
   p.drawText(r, Qt::AlignVCenter | Qt::TextWordWrap, t);
 }
@@ -126,14 +142,18 @@ void Screen::paintEvent(QPaintEvent *) {
     p.translate(width(), height());
     p.rotate(180);
   }
-  p.fillRect(rect(), QColor("#101820"));
+  p.fillRect(rect(), palette().window());
   p.setRenderHint(QPainter::Antialiasing);
   QRect safe = safeArea();
   auto battery = readJson("/run/reader-battery.json");
   if (showHeader) {
+    auto heading = p.font(); heading.setBold(true); p.setFont(heading);
     text(p, QRect(safe.left(), safe.top(), safe.width()/2, 42), title, 32);
+    heading.setBold(false); p.setFont(heading);
+    p.setPen(QPen(palette().mid(), 1));
+    p.drawLine(safe.left(), safe.top()+48, safe.right(), safe.top()+48);
     auto f = p.font(); f.setPixelSize(22); p.setFont(f);
-    p.setPen(QColor("#aabfc9"));
+    p.setPen(palette().color(QPalette::Dark));
     QString status = (battery.value("external_power").toBool() ? "AC · " : "") +
         QString::number(battery.value("capacity_percent").toInt()) +
         "%   " + QTime::currentTime().toString("HH:mm");
@@ -154,8 +174,10 @@ void Screen::paintEvent(QPaintEvent *) {
     x = 0;
     for (const auto &control : controls) {
       int w = 58 + metrics.horizontalAdvance(control.action);
-      p.setPen(Qt::NoPen); p.setBrush(QColor(16,24,32,225));
-      p.drawRoundedRect(QRect(x,0,w,42),7,7);
+      p.setPen(Qt::NoPen); p.setBrush(palette().base());
+      p.drawRect(QRect(x,0,w,42));
+      p.setBrush(palette().windowText());
+      p.drawRoundedRect(QRect(x+5,2,38,38),3,3);
       buttonIcon(p,QRect(x+9,6,30,30),control.button);
       text(p,QRect(x+48,0,w-52,42),control.action,21);
       x += w+16;
@@ -172,8 +194,9 @@ void Screen::paintEvent(QPaintEvent *) {
   QString message = device->isLocked() ? "Hold locked — slide switch to unlock" : !warning.isEmpty() ? warning : notice;
   if (!message.isEmpty()) {
     QRect box(safe.left(),safe.top()+52,safe.width(),48);
-    p.fillRect(box,QColor(16,24,32,240));
-    text(p,box.adjusted(12,0,-12,0),message,23,QColor("#eef3f8"));
+    p.setPen(QPen(palette().windowText(), 2)); p.setBrush(palette().base());
+    p.drawRect(box);
+    text(p,box.adjusted(12,0,-12,0),message,23);
   }
 }
 void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
@@ -182,22 +205,25 @@ void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
   int first = qMax(0, selected - visible + 1);
   for (int i = first; i < labels.size() && i < first + visible; i++) {
     QRect row(r.x(), r.y() + (i - first) * 84, r.width(), 76);
-    p.setPen(QPen(i == selected ? QColor("#38c9bb") : QColor("#31444f"),
+    p.setPen(QPen(i == selected ? palette().windowText() : palette().mid(),
                   i == selected ? 2 : 1));
-    p.setBrush(QColor(i == selected ? "#203d45" : "#192a34"));
-    p.drawRoundedRect(row, 9, 9);
+    p.setBrush(i == selected ? palette().highlight() : palette().base());
+    p.drawRect(row.adjusted(1,1,-1,-1));
+    if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().windowText());
+    auto font = p.font(); font.setBold(i == selected); p.setFont(font);
     text(p, row.adjusted(18, details.value(i).isEmpty() ? 0 : -16, -32, 0),
          labels[i], 27);
+    font.setBold(false); p.setFont(font);
     if (!details.value(i).isEmpty())
       text(p, QRect(row.x() + 18, row.y() + 43, row.width() - 42, 25),
-           details[i], 19, QColor("#aabfc9"));
+           details[i], 19, palette().color(QPalette::Dark));
   }
   if (labels.isEmpty())
     text(p, r, "Nothing here yet.");
   if (labels.size() > visible)
     text(p, QRect(r.right() - 75, r.bottom() - 25, 75, 25),
          QString::number(selected + 1) + " / " + QString::number(labels.size()),
-         17, QColor("#38c9bb"));
+         17, palette().color(QPalette::Dark));
 }
 void Screen::toast(const QString &t) {
   notice = t;

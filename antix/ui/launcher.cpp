@@ -330,18 +330,18 @@ class Launcher : public Screen {
       QRect tile(r.x() + (position % columns) * (w + gap),
                  top + (position / columns) * (h + gap), w, h);
       bool focus = i == selected;
-      p.setPen(QPen(QColor(focus ? "#65ded0" : "#2a3b47"), focus ? 3 : 1));
-      p.setBrush(QColor(focus ? "#203e46" : "#172630"));
-      p.drawRoundedRect(tile.adjusted(2,2,-2,-2), 18, 18);
+      p.setPen(QPen(focus ? palette().windowText() : palette().mid(), focus ? 3 : 1));
+      p.setBrush(focus ? palette().highlight() : palette().base());
+      p.drawRoundedRect(tile.adjusted(2,2,-2,-2), 3, 3);
       int size = qMin(100, h - 58);
       icons.value(i).paint(&p, QRect(tile.center().x() - size/2, tile.top()+16, size, size));
       auto font = p.font(); font.setPixelSize(27); font.setBold(focus); p.setFont(font);
-      p.setPen(QColor(focus ? "#ffffff" : "#d5e0e6"));
+      p.setPen(palette().color(QPalette::WindowText));
       QString name = QFontMetrics(font).elidedText(labels[i], Qt::ElideRight, w-28);
       p.drawText(tile.adjusted(14,h-48,-14,-8), Qt::AlignCenter, name);
     }
     auto font = p.font(); font.setBold(false); font.setPixelSize(21); p.setFont(font);
-    p.setPen(QColor("#aabfc9"));
+    p.setPen(palette().color(QPalette::Dark));
     int pages = (labels.size() + pageSize - 1) / pageSize;
     QRect caption(r.x()+2,r.bottom()-footer+10,r.width()-(pages > 1 ? 110 : 0),40);
     p.drawText(caption, Qt::AlignVCenter,
@@ -358,12 +358,13 @@ class Launcher : public Screen {
       int height = r.height() / labels.size();
       for (int i = 0; i < labels.size(); ++i) {
         QRect row(r.x(),r.y()+i*height,r.width(),height-6);
-        p.setPen(QPen(QColor(i == selected ? "#65ded0" : "#2a3b47"),i == selected ? 2 : 1));
-        p.setBrush(QColor(i == selected ? "#203e46" : "#172630"));
-        p.drawRoundedRect(row,12,12);
+        p.setPen(QPen(i == selected ? palette().windowText() : palette().mid(),i == selected ? 2 : 1));
+        p.setBrush(i == selected ? palette().highlight() : palette().base());
+        p.drawRect(row.adjusted(1,1,-1,-1));
+        if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().windowText());
         icons.value(i).paint(&p,QRect(row.x()+12,row.center().y()-24,48,48));
         text(p,QRect(row.x()+80,row.y(),260,row.height()),labels[i],26);
-        text(p,QRect(row.x()+350,row.y(),row.width()-390,row.height()),details[i],20,QColor("#aabfc9"));
+        text(p,QRect(row.x()+350,row.y(),row.width()-390,row.height()),details[i],20,palette().color(QPalette::Dark));
         text(p,QRect(row.right()-30,row.y(),24,row.height()),"›",30);
       }
     } else if (page == "about" || page == "connections")

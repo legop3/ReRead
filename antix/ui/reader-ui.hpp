@@ -34,6 +34,6 @@ public:
   void list(QPainter &, const QRect &, const QStringList &labels,
             const QStringList &details, int selected);
   void text(QPainter &, const QRect &, const QString &, int pixels = 26,
-            QColor color = QColor("#eef3f8"));
+            QColor color = QColor());
 };
 } // namespace ReRead
