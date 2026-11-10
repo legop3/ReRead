@@ -1,6 +1,10 @@
 # Software
 
 A default, independent Qt app for on-device platform/app package management.
+Its overview combines navigation with installed-version, update and job status.
+The app catalogue uses desktop-entry icons, compact status rows and a description
+pane. Operations show their actual state and a scrollable monospaced log.
+Unavailable app icons use the normal generic fallback; no percentage is invented.
 It uses the optional ReRead screen/device drawing helpers, standard desktop-entry
 and icon files, and the core's `reader-software` command. No USB web service or
 additional daemon is involved. It works over any configured internet connection.
