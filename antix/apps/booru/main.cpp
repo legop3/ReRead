@@ -257,6 +257,14 @@ class Booru : public Screen {
     queryTerms[index]=(exclude?"-":"")+term;
     activeSearchChanged();
   }
+  bool adjustableTerm(int index) const {
+    if(index<0||index>=queryTerms.size())return false;
+    const QString term=queryTerms[index];
+    if(!term.contains(":"))return true;
+    for(const QString &prefix:{"rating:","order:","type:","score:"})
+      if(term.startsWith(prefix))return true;
+    return false;
+  }
   void changeTerm(int index,int direction){
     if(index<0||index>=queryTerms.size())return;
     const QString term=queryTerms[index];
@@ -283,7 +291,7 @@ class Booru : public Screen {
     if(searchIndex<queryTerms.size()){
       const QString term=queryTerms[searchIndex];
       return "In your active search.\n\nOK removes this term."+
-        QString(term.startsWith("fav:")?"":term.contains(":")?
+        QString(!adjustableTerm(searchIndex)?"":term.contains(":")?
                 "\nLeft / Right changes the value.":
                 "\nLeft includes; Right excludes.");
     }
@@ -472,7 +480,7 @@ class Booru : public Screen {
                 {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Open"},
                 {READER_OPTIONS,"Return to "+editorReturnLabel()},
                 {READER_BACK,"Return to "+editorReturnLabel()}};
-      if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
+      if(adjustableTerm(searchIndex)){
         controls.prepend({READER_LEFT,"Include / previous"});
         controls.prepend({READER_RIGHT,"Exclude / next"});
       }
@@ -507,6 +515,9 @@ class Booru : public Screen {
       return;
     }
     if(page==GALLERY||page==POST)rememberSelectedPostTags();
+    if(page==HOME){
+      postTagSnapshot.clear();postCategorySnapshot.clear();contextPostId=0;
+    }
     if(page==DOWNLOADING){
       if(downloadReturnPage==GALLERY||downloadReturnPage==POST)
         rememberSelectedPostTags();
