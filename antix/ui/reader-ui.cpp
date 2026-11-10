@@ -5,14 +5,14 @@ Screen::Screen(const QString &name) : title(name) {
   QPalette colors;
   colors.setColor(QPalette::Window, QColor("#000000"));
   colors.setColor(QPalette::WindowText, QColor("#ffffff"));
-  colors.setColor(QPalette::Base, QColor("#080808"));
+  colors.setColor(QPalette::Base, QColor("#000000"));
   colors.setColor(QPalette::Text, QColor("#ffffff"));
-  colors.setColor(QPalette::Mid, QColor("#8a8a8a"));
-  colors.setColor(QPalette::Dark, QColor("#d0d0d0"));
-  colors.setColor(QPalette::Highlight, QColor("#00b7ff"));
-  colors.setColor(QPalette::Link, QColor("#00b7ff"));
+  colors.setColor(QPalette::Mid, QColor("#ffffff"));
+  colors.setColor(QPalette::Dark, QColor("#ffffff"));
+  colors.setColor(QPalette::Highlight, QColor("#00bfff"));
+  colors.setColor(QPalette::Link, QColor("#00bfff"));
   colors.setColor(QPalette::HighlightedText, Qt::black);
-  colors.setColor(QPalette::Button, QColor("#242424"));
+  colors.setColor(QPalette::Button, QColor("#000000"));
   colors.setColor(QPalette::ButtonText, QColor("#ffffff"));
   setPalette(colors);
   setWindowFlags(Qt::FramelessWindowHint);
@@ -85,7 +85,7 @@ void Screen::buttonIcon(QPainter &p, const QRect &r, reader_button id) {
   p.save();
   p.translate(r.center());
   p.scale(r.width() / 32.0, r.height() / 32.0);
-  p.setPen(QPen(QColor("#eef3f8"), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  p.setPen(QPen(QColor("#ffffff"), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
   p.setBrush(Qt::NoBrush);
   switch (id) {
   case READER_BACK: {
@@ -102,7 +102,7 @@ void Screen::buttonIcon(QPainter &p, const QRect &r, reader_button id) {
     p.drawRect(QRectF(-5,-3,18,15)); break;
   case READER_OK:
     p.drawEllipse(QRectF(-11,-11,22,22));
-    p.setBrush(QColor("#eef3f8")); p.drawEllipse(QRectF(-3,-3,6,6)); break;
+    p.setBrush(QColor("#ffffff")); p.drawEllipse(QRectF(-3,-3,6,6)); break;
   case READER_SHOOT:
     p.drawRoundedRect(QRectF(-13,-8,26,18),3,3);
     p.drawEllipse(QRectF(-5,-5,10,10)); p.drawLine(-6,-12,5,-12); break;
@@ -157,11 +157,11 @@ void Screen::paintEvent(QPaintEvent *) {
     const int charge = battery.value("capacity_percent").toInt();
     const bool known = battery.contains("capacity_percent");
     const bool ac = battery.value("external_power").toBool();
-    QColor statusColor = !known ? QColor("#444444") : charge <= 10 ? QColor("#bb2525") :
-        charge <= 20 ? QColor("#a45b00") : QColor("#08783e");
+    QColor statusColor = !known ? QColor("#ffffff") : charge <= 10 ? QColor("#ff3030") :
+        charge <= 20 ? QColor("#ffd000") : QColor("#00df40");
     QRect badge(safe.right()-235,safe.top()+3,135,34);
     p.fillRect(badge,statusColor);
-    p.setPen(Qt::white);
+    p.setPen(Qt::black);
     p.drawText(badge,Qt::AlignCenter,(ac ? "AC " : "BAT ") +
                (known ? QString::number(charge)+"%" : "--"));
     p.setPen(palette().color(QPalette::WindowText));
@@ -184,7 +184,7 @@ void Screen::paintEvent(QPaintEvent *) {
       int w = 58 + metrics.horizontalAdvance(control.action);
       p.setPen(Qt::NoPen); p.setBrush(palette().base());
       p.drawRect(QRect(x,0,w,42));
-      p.setPen(QPen(QColor("#888888"),1)); p.setBrush(QColor("#303030"));
+      p.setPen(QPen(Qt::white,1)); p.setBrush(Qt::black);
       p.drawRect(QRect(x+5,2,38,38));
       buttonIcon(p,QRect(x+9,6,30,30),control.button);
       text(p,QRect(x+48,0,w-52,42),control.action,21);
@@ -214,7 +214,7 @@ void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
   for (int i = first; i < labels.size() && i < first + visible; i++) {
     QRect row(r.x(), r.y() + (i - first) * 84, r.width(), 76);
     p.setPen(QPen(i == selected ? palette().link() : palette().mid(),
-                  i == selected ? 2 : 1));
+                  i == selected ? 3 : 2));
     p.setBrush(i == selected ? palette().highlight() : palette().base());
     p.drawRect(row.adjusted(1,1,-1,-1));
     if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().link());

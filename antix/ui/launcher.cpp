@@ -330,7 +330,7 @@ class Launcher : public Screen {
       QRect tile(r.x() + (position % columns) * (w + gap),
                  top + (position / columns) * (h + gap), w, h);
       bool focus = i == selected;
-      p.setPen(QPen(focus ? palette().link() : palette().mid(), focus ? 3 : 1));
+      p.setPen(QPen(focus ? palette().link() : palette().mid(), focus ? 3 : 2));
       p.setBrush(palette().base());
       p.drawRect(tile.adjusted(2,2,-2,-2));
       p.fillRect(tile.adjusted(4,h-53,-4,-4),focus ? palette().highlight() : palette().button());
@@ -359,7 +359,7 @@ class Launcher : public Screen {
       int height = r.height() / labels.size();
       for (int i = 0; i < labels.size(); ++i) {
         QRect row(r.x(),r.y()+i*height,r.width(),height-6);
-        p.setPen(QPen(i == selected ? palette().link() : palette().mid(),i == selected ? 2 : 1));
+        p.setPen(QPen(i == selected ? palette().link() : palette().mid(),i == selected ? 3 : 2));
         p.setBrush(i == selected ? palette().highlight() : palette().base());
         p.drawRect(row.adjusted(1,1,-1,-1));
         if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().link());

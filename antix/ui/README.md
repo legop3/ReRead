@@ -1,7 +1,8 @@
 # ReRead on-device UI
 
 The shared UI uses a high-contrast industrial Qt `QPalette`: black backgrounds,
-white text and bright control colors. Selection uses solid cyan with black text
+pure white text/outlines and saturated control colors. All background, panel
+and inactive label fills are exactly `#000000`; text and outlines are `#ffffff`. Selection uses solid cyan with black text
 in lists and cyan label strips on Home. Strong outlines also mark selection.
 The battery badge shows its actual charge and AC/battery state, with green,
 amber and red charge ranges. Application and system icons remain ordinary SVG
