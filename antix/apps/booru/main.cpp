@@ -42,6 +42,12 @@ class Booru : public Screen {
   enum Page { HOME, GALLERY, POST, DOWNLOADING, SEARCH, LOOKUP };
   Page page=HOME;
   Page downloadReturnPage=POST;
+  Page editorReturnPage=GALLERY;
+  bool editorChanged=false;
+  int contextPostId=0;
+  enum EditorAction { FROM_POST, FIND_TAG, POPULAR_TAG, FAVORITE_FILTER,
+                      SORT_ORDER, RATING_FILTER, FILE_FILTER, SCORE_FILTER,
+                      SAVE_SEARCH, VIEW_RESULTS };
   QNetworkAccessManager net;
   QList<Host> hosts;
   QHash<QString,QStringList> bookmarksByHost;
@@ -176,12 +182,37 @@ class Booru : public Screen {
   }
   QString builtSearch() const {return queryTerms.join(" ");}
 
+  QList<EditorAction> editorActionIds() const {
+    QList<EditorAction> actions;
+    if(!postTagSnapshot.isEmpty())actions<<FROM_POST;
+    actions<<FIND_TAG<<POPULAR_TAG<<FAVORITE_FILTER<<SORT_ORDER
+           <<RATING_FILTER<<FILE_FILTER<<SCORE_FILTER<<SAVE_SEARCH<<VIEW_RESULTS;
+    return actions;
+  }
   QStringList editorActions() const {
-    return {"Add tag by name","Browse popular tags","Tags from selected post",
-            "Add / change favorites filter","Add / change sorting","Add / change rating",
-            "Add / change file type","Add / change minimum score",
-            bookmarks().contains(builtSearch())?"Remove saved search":"Save this search",
-            "View results"};
+    QStringList names;
+    for(const EditorAction action:editorActionIds()){
+      switch(action){
+        case FROM_POST:
+          names<<"Tags from post #"+QString::number(contextPostId);break;
+        case FIND_TAG:names<<"Find and add a tag";break;
+        case POPULAR_TAG:names<<"Browse popular tags";break;
+        case FAVORITE_FILTER:names<<"Favorites filter";break;
+        case SORT_ORDER:names<<"Sort order";break;
+        case RATING_FILTER:names<<"Rating";break;
+        case FILE_FILTER:names<<"File type";break;
+        case SCORE_FILTER:names<<"Minimum score";break;
+        case SAVE_SEARCH:
+          names<<(bookmarks().contains(builtSearch())?"Unsave search":"Save search");break;
+        case VIEW_RESULTS:names<<"View results";break;
+      }
+    }
+    return names;
+  }
+  EditorAction selectedEditorAction() const {
+    const auto actions=editorActionIds();
+    const int index=searchIndex-queryTerms.size();
+    return actions.value(index,VIEW_RESULTS);
   }
   QStringList editorRows() const {
     QStringList names;
@@ -252,23 +283,26 @@ class Booru : public Screen {
   QString selectedTermDetail() const {
     if(searchIndex<queryTerms.size()){
       const QString term=queryTerms[searchIndex];
-      return "Part of the active search.\n\nOK: remove this term"+
-        QString(term.startsWith("fav:")?"":term.contains(":")?"\nLeft / Right: change value":"\nLeft: include\nRight: exclude");
+      return "In your active search.\n\nOK removes this term."+
+        QString(term.startsWith("fav:")?"":term.contains(":")?
+                "\nLeft / Right changes the value.":
+                "\nLeft includes; Right excludes.");
     }
-    const int action=searchIndex-queryTerms.size();
-    const QStringList descriptions={
-      "Choose a tag with the D-pad character picker.",
-      "Browse popular tags to add to this search.",
-      "Add a tag from the selected post.",
-      "Add or remove fav:username. It is an ordinary editable term.",
-      "Cycle through server sorting options.",
-      "Choose a content rating, or none.",
-      "Choose a file extension, or none.",
-      "Set a minimum score, or none.",
-      "Store or remove this query from Home.",
-      "See posts matching the active query."
-    };
-    return descriptions.value(action);
+    switch(selectedEditorAction()){
+      case FROM_POST:
+        return "Add tags from post #"+QString::number(contextPostId)+
+               ".\n\nCategories and colors follow e621.";
+      case FIND_TAG:return "Find a tag by name without a keyboard.";
+      case POPULAR_TAG:return "Browse popular tags from this server.";
+      case FAVORITE_FILTER:return "Add or remove a favorites search filter.";
+      case SORT_ORDER:return "Change the active search sorting.";
+      case RATING_FILTER:return "Change the content rating filter.";
+      case FILE_FILTER:return "Change the file type filter.";
+      case SCORE_FILTER:return "Change the minimum post score.";
+      case SAVE_SEARCH:return "Save or remove this search on the Reader.";
+      case VIEW_RESULTS:return "Return to matching posts.";
+    }
+    return {};
   }
   QString tagState(const QString &tag) const {
     return queryTerms.contains(tag)?"Include":queryTerms.contains("-"+tag)?"Exclude":"Off";
@@ -282,6 +316,8 @@ class Booru : public Screen {
       toast("Maximum 40 search terms");update();return;
     }
     search=query;
+    editorChanged=true;
+    stop(imageJob);
     ++searchRevision;
     searchTimer.stop();
     stop(api);
