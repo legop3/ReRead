@@ -322,18 +322,25 @@ class Booru : public Screen {
     if(!api&&!searchTimer.isActive()&&!hasResults)fetchPage();
     else requestThumbs();
   }
-  void chrome() {
+  void chrome(){
     showHeader=false;
-
-    if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Home"}};
-    else if(page==SEARCH) controls={{READER_UP,"Navigate"},{READER_OK,"Change"},{READER_OPTIONS,"View results"},{READER_BACK,searchFromGallery?"Results":"Home"}};
-    else if(page==LOOKUP) controls={{READER_UP,"Select"},{READER_OK,"Choose"},{READER_VIEW_TOGGLE,"Switch panel"},{READER_ZOOM_OUT,"Delete letter"},{READER_OPTIONS,"View results"},{READER_BACK,"Explore"}};
-    else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
-    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Refine search"},{READER_BACK,galleryFromExplore?"Explore":"Home"}};
-    else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
-    else if(page==INFO) controls={{READER_UP,"Browse tags"},{READER_OK,"Toggle tag"},{READER_OPTIONS,"View results"},{READER_BACK,"Explore"}};
-    else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
-    else controls={{READER_BACK,"Gallery"}};
+    if(page==HOME)controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
+    else if(page==SETTINGS)controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Home"}};
+    else if(page==SEARCH){
+      controls={{READER_UP,"Select"},{READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
+                {READER_OPTIONS,"Results"},{READER_BACK,searchFromGallery?"Gallery":"Home"}};
+      if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].contains(":")){
+        controls.prepend({READER_LEFT,"Include"});
+        controls.prepend({READER_RIGHT,"Exclude"});
+      }
+    }else if(page==LOOKUP)controls={{READER_UP,"Choose tag"},{READER_OK,"Add tag"},
+          {READER_VIEW_TOGGLE,"Switch area"},{READER_BACK,"Search editor"}};
+    else if(page==GALLERY)controls={{READER_UP,"Browse"},{READER_OK,"Open post"},
+          {READER_OPTIONS,"Edit search"},{READER_BACK,"Search editor"}};
+    else if(page==POST)controls={{READER_VIEW_TOGGLE,"View image"},{READER_OK,"Favorite"},
+          {READER_PLAY,"Edit search"},{READER_OPTIONS,"Save image"},{READER_BACK,"Gallery"}};
+    else if(page==DOWNLOADING)controls={{READER_BACK,"Cancel"}};
+    else controls={{READER_BACK,"Return"}};
     update();
   }
   void imageIn(QPainter &p,QRect target,const QImage &img,bool crop=false) const {
@@ -668,54 +675,52 @@ class Booru : public Screen {
     });
   }
   void back(){
-    if(page==SETTINGS){page=HOME;}
-    else if(page==SEARCH){page=searchFromGallery?GALLERY:HOME;}
-    else if(page==LOOKUP){lookupTimer.stop();stop(lookupApi);page=SEARCH;}
-    else if(page==INFO){stop(tagApi);page=tagsFromSearch?SEARCH:postTagsChanged?GALLERY:POST;}
-    else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
-    else if(page==POST||page==CONFIRM){
+    if(page==SETTINGS)page=HOME;
+    else if(page==LOOKUP){
+      lookupTimer.stop();stop(lookupApi);stop(tagApi);page=SEARCH;
+    }else if(page==SEARCH)page=searchFromGallery?GALLERY:HOME;
+    else if(page==DOWNLOADING){
+      stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;
+    }else if(page==POST||page==CONFIRM){
       stop(imageJob);
       if(selected<first)first=(selected/3)*3;
       if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
-      page=GALLERY;requestThumbs();
-    }
-    else if(page==GALLERY){
-      stop(api);loadingMore=false;apiRetryPending=false;
-      if(galleryFromExplore){page=SEARCH;searchFromGallery=false;}
-      else {page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
-    }
-    else {close();return;}
-    if(page!=GALLERY || !hasResults)status.clear();
+      page=GALLERY;
+    }else if(page==GALLERY){
+      page=SEARCH;searchFromGallery=false;
+    }else{close();return;}
     chrome();
     if(page==GALLERY){requestThumbs();maybeLoadMore();}
   }
   void navigate(int dx,int dy){
-    if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
-    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,10);}
-    else if(page==LOOKUP){
-      if(lookupResultsFocus)suggestionIndex=qBound(0,suggestionIndex+dx+dy,qMax(0,suggestions.size()-1));
-      else keyIndex=qBound(0,keyIndex+dx+dy*6,keyboardLetters.size()+1);
-    }
-    else if(page==INFO){
-      tagIndex=qBound(0,tagIndex+dx+dy,qMax(0,currentTags().size()-1));
-      if(tagSource==0 && !tagLoading && !tagApi && tagHasMore &&
-         tagIndex>=popularTags.size()-7 && !popularTags.isEmpty()){
-        ++tagPage;fetchPopularTags(true);
+    if(page==SETTINGS)settingIndex=qBound(0,settingIndex+dy+dx,1);
+    else if(page==HOME)homeIndex=qBound(0,homeIndex+dy+dx,sections().size()-1);
+    else if(page==SEARCH){
+      if(dy)searchIndex=qBound(0,searchIndex+dy,editorRows().size()-1);
+      if(dx && searchIndex<queryTerms.size())toggleExclusion(searchIndex,dx>0);
+      chrome();
+    }else if(page==LOOKUP){
+      if(lookupMode==0 && !lookupResultsFocus)
+        keyIndex=qBound(0,keyIndex+dx+dy*6,keyboardLetters.size()+1);
+      else {
+        suggestionIndex=qBound(0,suggestionIndex+dx+dy,qMax(0,suggestions.size()-1));
+        if(lookupMode==1&&!tagApi&&tagHasMore &&
+           !suggestions.isEmpty()&&suggestionIndex>=suggestions.size()-7){
+          ++tagPage;fetchPopularTags(true);
+        }
       }
-    }
-    else if(page==HOME){
-      int max=sections().size()-1;homeIndex=qBound(0,homeIndex+dx+dy,max);
-
     }else if(page==GALLERY){
       selected=qBound(0,selected+dx+dy*3,qMax(0,posts.size()-1));
       if(selected<first)first=(selected/3)*3;
       if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
-      requestThumbs();
-      maybeLoadMore();
-    }else if(page==POST){
-      if(dx){const int next=qBound(0,selected+dx,posts.size()-1);
-        if(next!=selected){selected=next;stop(imageJob);status.clear();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();}}
-
+      requestThumbs();maybeLoadMore();
+    }else if(page==POST && dx){
+      const int next=qBound(0,selected+dx,posts.size()-1);
+      if(next!=selected){
+        selected=next;stop(imageJob);status.clear();requestThumbs();
+        if(autoOpenImages)loadFull();
+        maybeLoadMore();
+      }
     }
     update();
   }
