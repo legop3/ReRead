@@ -49,6 +49,7 @@ public:
    require(window.prefix=="ca","D-pad picker deletes a letter");
    window.lookupTimer.stop();window.button(READER_BACK,1);
    require(window.page==Booru::SEARCH,"Back from tag finder returns to Explore");
+   window.posts.append(post);window.selected=0; // Simulate a post selected after browsing.
    window.searchIndex=6;window.button(READER_OK,1);
    require(window.ratingIndex==1 && window.builtSearch().contains("rating:s"),
            "Rating changes the composed search immediately");
