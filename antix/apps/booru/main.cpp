@@ -466,12 +466,12 @@ class Booru : public Screen {
       controls={{READER_UP,"Choose"},
                 {READER_OK,hosts.size()>1&&homeIndex==sections().size()-1?
                    "Switch server":"Open"},
-                {READER_OPTIONS,"Search"},{READER_BACK,"Exit"}};
+                {READER_OPTIONS,"Edit search"},{READER_BACK,"Exit"}};
     }else if(page==SEARCH){
       controls={{READER_UP,"Select"},
                 {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Open"},
-                {READER_OPTIONS,editorReturnLabel()},
-                {READER_BACK,editorReturnLabel()}};
+                {READER_OPTIONS,"Return to "+editorReturnLabel()},
+                {READER_BACK,"Return to "+editorReturnLabel()}};
       if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
         controls.prepend({READER_LEFT,"Include / previous"});
         controls.prepend({READER_RIGHT,"Exclude / next"});
@@ -487,14 +487,14 @@ class Booru : public Screen {
     }else if(page==GALLERY){
       controls={{READER_UP,"Browse grid"},{READER_OK,"Post details"},
                 {READER_PLAY,"Favorite"},{READER_SHOOT,"Download"},
-                {READER_OPTIONS,"Search"},{READER_BACK,"Home"}};
+                {READER_OPTIONS,"Edit search"},{READER_BACK,"Home"}};
     }else if(page==POST){
       controls={{READER_LEFT,"Previous / next"},
                 {READER_OK,"Open image"},{READER_PLAY,"Favorite"},
-                {READER_SHOOT,"Download"},{READER_OPTIONS,"Search / tags"},
+                {READER_SHOOT,"Download"},{READER_OPTIONS,"Edit search"},
                 {READER_BACK,"Results"}};
     }else if(page==DOWNLOADING){
-      controls={{READER_OPTIONS,"Search editor"},{READER_BACK,"Cancel download"}};
+      controls={{READER_OPTIONS,"Edit search"},{READER_BACK,"Cancel download"}};
     }
     update();
   }
