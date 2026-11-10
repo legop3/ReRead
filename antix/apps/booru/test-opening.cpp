@@ -47,6 +47,12 @@ public:
    require(window.prefix=="cat","D-pad picker composes tag prefixes");
    window.changePrefix("DEL");
    require(window.prefix=="ca","D-pad picker deletes a letter");
+   window.suggestions={"dog"};window.suggestionIndex=0;window.lookupResultsFocus=true;
+   window.button(READER_OK,1);
+   require(window.tagState("dog")=="Include" && window.builtSearch().contains("dog"),
+           "Selecting a suggested tag updates the search");
+   window.initializeSearch("");
+
    window.lookupTimer.stop();window.button(READER_BACK,1);
    require(window.page==Booru::SEARCH,"Back from tag finder returns to Explore");
    window.posts.append(post);window.selected=0; // Simulate a post selected after browsing.
@@ -80,6 +86,13 @@ public:
    require(!window.tagFilters.contains("cat"),"OK clears the tag");
    window.button(READER_BACK,1);
    require(window.page==Booru::POST,"Tag picker returns to post");
+   // Returning from filtered results must lead back to Explore, not an unrelated menu.
+   window.page=Booru::GALLERY;window.galleryFromExplore=true;window.searchFromGallery=false;
+   window.button(READER_BACK,1);
+   require(window.page==Booru::SEARCH,"Back from refined results returns to Explore");
+   window.button(READER_BACK,1);
+   require(window.page==Booru::HOME,"Back from Explore returns Home");
+
 
    file=window.cachePath(QUrl(post.sample),post.id);
    require(window.cacheImage(file,"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\"><rect width=\"20\" height=\"10\" fill=\"red\"/></svg>"),"Store image sample");
