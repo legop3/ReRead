@@ -23,6 +23,22 @@ public:
     post.id=42;
     post.sample="https://example.invalid/image.svg";
     post.tags="cat dog";
+    QJsonObject apiTags;
+    apiTags.insert("general",QJsonArray{"cat","dog"});
+    apiTags.insert("artist",QJsonArray{"an_artist"});
+    apiTags.insert("species",QJsonArray{"feline"});
+    apiTags.insert("meta",QJsonArray{"high_res"});
+    apiTags.insert("lore",QJsonArray{"some_lore"});
+    post.categorizedTags=Booru::parseCategories(apiTags);
+    require(Booru::siteCategoryOrder()==QList<int>({6,1,2,3,4,5,0,7,8}),
+            "Post category group order matches e621 sidebar");
+    require(Booru::categoryName(1)=="Artists" &&
+            Booru::categoryName(5)=="Species" && Booru::categoryName(8)=="Lore",
+            "e621 category labels match the website");
+    require(Booru::categoryColor(1).isValid() &&
+            Booru::categoryColor(5)!=Booru::categoryColor(4),
+            "Category colors are distinct");
+
     window.page=Booru::HOME;window.homeIndex=2;
     window.button(READER_OK,1);
     require(window.page==Booru::SEARCH &&
@@ -100,6 +116,9 @@ public:
     window.button(READER_OK,1);
     require(window.page==Booru::LOOKUP && window.lookupMode==2 &&
             window.suggestions.contains("cat"),"Post tag chooser only adds terms");
+    require(window.suggestions==QStringList({"an_artist","feline","cat","dog","high_res","some_lore"}) &&
+            window.suggestionCategories==QList<int>({1,5,0,0,7,8}),
+            "Post picker preserves API categories in the site's section order");
     window.suggestionIndex=0;window.button(READER_OK,1);
     require(window.search.contains("cat"),
             "Post tag selection changes the active query");
