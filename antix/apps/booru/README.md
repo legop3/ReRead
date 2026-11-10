@@ -32,8 +32,7 @@ selectable underneath: `cat`, `-dog`, `fav:username`, `rating:s`,
   terms they move between values. Holding Left/Right never repeats edits.
 - OK on an action adds tags, changes filters, saves the search or chooses
   **View results**. View results just navigates to the grid; it is not Apply.
-- Options is **Edit search** everywhere. On the editor itself it simply
-  leaves the editor open; **Back goes directly to Results**.
+- **Options toggles the search editor**: from any other screen it opens the editor; from the editor it returns to Results. **Back** from the editor also opens Results.
 
 Every edit immediately changes the one query. Network requests are
 coalesced after 500 ms rather than generating requests on each button
@@ -86,7 +85,7 @@ where supported. Booru never reimplements those controls.
 | Screen | OK | Options | Back |
 | --- | --- | --- | --- |
 | Home | Open selected destination or switch server | Search editor | Exit |
-| Search editor | Remove selected term or activate selected action | Stay in search editor | Results |
+| Search editor | Remove selected term or activate selected action | View results | Results |
 | Tag picker | Type/add selected tag | Search editor | Search editor |
 | Results | Post preview | Search editor | Home |
 | Post preview | Open image | Search editor | Results |
@@ -118,7 +117,7 @@ From the ReRead checkout:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Output: `out/antix/reread-app-booru_0.9.1_i386.deb`. Install through the
+Output: `out/antix/reread-app-booru_0.9.2_i386.deb`. Install through the
 Reader's normal web Apps page or Software.
 
 `test-opening.cpp` checks query editing and favorites removal, tag-category
