@@ -57,12 +57,13 @@ class Booru : public Screen {
   QString status, search, baseSearch, downloadName;
   QString initialSearch;
   QStringList popularTags;
+  QHash<QString,int> popularTagCounts;
   bool tagCatalogMode=false;
   QMap<QString,int> tagFilters;
   QStringList sorts={"Newest","Oldest","Top score","Most favorited","Hot","Random","Recently updated"};
   QStringList sortTerms={"","order:id","order:score","order:favcount","order:hot","order:random","order:updated"};
   QStringList ratings={"Any","Safe","Questionable","Explicit"};
-  QStringList mediaTypes={"Any","Still images","JPEG","PNG","GIF","Video"};
+  QStringList mediaTypes={"Any","Still images","JPEG","PNG","GIF","MP4"};
   QStringList scoreLevels={"Any","10+","50+","100+"};
   int sortIndex=0,ratingIndex=0,mediaIndex=0,scoreIndex=0,searchIndex=0,tagIndex=0;
   bool tagsFromSearch=false;
@@ -105,7 +106,7 @@ class Booru : public Screen {
     return parts.join(" ");
   }
   void fetchPopularTags(){
-    stop(tagApi);popularTags.clear();tagIndex=0;status="Loading popular tags...";update();
+    stop(tagApi);popularTags.clear();popularTagCounts.clear();tagIndex=0;status="Loading popular tags...";update();
     QUrl url(host().url+"/tags.json");QUrlQuery q;
     q.addQueryItem("search[order]","count");q.addQueryItem("limit","60");url.setQuery(q);
     auto r=net.get(request(url,true));tagApi=r;
@@ -120,7 +121,9 @@ class Booru : public Screen {
         const auto doc=QJsonDocument::fromJson(b);
         for(const auto &v:doc.array()){
           const QString name=str(v.toObject().value("name"));
-          if(!name.isEmpty() && popularTags.size()<60)popularTags<<name;
+          if(!name.isEmpty() && popularTags.size()<60){
+            popularTags<<name;popularTagCounts.insert(name,v.toObject().value("post_count").toInt());
+          }
         }
       }
       status=!ok?"Unable to load popular tags (HTTP "+QString::number(code)+")":
@@ -555,12 +558,25 @@ protected:
       Post *post=current();
       if(page==INFO) {
         const QStringList names=currentTags();
-        QStringList details;
-        for(const auto &t:names) {
-          const int rule=tagFilters.value(t);
-          details<<(rule==1?"Include":rule==-1?"Exclude":"Not filtered");
+        const auto layout=listInfo(p,area,names.size(),tagIndex,62,0.58);
+        for(int i=layout.first;i<qMin(names.size(),layout.first+layout.visible);++i){
+          const QRect cell=listInfoRow(p,layout,i,tagIndex);
+          const bool chosen=i==tagIndex;
+          label(p,cell.adjusted(12,0,-10,0),names[i],22,chosen,
+                palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
         }
-        list(p,area,names,details,tagIndex);
+        if(!names.isEmpty()){
+          const QString tag=names.value(tagIndex);
+          const int rule=tagFilters.value(tag);
+          label(p,QRect(layout.info.x()+8,layout.info.y()+12,layout.info.width()-16,45),
+                tag,27,true);
+          text(p,QRect(layout.info.x()+8,layout.info.y()+72,layout.info.width()-16,180),
+               "Filter: "+QString(rule==1?"Include":rule==-1?"Exclude":"Off")+
+               (tagCatalogMode?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
+               "\n\nOK: Include / Exclude / Off\nOptions: Search",22);
+          label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
+                QString::number(tagFilters.size())+" filters active",19);
+        }else if(status.isEmpty())text(p,layout.info,"No tags found",23);
       } else {
         if(post) {
           QRect picture(area.x()+8,area.y()+8,area.width()/2-20,area.height()-24);
