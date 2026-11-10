@@ -54,7 +54,7 @@ class Booru : public Screen {
   QHash<int,qint64> thumbRetryAt;
   qint64 lastThumbnailStart=0;
   bool thumbnailsPaused=false;
-  QNetworkReply *api=nullptr, *tagApi=nullptr, *lookupApi=nullptr, *imageJob=nullptr, *transfer=nullptr;
+  QNetworkReply *api=nullptr, *tagApi=nullptr, *lookupApi=nullptr, *imageJob=nullptr, *transfer=nullptr, *favoriteJob=nullptr;
   std::unique_ptr<QSaveFile> saving;
   QString status, search, downloadName;
   QStringList queryTerms;
@@ -476,7 +476,8 @@ class Booru : public Screen {
   void switchServer(){
     if(hosts.size()<2){toast("Only one server configured");return;}
     thumbTimer.stop();searchTimer.stop();lookupTimer.stop();
-    stop(api);stop(tagApi);stop(lookupApi);stop(imageJob);
+    stop(api);stop(tagApi);stop(lookupApi);stop(imageJob);stop(favoriteJob);
+    favoritePending=false;
     for(auto reply:thumbJobs){
       reply->disconnect(this);reply->abort();reply->deleteLater();
     }
@@ -817,8 +818,10 @@ class Booru : public Screen {
     QUrl url(host().url+(add?"/favorites.json":"/favorites/"+QString::number(id)+".json"));
     auto req=request(url,true);req.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
     auto r=add?net.post(req,"post_id="+QByteArray::number(id)):net.deleteResource(req);
+    favoriteJob=r;
     connect(r,&QNetworkReply::finished,this,[this,r,id,add]{
-      favoritePending=false;
+      if(favoriteJob!=r){r->deleteLater();return;}
+      favoriteJob=nullptr;favoritePending=false;
       int n=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       bool ok=r->error()==QNetworkReply::NoError&&n>=200&&n<300;
       r->deleteLater();
@@ -1208,7 +1211,7 @@ public:
     } else requestThumbs();
   }
   ~Booru() override {
-    thumbTimer.stop();lookupTimer.stop();searchTimer.stop();stop(lookupApi);stop(tagApi);stop(api);stop(imageJob);stop(transfer);
+    thumbTimer.stop();lookupTimer.stop();searchTimer.stop();stop(lookupApi);stop(tagApi);stop(api);stop(imageJob);stop(transfer);stop(favoriteJob);
     for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
     if(saving)saving->cancelWriting();
   }
