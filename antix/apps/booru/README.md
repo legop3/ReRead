@@ -22,6 +22,14 @@ On a selected term:
   popular tags, choose tags from the post you were viewing, or insert/change
   favorites, sorting, rating, file type, or score filters.
 
+The **Tags from selected post** picker groups tags in e621's actual sidebar order:
+**Invalid, Artists, Contributors, Copyrights, Characters, Species, General,
+Meta, Lore**. Empty groups are omitted. Each section has a colored heading and
+tags have a category-colored indicator. Colors follow e621's default theme,
+adjusted for readable contrast on ReRead's light display. The data comes from
+the post's existing `tags` JSON object, not extra API calls; popular and
+autocomplete tags also use the API's category IDs for their indicators.
+
 Tag pickers are **add-only**; they return to this editor. They do not contain
 a second search, an Apply button or another filter state. The D-pad character
 picker allows text entry without a hardware keyboard, retrieving tag matches
@@ -71,7 +79,7 @@ Build from a ReRead source checkout using the existing builder:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Output: `out/antix/reread-app-booru_0.8.0_i386.deb`. Install through the
+Output: `out/antix/reread-app-booru_0.8.1_i386.deb`. Install through the
 Reader's normal web Apps page or Software. This does not rebuild core ReRead.
 
 `test-opening.cpp` includes disposable-data checks for direct removal of
