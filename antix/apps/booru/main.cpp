@@ -5,6 +5,7 @@
 #include <QSaveFile>
 #include <QDir>
 #include <QFileInfo>
+#include <memory>
 using namespace ReRead;
 
 namespace {
@@ -44,16 +45,16 @@ class Booru : public Screen {
   QList<Host> hosts;
   QList<Post> posts;
   QMap<int,QImage> thumbnails;
-  QSet<int> pendingThumbnails;
+  QSet<int> pendingThumbnails, failedThumbnails;
   QList<QNetworkReply*> thumbJobs;
   QNetworkReply *api=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
   QImage full;
   QString status, search, downloadName;
-  int hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1, zoom=0;
+  int hostIndex=0, homeIndex=0, homeFirst=0, selected=0, first=0, pageNumber=1, zoom=0;
   int panX=0,panY=0;
   qint64 received=0,total=0;
-  bool more=false, adding=false, saved=false;
+  bool more=false, favoritePending=false;
   const double zooms[8]={1.0,1.25,1.5,2,2.75,4,6,8};
 
   QString dataDir() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-booru");}
@@ -115,7 +116,7 @@ class Booru : public Screen {
   void fetchPage() {
     stop(api);
     for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
-    thumbJobs.clear();pendingThumbnails.clear();thumbnails.clear();
+    thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();thumbnails.clear();
     posts.clear();selected=0;first=0;full=QImage();
     status="Loading posts...";update();
     QUrl u(host().url+"/posts.json");QUrlQuery q;
@@ -154,7 +155,7 @@ class Booru : public Screen {
     if(page!=GALLERY)return;
     for(int i=first;i<qMin(first+6,posts.size());++i){
       const Post &p=posts[i];
-      if(thumbnails.contains(p.id)||pendingThumbnails.contains(p.id)||thumbJobs.size()>=3)continue;
+      if(thumbnails.contains(p.id)||pendingThumbnails.contains(p.id)||failedThumbnails.contains(p.id)||thumbJobs.size()>=3)continue;
       QUrl u=imageUrl(p.preview);if(!u.isValid())continue;
       int id=p.id;auto r=net.get(request(u,false));thumbJobs<<r;pendingThumbnails.insert(id);
       connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>512*1024)r->abort();});
@@ -162,11 +163,13 @@ class Booru : public Screen {
         thumbJobs.removeAll(r);pendingThumbnails.remove(id);
         QByteArray b=r->readAll();bool ok=r->error()==QNetworkReply::NoError&&b.size()<=512*1024;
         r->deleteLater();
+        if(!ok)failedThumbnails.insert(id);
         if(ok){
           QBuffer buffer(&b);buffer.open(QIODevice::ReadOnly);QImageReader reader(&buffer);
           reader.setAutoTransform(true);QSize sz=reader.size();
           if(sz.isValid())reader.setScaledSize(sz.scaled(320,260,Qt::KeepAspectRatio));
           QImage im=reader.read();if(!im.isNull())thumbnails.insert(id,im);
+          else failedThumbnails.insert(id);
         }
         if(page==GALLERY){requestThumbs();update();}
       });
@@ -198,17 +201,18 @@ class Booru : public Screen {
     });
   }
   void favorite(){
-    Post *p=current();if(!p)return;
+    Post *p=current();if(!p||favoritePending)return;
     if(host().username.isEmpty()||host().key.isEmpty()){status="Configure an account to manage favorites.";update();return;}
-    int id=p->id;adding=!p->favorite;status=adding?"Adding favorite...":"Removing favorite...";update();
-    QUrl url(host().url+(adding?"/favorites.json":"/favorites/"+QString::number(id)+".json"));
+    int id=p->id;bool add=!p->favorite;favoritePending=true;status=add?"Adding favorite...":"Removing favorite...";update();
+    QUrl url(host().url+(add?"/favorites.json":"/favorites/"+QString::number(id)+".json"));
     auto req=request(url,true);req.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
-    auto r=adding?net.post(req,"post_id="+QByteArray::number(id)):net.deleteResource(req);
-    connect(r,&QNetworkReply::finished,this,[this,r,id]{
+    auto r=add?net.post(req,"post_id="+QByteArray::number(id)):net.deleteResource(req);
+    connect(r,&QNetworkReply::finished,this,[this,r,id,add]{
+      favoritePending=false;
       int n=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       bool ok=r->error()==QNetworkReply::NoError&&n>=200&&n<300;
       r->deleteLater();
-      if(ok){for(auto &p:posts)if(p.id==id)p.favorite=adding;status=adding?"Favorited":"Removed from favorites";}
+      if(ok){for(auto &p:posts)if(p.id==id)p.favorite=add;status=add?"Favorited":"Removed from favorites";}
       else status="Favorite request failed (HTTP "+QString::number(n)+")";
       update();
     });
@@ -234,7 +238,6 @@ class Booru : public Screen {
     connect(r,&QNetworkReply::downloadProgress,this,[this](qint64,qint64 t){total=t;update();});
     connect(r,&QNetworkReply::finished,this,[this,r]{
       if(transfer!=r){r->deleteLater();return;}transfer=nullptr;
-      if(saving&&!r->bytesAvailable()){} // read remaining bytes before final commit
       QByteArray b=r->readAll();received+=b.size();
       bool ok=saving&&r->error()==QNetworkReply::NoError&&
               received<=64LL*1024*1024&&saving->write(b)==b.size()&&saving->commit();
@@ -253,6 +256,8 @@ class Booru : public Screen {
   void navigate(int dx,int dy){
     if(page==HOME){
       int max=sections().size()-1;homeIndex=qBound(0,homeIndex+dx+dy,max);
+      if(homeIndex<homeFirst)homeFirst=homeIndex;
+      if(homeIndex>=homeFirst+7)homeFirst=homeIndex-6;
     }else if(page==GALLERY){
       selected=qBound(0,selected+dx+dy*3,qMax(0,posts.size()-1));
       if(selected<first)first=(selected/3)*3;
@@ -270,8 +275,8 @@ protected:
       text(p,QRect(area.left()+12,area.top(),area.width()-24,39),"booru",32,ink,true);
       text(p,QRect(area.left()+12,area.top()+44,area.width()-24,29),host().name+"  •  "+host().url,19,muted);
       auto list=sections();
-      for(int i=0;i<list.size();++i){
-        int y=area.top()+92+i*48;
+      for(int i=homeFirst;i<list.size();++i){
+        int y=area.top()+92+(i-homeFirst)*48;
         if(y+45>area.bottom()-42)break;
         QRect line(area.left()+8,y,area.width()-16,44);
         if(i==homeIndex)p.fillRect(line,QColor("#dceeff"));
@@ -339,7 +344,7 @@ protected:
     else if(page==VIEW&&key==READER_ZOOM_IN&&state==1){zoom=qMin(7,zoom+1);update();}
     else if(page==VIEW&&key==READER_ZOOM_OUT&&state==1){zoom=qMax(0,zoom-1);if(!zoom)panX=panY=0;update();}
     else if(key==READER_OPTIONS&&state==1){
-      if(page==HOME){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;status.clear();update();}
+      if(page==HOME){hostIndex=(hostIndex+1)%hosts.size();homeIndex=homeFirst=0;status.clear();update();}
       else if(page==GALLERY){if(more){++pageNumber;fetchPage();}else {status="End of results";update();}}
       else if(page==VIEW)download();
     }else if(key==READER_PLAY&&state==1&&page==VIEW){page=INFO;update();}
