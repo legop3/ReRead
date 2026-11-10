@@ -151,7 +151,7 @@ class Booru : public Screen {
   QStringList sections() const {
     QStringList items={"Search editor","Recent posts","My favorites"};
     for(const auto &q:bookmarks())items<<"★ "+q.left(80);
-    items<<"Switch server: "+host().name;
+    if(hosts.size()>1)items<<"Switch server: "+host().name;
     return items;
   }
   void savePreferences(){
@@ -492,7 +492,7 @@ class Booru : public Screen {
     chrome();
   }
   void openHomeSelection(){
-    if(homeIndex==sections().size()-1){switchServer();return;}
+    if(hosts.size()>1&&homeIndex==sections().size()-1){switchServer();return;}
     // Search editor is a *resume* action. Do not reset or refetch its query.
     if(homeIndex==0){page=SEARCH;status.clear();chrome();return;}
     postTagSnapshot.clear();postCategorySnapshot.clear();
@@ -1047,7 +1047,7 @@ protected:
            homeIndex==0?"Continue editing the current search.":
            homeIndex==1?"Start a new search with recent posts.":
            homeIndex==2?"Start a search for your account favorites.":
-           homeIndex==sections().size()-1?"Switch between configured servers.":
+           hosts.size()>1&&homeIndex==sections().size()-1?"Switch between configured servers.":
            "Open and edit a saved search.",23);
     } else if(page==GALLERY) {
       const int gap=12;
