@@ -553,7 +553,7 @@ class Booru : public Screen {
   }
   void navigate(int dx,int dy){
     if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
-    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,8);}
+    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,9);}
     else if(page==INFO){tagIndex=qBound(0,tagIndex+dx+dy,qMax(0,currentTags().size()-1));}
     else if(page==HOME){
       int max=sections().size()-1;homeIndex=qBound(0,homeIndex+dx+dy,max);
@@ -578,19 +578,56 @@ protected:
     if(page==SETTINGS) {
       list(p,area,{"Server", "Open images automatically"},{host().name,autoOpenImages?"On":"Off · use View on a post"},settingIndex);
     } else if(page==SEARCH) {
-      const int active=int(tagFilters.size());
-      list(p,area,{"Popular tags","Tags from selected post","Sort","Rating","Media type","Minimum score","Clear filters",
-                   bookmarks().contains(builtSearch())?"Remove bookmark":"Bookmark search","Apply search"},
-        {QString::number(active)+" active tag filters","Pick tags on the current post",sorts[sortIndex],
-         ratings[ratingIndex],mediaTypes[mediaIndex],scoreLevels[scoreIndex],
-         "Restore search defaults","Reuse this combination on Home",builtSearch().left(90)},searchIndex);
+      const QStringList names={"Browse popular tags","Tag category","Tags on selected post","Edit active tags",
+        "Sort order","Rating","File type","Minimum score",
+        bookmarks().contains(builtSearch())?"Remove saved search":"Save this search","SHOW RESULTS"};
+      const QStringList descriptions={"Explore tags without typing",categories[tagCategory],
+        "Find related tags","Remove or change tags",sorts[sortIndex],ratings[ratingIndex],
+        mediaTypes[mediaIndex],scoreLevels[scoreIndex],"Available from Home","Run this search"};
+      const auto layout=listInfo(p,area,names.size(),searchIndex,53,0.54);
+      for(int i=layout.first;i<qMin(layout.first+layout.visible,names.size());++i){
+        const QRect line=listInfoRow(p,layout,i,searchIndex);
+        const bool chosen=i==searchIndex;
+        label(p,line.adjusted(12,0,-9,0),names[i],22,chosen,
+              palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+      }
+      const QRect right=layout.info.adjusted(10,10,-9,-8);
+      label(p,QRect(right.left(),right.top(),right.width(),37),"Explore",29,true,palette().color(QPalette::Link));
+      label(p,QRect(right.left(),right.top()+44,right.width(),44),descriptions[searchIndex],20);
+      p.setPen(QPen(palette().mid(),1));p.drawLine(right.left(),right.top()+94,right.right(),right.top()+94);
+      QStringList active;
+      for(const auto &token:baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)){
+        const QString bare=token.startsWith("-")?token.mid(1):token;
+        if(token.contains(":")||tagFilters.contains(bare))continue;
+        active<<(token.startsWith("-")?"− ":"+ ")+bare;
+      }
+      for(auto it=tagFilters.cbegin();it!=tagFilters.cend();++it)
+        if(it.value())active<<(it.value()<0?"− ":"+ ")+it.key();
+      label(p,QRect(right.left(),right.top()+107,right.width(),33),"Tags in this search",21,true);
+      text(p,QRect(right.left(),right.top()+144,right.width(),qMax(40,right.height()-245)),
+           active.isEmpty()?"No tag restrictions":active.join("   "),21);
+      const QString query=builtSearch();
+      label(p,QRect(right.left(),right.bottom()-88,right.width(),30),
+            query==search?"Current results":"CHANGES NOT APPLIED",18,true,
+            palette().color(query==search?QPalette::Text:QPalette::Link));
+      label(p,QRect(right.left(),right.bottom()-50,right.width(),38),
+            query.isEmpty()?"All posts":query,17);
     } else if(page==HOME) {
       const QStringList names=sections();
-      QStringList details;
-      for(int i=0;i<names.size();++i)
-        details << (i==0 ? host().name+" · Latest posts" :
-                    i==1 ? host().name+" · Account favorites" : "Saved search");
-      list(p,area,names,details,homeIndex);
+      const auto layout=listInfo(p,area,names.size(),homeIndex,66,0.57);
+      for(int i=layout.first;i<qMin(layout.first+layout.visible,names.size());++i){
+        const QRect line=listInfoRow(p,layout,i,homeIndex);
+        const bool chosen=i==homeIndex;
+        label(p,line.adjusted(12,0,-10,0),names[i],24,chosen,
+              palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+      }
+      const QRect side=layout.info.adjusted(10,12,-8,-10);
+      label(p,QRect(side.left(),side.top(),side.width(),45),"Booru",30,true,palette().color(QPalette::Link));
+      label(p,QRect(side.left(),side.top()+54,side.width(),38),host().name,23,true);
+      text(p,QRect(side.left(),side.top()+109,side.width(),190),
+           homeIndex==0?"Build searches with tags, ratings and sorting. No keyboard required.":
+           homeIndex==1?"Browse the latest posts.":
+           homeIndex==2?"Browse your account favorites.":"Open a saved search.",23);
     } else if(page==GALLERY) {
       const int gap=12;
       const int cw=(area.width()-2*gap)/3;
@@ -629,12 +666,12 @@ protected:
         }
         if(!names.isEmpty()){
           const QString tag=names.value(tagIndex);
-          const int rule=tagFilters.value(tag);
+          const QString rule=tagState(tag);
           label(p,QRect(layout.info.x()+8,layout.info.y()+12,layout.info.width()-16,45),
                 tag,27,true);
           text(p,QRect(layout.info.x()+8,layout.info.y()+72,layout.info.width()-16,180),
-               "Filter: "+QString(rule==1?"Include":rule==-1?"Exclude":"Off")+
-               (tagCatalogMode?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
+               "Filter: "+rule+
+               (tagSource==0?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
                "\n\nSelect tags to include or exclude from the search.",22);
           label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
                 QString::number(tagFilters.size())+" filters active",19);
@@ -700,13 +737,7 @@ protected:
         else applySearch();
       } else if(page==INFO){
         const auto tags=currentTags();
-        if(tagIndex<tags.size()){
-          const QString t=tags[tagIndex];const int current=tagFilters.value(t);
-          if(current==0)tagFilters.insert(t,1);
-          else if(current==1)tagFilters.insert(t,-1);
-          else tagFilters.remove(t);
-          update();
-        }
+        if(tagIndex<tags.size())cycleTag(tags[tagIndex]);
       }else if(page==HOME){
         if(homeIndex==1){
           if(host().username.isEmpty()){status="Set account in web Apps / Booru settings";update();return;}
