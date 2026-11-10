@@ -959,8 +959,10 @@ protected:
         else {
           const int actionIndex=searchIndex-queryTerms.size();
           const QString value="fav:"+host().username;
-          if(queryTerms.contains(value))queryTerms.removeAll(value);
-          else queryTerms<<value;
+          const bool already=queryTerms.contains(value);
+          for(int i=queryTerms.size()-1;i>=0;--i)
+            if(queryTerms[i].startsWith("fav:"))queryTerms.removeAt(i);
+          if(!already)queryTerms<<value;
           searchIndex=qBound(0,queryTerms.size()+actionIndex,editorRows().size()-1);
           activeSearchChanged();
         }
