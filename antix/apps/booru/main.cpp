@@ -47,7 +47,7 @@ class Booru : public Screen {
   QMap<int,QImage> thumbnails;
   QSet<int> pendingThumbnails, failedThumbnails;
   QList<QNetworkReply*> thumbJobs;
-  QTimer thumbTimer, lookupTimer;
+  QTimer thumbTimer, lookupTimer, searchTimer;
   QHash<int,int> thumbAttempts;
   QHash<int,qint64> thumbRetryAt;
   qint64 lastThumbnailStart=0;
@@ -71,6 +71,8 @@ class Booru : public Screen {
   QStringList scoreLevels={"Any","10+","50+","100+"};
   int sortIndex=0,ratingIndex=0,mediaIndex=0,scoreIndex=0,searchIndex=0,tagIndex=0;
   bool tagsFromSearch=false, searchFromGallery=false, galleryFromExplore=false;
+  QStringList postTagSnapshot;
+  bool postTagsChanged=false;
   QString prefix;
   QStringList suggestions;
   bool lookupResultsFocus=false;
@@ -82,6 +84,7 @@ class Booru : public Screen {
   bool hasResults=false;
   bool apiRetryPending=false;
   int apiRetries=0;
+  quint64 searchRevision=0;
 
   QString preferencesPath() const {
     const QString legacy=qEnvironmentVariable("READER_APP_DATA_DIR");
@@ -130,6 +133,7 @@ class Booru : public Screen {
         if(!names.contains(it.key()))names<<it.key();
       names.sort(Qt::CaseInsensitive);return names;
     }
+    if(tagSource==1 && !postTagSnapshot.isEmpty())return postTagSnapshot;
     if(selected<0||selected>=posts.size())return {};
     auto result=posts[selected].tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
     result.removeDuplicates();result.sort(Qt::CaseInsensitive);return result;
@@ -158,6 +162,27 @@ class Booru : public Screen {
     const QStringList terms=baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
     return terms.contains(tag)?"Include":terms.contains("-"+tag)?"Exclude":"Off";
   }
+  void activeSearchChanged(){
+    const QString query=builtSearch();
+    if(query==search){update();return;}
+    if(query.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts).size()>40){
+      toast("Too many search terms");return;
+    }
+    // There is ONE active search. Every edit replaces it immediately.
+    search=query;
+    ++searchRevision;
+    searchTimer.stop();
+    stop(api);
+    apiRetryPending=false;loadingMore=false;
+    apiRetries=0;hasResults=false;more=false;
+    pageNumber=1;
+    // When editing from a post, keep its tags in a snapshot while results refresh.
+    if(page==INFO && !tagsFromSearch)postTagsChanged=true;
+    posts.clear();selected=0;first=0;
+    status="Updating results...";
+    searchTimer.start(250); // Coalesce rapid button presses, not a separate Apply step.
+    update();
+  }
   void cycleTag(const QString &tag){
     const QString was=tagState(tag);
     const int next=was=="Off"?1:was=="Include"?-1:0;
@@ -165,8 +190,8 @@ class Booru : public Screen {
       const QStringList terms=baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
       if(terms.contains(tag)||terms.contains("-"+tag))tagFilters.insert(tag,0);
       else tagFilters.remove(tag);
-    } else tagFilters.insert(tag,next);
-    update();
+    }else tagFilters.insert(tag,next);
+    activeSearchChanged();
   }
   void fetchPopularTags(bool append=false){
     if(tagApi)return;
@@ -178,7 +203,7 @@ class Booru : public Screen {
     q.addQueryItem("limit","60");q.addQueryItem("page",QString::number(tagPage));url.setQuery(q);
     auto r=net.get(request(url,true));tagApi=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>256*1024)r->abort();});
-    connect(r,&QNetworkReply::finished,this,[this,r,append]{
+    connect(r,&QNetworkReply::finished,this,[this,r,append,revision]{
       if(tagApi!=r){r->deleteLater();return;}tagApi=nullptr;tagLoading=false;
       const int code=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       const QByteArray b=r->readAll();
@@ -225,7 +250,17 @@ class Booru : public Screen {
     search=builtSearch();
   }
   void openTagBrowser(int source){
-    tagSource=source;tagIndex=0;page=INFO;status.clear();chrome();
+    tagSource=source;tagIndex=0;page=INFO;status.clear();
+    if(source==1){
+      postTagSnapshot.clear();
+      if(const Post *p=current()){
+        postTagSnapshot=p->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+        postTagSnapshot.removeDuplicates();
+        postTagSnapshot.sort(Qt::CaseInsensitive);
+      }
+      postTagsChanged=false;
+    }
+    chrome();
     if(source==0)fetchPopularTags();
   }
   QString lookupKey(int index) const {
@@ -279,14 +314,14 @@ class Booru : public Screen {
     page=LOOKUP;prefix.clear();suggestions.clear();
     keyIndex=suggestionIndex=0;lookupResultsFocus=false;status.clear();chrome();
   }
-  void applySearch() {
-    const QString query=builtSearch();
-    if(query.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts).size()>40){
-      status="Search exceeds the server's 40-tag limit";update();return;
-    }
-    lookupTimer.stop();stop(lookupApi);stop(tagApi);stop(api);loadingMore=false;apiRetryPending=false;
-    search=query;searchFromGallery=false;galleryFromExplore=true;
-    page=GALLERY;chrome();fetchPage();
+  void applySearch(){
+    // "Show results" only navigates. All tag/filter edits already update the
+    // active query and schedule its results; there is no staged search.
+    lookupTimer.stop();stop(lookupApi);stop(tagApi);
+    searchFromGallery=false;galleryFromExplore=true;
+    page=GALLERY;chrome();
+    if(!api&&!searchTimer.isActive()&&!hasResults)fetchPage();
+    else requestThumbs();
   }
   void chrome() {
     showHeader=false;
@@ -349,6 +384,7 @@ class Booru : public Screen {
     if(api)return;
     if(!retry){apiRetries=0;apiRetryPending=false;}
     loadingMore=append;
+    const quint64 revision=searchRevision;
     if(!append){
       for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
       thumbTimer.stop();thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
@@ -366,7 +402,7 @@ class Booru : public Screen {
     auto r=net.get(request(u,true));api=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>1536*1024)r->abort();});
     connect(r,&QNetworkReply::finished,this,[this,r,append]{
-      if(api!=r){r->deleteLater();return;}api=nullptr;loadingMore=false;
+      if(api!=r||revision!=searchRevision){r->deleteLater();return;}api=nullptr;loadingMore=false;
       QByteArray b=r->readAll();int statusCode=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       QString error=r->errorString();bool ok=r->error()==QNetworkReply::NoError&&statusCode==200&&b.size()<=1536*1024;
       const QByteArray retryAfter=r->rawHeader("Retry-After");
@@ -381,10 +417,10 @@ class Booru : public Screen {
           update();
           const QString expectedSearch=search;
           const int expectedPage=pageNumber;
-          QTimer::singleShot(delay,this,[this,append,expectedSearch,expectedPage]{
-            if(!apiRetryPending)return;
+          QTimer::singleShot(delay,this,[this,append,expectedSearch,expectedPage,revision]{
+            if(!apiRetryPending||revision!=searchRevision)return;
             apiRetryPending=false;
-            if((page==GALLERY||page==POST)&&search==expectedSearch&&
+            if(search==expectedSearch&&
                 pageNumber==expectedPage&&!api)fetchPage(append,true);
           });
           return;
