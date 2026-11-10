@@ -326,7 +326,7 @@ class Booru : public Screen {
     fetchPage(true);
   }
   void requestThumbs(){
-    if(page!=GALLERY||thumbnailsPaused)return;
+    if(page!=GALLERY||thumbnailsPaused||api||tagApi||imageJob||transfer)return;
     // e621 limits aggregate requests; pace CDN previews rather than opening bursts.
     // Keep two in flight at most and retry transient failures without a tight loop.
     const qint64 now=QDateTime::currentMSecsSinceEpoch();
