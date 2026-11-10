@@ -49,21 +49,27 @@ public:
    require(window.prefix=="ca","D-pad picker deletes a letter");
    window.suggestions={"dog"};window.suggestionIndex=0;window.lookupResultsFocus=true;
    window.button(READER_OK,1);
-   require(window.tagState("dog")=="Include" && window.builtSearch().contains("dog"),
-           "Selecting a suggested tag updates the search");
+   require(window.tagState("dog")=="Include" && window.search.contains("dog"),
+           "Selecting a suggested tag changes the ONE active query without Apply");
+   require(window.searchTimer.isActive() && !window.hasResults,
+           "A tag edit automatically schedules refreshed results");
+   window.searchTimer.stop();
    window.initializeSearch("");
 
    window.lookupTimer.stop();window.button(READER_BACK,1);
    require(window.page==Booru::SEARCH,"Back from tag finder returns to Explore");
    window.posts.append(post);window.selected=0; // Simulate a post selected after browsing.
    window.searchIndex=6;window.button(READER_OK,1);
-   require(window.ratingIndex==1 && window.builtSearch().contains("rating:s"),
-           "Rating changes the composed search immediately");
+   require(window.ratingIndex==1 && window.search.contains("rating:s"),
+           "Rating directly changes the active search");
+   window.searchTimer.stop();
+   window.posts.append(post);window.selected=0;
    window.searchIndex=3;window.button(READER_OK,1);
    require(window.page==Booru::INFO && window.tagSource==1 &&
            window.currentTags().contains("cat"),"Related post tags open from Explore");
    window.button(READER_OK,1);
-   require(window.builtSearch().contains("cat"),"Tag change updates pending search");
+   require(window.search.contains("cat"),"Tag change immediately updates active search");
+   window.searchTimer.stop();
    window.button(READER_BACK,1);
    require(window.page==Booru::SEARCH && window.builtSearch().contains("cat"),
            "Returning to Explore keeps tag selections");
@@ -71,21 +77,46 @@ public:
    require(window.page==Booru::INFO && window.tagSource==2 &&
            window.currentTags().contains("cat"),"Active tags can be edited");
    window.button(READER_OK,1);
-   require(window.tagState("cat")=="Exclude","Active tag can be excluded");
+   require(window.tagState("cat")=="Exclude" && window.search.contains("-cat"),
+           "Active tag exclusion immediately changes active query");
+   window.searchTimer.stop();
    window.button(READER_OK,1);
-   require(window.tagState("cat")=="Off","Active tag can be removed");
+   require(window.tagState("cat")=="Off" && !window.search.contains("cat"),
+           "Removing a tag immediately removes it from active query");
+   window.searchTimer.stop();
    window.button(READER_BACK,1);
+   window.posts.append(post);window.selected=0;
    window.page=Booru::POST;window.initializeSearch("");
    window.button(READER_PLAY,1);
    require(window.page==Booru::INFO && window.currentTags().contains("cat"),"Post offers tag discovery");
    window.button(READER_OK,1);
-   require(window.tagFilters.value("cat")==1,"OK includes the selected tag");
+   require(window.tagFilters.value("cat")==1 && window.search.contains("cat"),
+           "OK includes tag in active search");
+   window.searchTimer.stop();
    window.button(READER_OK,1);
-   require(window.tagFilters.value("cat")==-1,"OK excludes the selected tag");
+   require(window.tagFilters.value("cat")==-1 && window.search.contains("-cat"),
+           "OK excludes tag in active search");
+   window.searchTimer.stop();
    window.button(READER_OK,1);
-   require(!window.tagFilters.contains("cat"),"OK clears the tag");
+   require(!window.tagFilters.contains("cat") && !window.search.contains("cat"),
+           "OK clears the tag from active search");
+   window.searchTimer.stop();
    window.button(READER_BACK,1);
-   require(window.page==Booru::POST,"Tag picker returns to post");
+   require(window.page==Booru::GALLERY,
+           "Post tag edit returns to refreshed gallery instead of stale post");
+   // The preview loader must follow the selected post, not the old gallery page.
+   window.posts.clear();
+   for(int i=0;i<18;++i){Post p;p.id=100+i;window.posts.append(p);}
+   window.selected=13;window.first=0;window.page=Booru::POST;
+   const auto previewTargets=window.thumbnailTargets();
+   require(!previewTargets.isEmpty() && previewTargets.first()==13 &&
+           previewTargets.contains(14) && !previewTargets.contains(0),
+           "Post thumbnails prioritize current post and adjacent posts");
+   window.page=Booru::GALLERY;window.first=9;
+   const auto galleryTargets=window.thumbnailTargets();
+   require(galleryTargets.first()==9 && galleryTargets.last()==14,
+           "Gallery thumbnails use the visible six-card window");
+   window.posts.clear();window.posts.append(post);window.selected=0;window.first=0;
    // Returning from filtered results must lead back to Explore, not an unrelated menu.
    window.page=Booru::GALLERY;window.galleryFromExplore=true;window.searchFromGallery=false;
    window.button(READER_BACK,1);
