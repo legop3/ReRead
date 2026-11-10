@@ -69,6 +69,7 @@ class Booru : public Screen {
   int settingIndex=0, hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
   bool autoOpenImages=false, more=false, loadingMore=false, favoritePending=false;
+  int apiRetries=0;
 
   QString preferencesPath() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-booru")+"/preferences.json";}
   QString filesDir() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
@@ -215,8 +216,9 @@ class Booru : public Screen {
     }
     return true;
   }
-  void fetchPage(bool append=false) {
+  void fetchPage(bool append=false,bool retry=false) {
     if(api)return;
+    if(!retry)apiRetries=0;
     loadingMore=append;
     if(!append){
       for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
@@ -238,12 +240,28 @@ class Booru : public Screen {
       if(api!=r){r->deleteLater();return;}api=nullptr;loadingMore=false;
       QByteArray b=r->readAll();int statusCode=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       QString error=r->errorString();bool ok=r->error()==QNetworkReply::NoError&&statusCode==200&&b.size()<=1536*1024;
+      const QByteArray retryAfter=r->rawHeader("Retry-After");
       r->deleteLater();
       if(!ok){
+        if((statusCode==429||statusCode==503)&&apiRetries<2){
+          ++apiRetries;
+          bool valid=false;const int seconds=retryAfter.toInt(&valid);
+          const int delay=valid?qBound(1,seconds,60)*1000:apiRetries*3000;
+          status="Server busy (HTTP "+QString::number(statusCode)+"); retrying...";
+          update();
+          const QString expectedSearch=search;
+          const int expectedPage=pageNumber;
+          QTimer::singleShot(delay,this,[this,append,expectedSearch,expectedPage]{
+            if((page==GALLERY||page==POST)&&search==expectedSearch&&
+                pageNumber==expectedPage&&!api)fetchPage(append,true);
+          });
+          return;
+        }
         if(append){--pageNumber;more=true;}
         status="Posts request failed (HTTP "+QString::number(statusCode)+"): "+error;
         update();return;
       }
+      apiRetries=0;
       QJsonParseError e;auto doc=QJsonDocument::fromJson(b,&e);
       if(e.error!=QJsonParseError::NoError||!doc.isObject()){
         if(append){--pageNumber;more=true;}
