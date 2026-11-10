@@ -57,11 +57,23 @@ and nearby posts instead of the gallery's old six-card window. The asynchronous
 queue is paced and limited to two in-flight requests, with a transfer timeout,
 delayed retry for transient responses and bounded RAM cache.
 
-View opens the downloaded sample via GIO and the default Images app; this
-uses its existing zoom, pan and rotation controls. OK on a post card
-toggles an account favorite and Options saves the original image under the
-shared Pictures/Booru files folder. Play returns to the one search editor
-and makes that post's tags available through its Add from post action.
+**Physical controls are consistent across the app:**
+
+- **Options always opens the one search editor**, including from Home, the
+  gallery, post previews, tag pickers, and settings. It never saves a file.
+- **OK** opens the chosen item in menus and the gallery; on a post preview,
+  it opens the image with GIO in the default Images app. It never favorites.
+- **Shoot** downloads the selected post's original file to
+  `Pictures/Booru` from either the gallery or post preview.
+- **Play** toggles the selected post's account favorite in either browsing view.
+- **Back** returns to the previous browsing level; Favorites closes Booru.
+  The View button is retained as an alternate way to open a full image from
+  the preview.
+
+The post image viewer provides zoom, pan, rotation and playback when supported.
+From a preview or the gallery, Options also keeps the selected post's category
+tags available under **Tags from selected post** in the search editor.
+The download returns to whichever browsing view initiated it.
 
 Hold Guide for the ReRead physical-button help overlay; release it to hide.
 Favorites closes Booru. Core ReRead owns power, volume, Hold and sleep.
@@ -79,11 +91,11 @@ Build from a ReRead source checkout using the existing builder:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Output: `out/antix/reread-app-booru_0.8.1_i386.deb`. Install through the
+Output: `out/antix/reread-app-booru_0.8.2_i386.deb`. Install through the
 Reader's normal web Apps page or Software. This does not rebuild core ReRead.
 
 `test-opening.cpp` includes disposable-data checks for direct removal of
 favorites and other query terms, include/exclude, adding from tag discovery,
-post-to-editor navigation, thumbnail priorities, caching and default image
+post-to-editor navigation, consistent Options/OK/Shoot controls, thumbnail priorities, caching and default image
 MIME dispatch. Tests and source inspection are not a substitute for building
 the i386 package and testing navigation on real Reader hardware.
