@@ -60,6 +60,7 @@ class Booru : public Screen {
   int lookupMode=0; // 0 typed tag search, 1 popular tags, 2 tags from a post
   QStringList popularTags;
   QHash<QString,int> popularTagCounts;
+  QHash<QString,int> popularTagCategories;
   QList<int> suggestionCategories;
   int tagPage=1;
   bool tagHasMore=true,tagLoading=false;
@@ -296,7 +297,7 @@ class Booru : public Screen {
   }
   void fetchPopularTags(bool append=false){
     if(tagApi)return;
-    if(!append){popularTags.clear();popularTagCounts.clear();suggestionIndex=0;tagPage=1;tagHasMore=true;}
+    if(!append){popularTags.clear();popularTagCounts.clear();popularTagCategories.clear();suggestionIndex=0;tagPage=1;tagHasMore=true;}
     tagLoading=true;status=append?QString():"Loading tags...";update();
     QUrl url(host().url+"/tags.json");QUrlQuery q;
     q.addQueryItem("search[order]","count");
@@ -317,12 +318,16 @@ class Booru : public Screen {
           const QString name=str(v.toObject().value("name"));
           if(!name.isEmpty() && !popularTagCounts.contains(name)){
             popularTags<<name;popularTagCounts.insert(name,v.toObject().value("post_count").toInt());
+            popularTagCategories.insert(name,v.toObject().value("category").toInt(-1));
           }
         }
       }else if(append){tagPage=qMax(1,tagPage-1);tagHasMore=true;}
       status=!ok?"Unable to load tags (HTTP "+QString::number(code)+")":
                    popularTags.isEmpty()?"No tags available":QString();
-      if(page==LOOKUP && lookupMode==1)suggestions=popularTags;
+      if(page==LOOKUP && lookupMode==1){
+        suggestions=popularTags;suggestionCategories.clear();
+        for(const QString &name:suggestions)suggestionCategories<<popularTagCategories.value(name,-1);
+      }
       update();
     });
   }
@@ -343,7 +348,7 @@ class Booru : public Screen {
       else if(const Post *post=current())setSuggestionsFromCategories(post->categorizedTags);
       else {
         suggestions=postTagSnapshot;
-        suggestionCategories.fill(0,suggestions.size());
+        for(int i=0;i<suggestions.size();++i)suggestionCategories<<0;
       }
     }
     chrome();
@@ -371,12 +376,14 @@ class Booru : public Screen {
       const bool ok=reply->error()==QNetworkReply::NoError && code>=200 && code<300 &&
                     payload.size()<=256*1024;
       reply->deleteLater();
-      suggestions.clear();suggestionIndex=0;
+      suggestions.clear();suggestionCategories.clear();suggestionIndex=0;
       if(ok){
         for(const auto &v:QJsonDocument::fromJson(payload).array()){
           const QString name=str(v.toObject().value("name"));
-          if(!name.isEmpty()&&!suggestions.contains(name)&&suggestions.size()<30)
+          if(!name.isEmpty()&&!suggestions.contains(name)&&suggestions.size()<30){
             suggestions<<name;
+            suggestionCategories<<v.toObject().value("category").toInt(-1);
+          }
         }
         status=suggestions.isEmpty()?"No matching tags":QString();
       }else{
@@ -390,7 +397,7 @@ class Booru : public Screen {
     if(key=="DEL"){if(!prefix.isEmpty())prefix.chop(1);}
     else if(key=="CLR")prefix.clear();
     else if(prefix.size()<40)prefix+=key;
-    stop(lookupApi);lookupTimer.stop();suggestions.clear();
+    stop(lookupApi);lookupTimer.stop();suggestions.clear();suggestionCategories.clear();
     suggestionIndex=0;status.clear();
     if(!prefix.isEmpty())lookupTimer.start(650);
     update();
