@@ -17,13 +17,10 @@ class Launcher : public Screen {
   QString page = "home", information;
   int selected = 0;
   qint64 lastAdjustment = 0;
-  QStringList labels, details, files;
-  QString fileDirectory;
+  QStringList labels, details;
   static QString filesRoot() { return qEnvironmentVariable("REREAD_FILES_DIR", "/var/lib/reader/files"); }
-  QString filesPath() const { return filesRoot() + "/" + fileDirectory; }
   QList<QIcon> icons;
   static constexpr int columns = 3, pageSize = 6;
-  QImage photo;
   GPid child = 0;
   int childFd = -1;
   QSocketNotifier *childWatch = nullptr;
@@ -53,7 +50,6 @@ class Launcher : public Screen {
     details.clear();
     icons.clear();
     title = page == "home"       ? "ReRead"
-            : page == "files"    ? "Files"
             : page == "settings" ? "Settings"
             : page == "power"    ? "Power"
                                  : "About ReRead";
@@ -87,22 +83,9 @@ class Launcher : public Screen {
       for (const auto &app: apps) {
         icons << app.icon; labels << app.name; details << app.description;
       }
-      labels << "Files"
-             << "Settings";
-      details << "Photos and files stored on this Reader"
-              << "Display, sound, connections and power";
-      icons << icon("folder") << icon("preferences-system");
-    } else if (page == "files") {
-      subtitle = fileDirectory;
-      files = QDir(filesPath()).entryList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::DirsFirst | QDir::Name);
-      labels = files;
-      for (auto file : files) {
-        QFileInfo info(filesPath() + "/" + file);
-        if (info.isDir()) { details << "Folder"; continue; }
-        details << QString::number(info.size() / 1024) + " KiB · " +
-                       info.lastModified().toString("dd MMM HH:mm");
-      }
-      controls = {{READER_OK,"Open"},{READER_BACK,"Home"}};
+      labels << "Settings";
+      details << "Display, sound, connections and power";
+      icons << icon("preferences-system");
     } else if (page == "settings") {
       labels << "Display" << "Sound" << "Power" << "Connections" << "About ReRead";
       details << "Brightness and idle dimming" << "Speaker and headphone volume"
@@ -175,7 +158,6 @@ class Launcher : public Screen {
     positions[page] = selected;
     page = destination;
     selected = positions.value(page);
-    photo = QImage();
     refresh();
   }
   static void childSetup(gpointer data) {
@@ -253,14 +235,7 @@ class Launcher : public Screen {
     if (id == READER_BACK) {
       if (page == "home")
         return;
-      if (page == "files" && !fileDirectory.isEmpty()) {
-        fileDirectory = QFileInfo(fileDirectory).path();
-        if (fileDirectory == ".") fileDirectory.clear();
-        selected = 0; refresh(); return;
-      }
-      go(page == "settings" || page == "files" ? "home"
-         : page == "image"                     ? "files"
-                                               : "settings");
+      go(page == "settings" ? "home" : "settings");
       return;
     }
     if (id == READER_OPTIONS) {
@@ -273,14 +248,6 @@ class Launcher : public Screen {
           launch(app);
           return;
         }
-    }
-    if (page == "image") {
-      if (id == READER_LEFT || id == READER_RIGHT) {
-        selected = qBound(0, selected + (id == READER_RIGHT ? 1 : -1),
-                          files.size() - 1);
-        openPhoto();
-      }
-      return;
     }
     if (page == "home" && (id == READER_UP || id == READER_DOWN ||
                            id == READER_LEFT || id == READER_RIGHT)) {
@@ -335,10 +302,8 @@ class Launcher : public Screen {
       if (selected < apps.size())
         launch(apps[selected]);
       else
-        go(selected == apps.size() ? "files" : "settings");
-    } else if (page == "files")
-      openPhoto();
-    else if (page == "settings")
+        go("settings");
+    } else if (page == "settings")
       go(QStringList{"display","sound","power","connections","about"}.value(selected));
     else if (page == "power") {
       if (selected == 0) return;
@@ -352,34 +317,6 @@ class Launcher : public Screen {
                                 {selected == 2 ? "-r" : "-h", "now"});
       }
     }
-  }
-  void openPhoto() {
-    if (files.isEmpty())
-      return;
-    QString path = filesPath() + "/" + files.value(selected);
-    if (QFileInfo(path).isDir()) {
-      page = "files";
-      fileDirectory = QDir(filesRoot()).relativeFilePath(path);
-      selected = 0; refresh(); return;
-    }
-    QImageReader reader(path);
-    reader.setAutoTransform(true);
-    reader.setScaledSize(
-        reader.size().scaled(content().size(), Qt::KeepAspectRatio));
-    auto loaded = reader.read();
-    if (loaded.isNull()) {
-      toast("No image viewer for this file. Download it over USB.");
-      return;
-    }
-    photo = loaded;
-    positions["files"] = selected;
-    page = "image";
-    showHeader = false;
-    controlsOverlay = true;
-    title = "Photo";
-    subtitle = files.value(selected);
-    controls = {{READER_LEFT,"Previous"},{READER_RIGHT,"Next"},{READER_BACK,"Files"}};
-    update();
   }
   void drawHome(QPainter &p, const QRect &r) {
     int first = (selected / pageSize) * pageSize;
@@ -414,13 +351,7 @@ class Launcher : public Screen {
                  QString::number(selected/pageSize+1) + " / " + QString::number(pages));
   }
   void draw(QPainter &p, const QRect &r) override {
-    if (page == "image") {
-      auto target = photo.size().scaled(r.size(), Qt::KeepAspectRatio);
-      p.drawImage(QRect(QPoint(r.center().x() - target.width() / 2,
-                               r.center().y() - target.height() / 2),
-                        target),
-                  photo);
-    } else if (page == "home")
+    if (page == "home")
       drawHome(p, r);
     else if (page == "settings") {
       // Categories show all five destinations at once; values live one level down.

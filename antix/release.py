@@ -58,6 +58,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
     ui = build_dir / 'ui'
     subprocess.run([str(base / 'antix/ui/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/software/build.sh'), str(ui)], check=True)
+    subprocess.run([str(base / 'antix/apps/files/build.sh'), str(ui)], check=True)
     copy(ui / 'libreader-ui.so.3', 'usr/lib/libreader-ui.so.3', 0o755)
     (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.3')
     copy(ui / 'libreader-device.so.1', 'usr/lib/libreader-device.so.1', 0o755)
@@ -141,6 +142,7 @@ Maintainer: ReRead contributors
 Section: admin
 Priority: optional
 Depends: ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Recommends: reread-app-files
 Breaks: reread-app-camera (<< 0.3.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
@@ -224,6 +226,38 @@ Terminal=false
     shutil.copy(ui / 'reader-software-app', target)
     target.chmod(0o755)
     subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '--build', str(app), str(output / f'reread-app-software_{software_version}_i386.deb')], check=True)
+    app = build_dir / 'reread-app-files'
+    if app.exists(): shutil.rmtree(app)
+    files_version = (base / 'antix/apps/files/VERSION').read_text().strip()
+    appwrite('DEBIAN/control', f"""Package: reread-app-files
+Version: {files_version}
+Architecture: i386
+Maintainer: ReRead contributors
+Section: utils
+Priority: optional
+Depends: reread (>= 0.9.0)
+Description: ReRead Files
+ Browse shared folders, view photos and text, inspect and delete files.
+""")
+    appwrite('usr/share/applications/reread-files.desktop', """[Desktop Entry]
+Type=Application
+Name=Files
+Comment=Browse folders, view and manage files
+Exec=/usr/lib/reread/apps/files/reader-files-app
+Icon=reread-files
+Categories=Utility;FileManager;
+X-ReRead=true
+Terminal=false
+""")
+    appwrite('usr/share/reread/apps/reread-app-files.json', '{"name":"Files","description":"Browse folders, view and manage files","desktop":"reread-files.desktop"}\n')
+    target = app / 'usr/share/icons/hicolor/scalable/apps/reread-files.svg'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(base / 'antix/apps/files/reread-files.svg', target)
+    target = app / 'usr/lib/reread/apps/files/reader-files-app'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(ui / 'reader-files-app', target)
+    target.chmod(0o755)
+    subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '--build', str(app), str(output / f'reread-app-files_{files_version}_i386.deb')], check=True)
     return package
 
 

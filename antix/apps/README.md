@@ -1,5 +1,8 @@
 # ReRead application contract
 
+Default foreground apps are [Camera](../CAMERA.md), [Files](files/README.md) and
+[Software](software/). Each is an independent executable and Debian package.
+
 Apps are ordinary Debian packages named `reread-app-<id>`. The USB management Apps
 page installs, updates and removes `.deb` files using apt/dpkg. Versions and
 dependencies come from dpkg; there is no separate package format or registry.

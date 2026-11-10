@@ -7,7 +7,7 @@ ReRead is a handheld platform built on **antiX 26.1 Core i386**, kernel `5.10.25
 The full installer installs antiX plus the **same `reread` Debian package used
 for later updates**. The source of truth is this repository, not a running
 Reader. Version is set in [VERSION](VERSION); [release.py](release.py) builds
-the platform, Camera and Software packages from source. Personal files, network credentials, host
+the platform, Camera, Files and Software packages from source. Personal files, network credentials, host
 identity and installed apps are not part of its payload.
 
 Camera updates use the separate `reread-app-camera_<version>_i386.deb` on **Apps**.
@@ -30,7 +30,7 @@ background-service/driver changes; reboot with `reboot` over SSH when indicated.
 
 **Apps** installs/updates `reread-app-*` packages, lists installed apps, and removes
 them while retaining their data and conffiles. Service apps can be enabled or
-disabled persistently. The installer bundles the separately packaged Camera and Software apps; see the
+disabled persistently. The installer bundles the separately packaged Camera, Files and Software apps; see the
 [app packaging contract](apps/README.md).
 
 Core code/assets, hardware module and service definitions are package-owned.

@@ -8,7 +8,10 @@ reserved transfer volume, disk image, import step or synchronization copy.
 The launcher exports `REREAD_FILES_DIR=/var/lib/reader/files` to applications.
 Programs may read that environment variable or use the documented absolute path;
 no SDK or file service is required. Use normal Linux file and directory operations.
-The web file manager and the on-device Files browser access this exact directory.
+The web file manager and the independent `reread-app-files` application access
+this exact directory. Files can be updated or removed without changing storage.
+Its Delete action permanently removes the selected file or folder after a
+confirmation with Cancel selected by default.
 
 ## Folders and application data
 
