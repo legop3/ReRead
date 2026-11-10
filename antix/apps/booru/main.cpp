@@ -827,12 +827,15 @@ protected:
     else if(key==READER_LEFT)navigate(-1,0);
     else if(key==READER_RIGHT)navigate(1,0);
     else if(state!=1)return;
+    else if(page==LOOKUP&&key==READER_VIEW_TOGGLE){
+      lookupResultsFocus=!lookupResultsFocus;update();
+    }else if(page==LOOKUP&&key==READER_ZOOM_OUT)changePrefix("DEL");
     else if(page==POST&&key==READER_VIEW_TOGGLE)loadFull();
     else if(key==READER_OPTIONS){
       if(page==HOME){page=SETTINGS;settingIndex=0;status.clear();chrome();}
       else if(page==GALLERY){
         searchFromGallery=true;page=SEARCH;searchIndex=0;status.clear();chrome();
-      }else if(page==SEARCH||page==INFO)applySearch();
+      }else if(page==SEARCH||page==INFO||page==LOOKUP)applySearch();
       else if(page==POST)download();
     }else if(key==READER_PLAY&&page==POST){
       tagsFromSearch=false;openTagBrowser(1);
@@ -842,18 +845,26 @@ protected:
         else {autoOpenImages=!autoOpenImages;savePreferences();}
         update();
       }else if(page==SEARCH){
-        if(searchIndex==0){tagsFromSearch=true;openTagBrowser(0);}
-        else if(searchIndex==1){tagCategory=(tagCategory+1)%categories.size();update();}
-        else if(searchIndex==2){
+        if(searchIndex==0)openTagFinder();
+        else if(searchIndex==1){tagsFromSearch=true;openTagBrowser(0);}
+        else if(searchIndex==2){tagCategory=(tagCategory+1)%categories.size();update();}
+        else if(searchIndex==3){
           if(posts.isEmpty())toast("Open a post first to browse its tags");
           else {tagsFromSearch=true;openTagBrowser(1);}
-        }else if(searchIndex==3){tagsFromSearch=true;openTagBrowser(2);}
-        else if(searchIndex==4){sortIndex=(sortIndex+1)%sorts.size();update();}
-        else if(searchIndex==5){ratingIndex=(ratingIndex+1)%ratings.size();update();}
-        else if(searchIndex==6){mediaIndex=(mediaIndex+1)%mediaTypes.size();update();}
-        else if(searchIndex==7){scoreIndex=(scoreIndex+1)%scoreLevels.size();update();}
-        else if(searchIndex==8)toggleBookmark();
+        }else if(searchIndex==4){tagsFromSearch=true;openTagBrowser(2);}
+        else if(searchIndex==5){sortIndex=(sortIndex+1)%sorts.size();update();}
+        else if(searchIndex==6){ratingIndex=(ratingIndex+1)%ratings.size();update();}
+        else if(searchIndex==7){mediaIndex=(mediaIndex+1)%mediaTypes.size();update();}
+        else if(searchIndex==8){scoreIndex=(scoreIndex+1)%scoreLevels.size();update();}
+        else if(searchIndex==9)toggleBookmark();
         else applySearch();
+      }else if(page==LOOKUP){
+        if(lookupResultsFocus){
+          if(suggestionIndex<suggestions.size()){
+            cycleTag(suggestions[suggestionIndex]);
+            toast(suggestions[suggestionIndex]+": "+tagState(suggestions[suggestionIndex]));
+          }
+        }else changePrefix(lookupKey(keyIndex));
       }else if(page==INFO){
         const auto names=currentTags();
         if(tagIndex<names.size())cycleTag(names[tagIndex]);
