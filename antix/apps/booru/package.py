@@ -78,6 +78,7 @@ Type=Application
 Name=Booru
 Comment=Browse posts on compatible booru servers
 Exec=/usr/lib/reread/apps/booru/reader-booru-app
+TryExec=/usr/lib/reread/apps/booru/reader-booru-app
 Icon=reread-booru
 Categories=Network;Graphics;
 X-ReRead=true
