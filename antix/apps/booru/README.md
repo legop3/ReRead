@@ -1,6 +1,6 @@
 # booru for ReRead
 
-Independent i386 Qt5 framebuffer app for e926/e621-compatible API hosts. No browser engine, X11, RetroArch, keyboard, platform web changes or global configuration changes.
+Independent i386 Qt5 framebuffer app for e926/e621-compatible API hosts. Its UI uses ReRead's black/white palette, cyan selection accents, native list and button-icon controls, without a top header. No browser engine, X11, RetroArch, keyboard, platform web changes or global configuration changes.
 
 ## Build
 
@@ -10,7 +10,7 @@ From the ReRead checkout with the existing `reread-builder` image:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Package: `out/antix/reread-app-booru_0.1.0_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Package is not yet published to the APT repo; build and test first.
+Package: `out/antix/reread-app-booru_0.1.1_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Package is not yet published to the APT repo; build and test first.
 
 ## Configuration
 
