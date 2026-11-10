@@ -192,7 +192,7 @@ class Booru : public Screen {
     });
   }
   void maybeLoadMore(){
-    if(page!=GALLERY || api || loadingMore || !more || posts.isEmpty())return;
+    if((page!=GALLERY && page!=VIEW) || api || loadingMore || !more || posts.isEmpty())return;
     if(selected<posts.size()-6)return;
     ++pageNumber;
     fetchPage(true);
@@ -322,7 +322,7 @@ class Booru : public Screen {
       // The D-pad moves the viewport through the picture, not the picture itself.
       if(zoom>0){panX-=dx*80;panY-=dy*80;clampPan();}
       else if(dx){const int next=qBound(0,selected+dx,posts.size()-1);
-        if(next!=selected){selected=next;loadFull();}}
+        if(next!=selected){selected=next;loadFull();maybeLoadMore();}}
     }
     update();
   }
@@ -422,7 +422,7 @@ protected:
           search="fav:"+host().username;
         } else search=homeIndex==0?QString():host().searches.value(homeIndex-2);
         pageNumber=1;page=GALLERY;chrome();fetchPage();
-      }else if(page==GALLERY&&!posts.isEmpty()){page=VIEW;chrome();loadFull();}
+      }else if(page==GALLERY&&!posts.isEmpty()){page=VIEW;chrome();loadFull();maybeLoadMore();}
       else if(page==VIEW)favorite();
     }
   }
