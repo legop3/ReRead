@@ -349,7 +349,7 @@ class Booru : public Screen {
   }
   QNetworkRequest request(QUrl u,bool authenticated) {
     QNetworkRequest req(u);
-    req.setRawHeader("User-Agent","ReRead-Booru/0.7 (+https://github.com/legop3/ReRead; "+host().username.toUtf8()+")");
+    req.setRawHeader("User-Agent","ReRead-Booru/0.7.1 (+https://github.com/legop3/ReRead; "+host().username.toUtf8()+")");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
     req.setRawHeader("Accept","application/json");
     if(authenticated&&!host().username.isEmpty()&&!host().key.isEmpty()&&u.host()==QUrl(host().url).host())
