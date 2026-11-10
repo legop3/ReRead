@@ -10,7 +10,7 @@ From the ReRead checkout with the existing `reread-builder` image:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Package: `out/antix/reread-app-booru_0.5.0_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Published packages are available from the ReRead APT repository.
+Package: `out/antix/reread-app-booru_0.6.0_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Published packages are available from the ReRead APT repository.
 
 ## Configuration
 
@@ -32,7 +32,10 @@ The app supports e621-style `/posts.json`, `/favorites.json`, and `/favorites/{p
 ## Controls
 
 - Home: D-pad selects Recent, My favorites, or a configured saved search; OK opens; Options opens server selection and automatic-opening preferences; Back exits.
-- Gallery: D-pad moves through 3×2 cards, OK views, the next 30 posts load automatically near the end, Back returns to Home.
+- Gallery: D-pad moves through 3×2 cards, OK opens the post card, the next 30 posts append automatically near the end, **Options** opens Search & Filters, and Back returns to Home.
+- Search & Filters (Reader buttons only): Select **Popular tags** to browse tags returned by the site's `/tags.json`, or **Tags from selected post** to browse a post's actual tags. OK cycles each tag through **Include → Exclude → Off**. Set sort (newest, oldest, score, favorites, hot, random, updated), rating, media type and minimum score, then choose Apply or press Options. Back cancels without reloading. Filters combine with the initial saved search and can be changed repeatedly.
+- Post details (Play on the post card): browse that post's tags with Up/Down, OK adds/excludes/removes a tag and Options searches with the updated filters. Back returns to the post.
+- The app does **not** require typing for these filters; use web Apps → Booru → Settings only to enter new arbitrary tag strings, saved searches, host URLs and account credentials.
 - Opening a gallery post shows its post card. Press View to download its image
   sample into the app cache and open the system's default image viewer. Zoom, pan and rotation belong to that viewer.
 - Back from the viewer returns to Booru's post card: View reopens the image, OK
@@ -40,6 +43,8 @@ The app supports e621-style `/posts.json`, `/favorites.json`, and `/favorites/{p
   and Back returns to the same gallery selection. Left/Right selects adjacent post cards. Enable automatic opening in the Reader
   settings if you prefer to launch the viewer on entering/changing a post.
 - Favorites button returns to ReRead Home immediately. Power, volume, Hold, and suspend remain with the platform.
+
+Thumbnails are fetched at most one every 650 ms with up to two concurrent downloads, rather than in unchecked bursts. Transient HTTP 429/503 and timeout failures use bounded, delayed retries (including `Retry-After`), and the decoded thumbnail cache holds at most 60 images. Thumbnail requests are cancelled when Booru becomes inactive/dimmed and resume on return; ongoing explicit downloads are not interrupted. Post-search API requests also back off on 429/503. This helps prevent spikes but cannot prove the cause of every slowdown without checking actual HTTP responses.
 
 Thumbnails stay in bounded RAM. Full viewing uses ordinary GIO/MIME dispatch and
 local files under `$XDG_CACHE_HOME/reread-booru/images` (normally
