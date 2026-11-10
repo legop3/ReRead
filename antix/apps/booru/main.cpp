@@ -597,7 +597,7 @@ class Booru : public Screen {
           const QString expectedSearch=search;
           const int expectedPage=pageNumber;
           QTimer::singleShot(delay,this,[this,append,expectedSearch,expectedPage,revision]{
-            if(!apiRetryPending||revision!=searchRevision||page==HOME||page==SETTINGS)return;
+            if(!apiRetryPending||revision!=searchRevision||page==HOME)return;
             apiRetryPending=false;
             if(search==expectedSearch&&
                 pageNumber==expectedPage&&!api)fetchPage(append,true);
@@ -1081,7 +1081,7 @@ protected:
               palette().color(active?QPalette::HighlightedText:QPalette::Text));
       }
       if(posts.isEmpty()&&status.isEmpty())text(p,area,"No posts found.",25);
-    } else if(page==POST||page==CONFIRM||page==DOWNLOADING) {
+    } else if(page==POST||page==DOWNLOADING) {
       Post *post=current();
         if(post) {
           QRect picture(area.x()+8,area.y()+8,area.width()/2-20,area.height()-24);
