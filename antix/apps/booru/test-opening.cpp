@@ -174,33 +174,50 @@ public:
     QImage placeholder(20,10,QImage::Format_ARGB32);
     placeholder.fill(Qt::white);
     window.thumbnails.insert(post.id,placeholder);
-    // Options is a two-way toggle, never a one-way shortcut.
-    for(const auto place:{Booru::HOME,Booru::LOOKUP,
-                          Booru::GALLERY,Booru::POST,Booru::DOWNLOADING}){
+    // Options is one coherent toggle. From a post it returns to the very
+    // same post unless its query was changed.
+    window.page=Booru::POST;window.selected=0;
+    window.button(READER_OPTIONS,1);
+    require(window.page==Booru::SEARCH &&
+            window.selectedEditorAction()==Booru::FROM_POST &&
+            window.editorReturnLabel()=="Post",
+            "Post Options opens editor with its relevant tags already focused");
+    window.button(READER_OPTIONS,2);
+    require(window.page==Booru::SEARCH,"Held Options does not toggle");
+    window.button(READER_OPTIONS,1);
+    require(window.page==Booru::POST,"Second Options restores same post");
+    window.button(READER_OPTIONS,1);
+    require(window.page==Booru::SEARCH,"Options reopens post-aware editor");
+    window.addTag("a_new_tag");
+    require(window.editorReturnLabel()=="Results" &&
+            window.editorActions().first().contains("post #42"),
+            "Editing query still retains the post's tag chooser");
+    window.searchTimer.stop();
+    window.button(READER_OPTIONS,1);
+    require(window.page==Booru::GALLERY,
+            "Changed post search returns to results, not the old post");
+    window.stop(window.api);
+
+    // Home, results and pickers all open the same editor, not a second menu.
+    for(const auto place:{Booru::HOME,Booru::GALLERY,Booru::LOOKUP}){
       window.page=place;window.chrome();
-      require(hint(window,READER_OPTIONS)=="Edit search",
-              "Guide labels Options Edit search outside the editor");
       window.button(READER_OPTIONS,1);
       require(window.page==Booru::SEARCH&&!window.transfer&&!window.saving,
-              "Options opens one editor without downloading or favoriting");
-      require(hint(window,READER_OPTIONS)=="View results",
-              "Guide labels Options View results inside editor");
+              "Options from every non-post view opens one search editor");
       window.button(READER_OPTIONS,2);
-      require(window.page==Booru::SEARCH,"Held Options cannot trigger toggle twice");
+      require(window.page==Booru::SEARCH,"Options repeat cannot toggle twice");
       window.button(READER_OPTIONS,1);
       require(window.page==Booru::GALLERY,
-              "Second Options press closes editor and returns to results");
-      window.button(READER_OPTIONS,1);
-      require(window.page==Booru::SEARCH,
-              "Options opens the editor again from results");
+              "Options toggles search back to results");
     }
-    // Back from the editor always opens results; results Back returns Home.
+    // Back is simple: post -> results -> Home; editor Back closes to its origin.
+    window.posts.clear();window.posts.append(post);window.selected=0;
     window.page=Booru::POST;window.button(READER_BACK,1);
     require(window.page==Booru::GALLERY,"Post Back returns results");
     window.button(READER_OPTIONS,1);
-    require(window.page==Booru::SEARCH,"Options from results opens editor");
+    require(window.page==Booru::SEARCH,"Results Options opens editor");
     window.button(READER_BACK,1);
-    require(window.page==Booru::GALLERY,"Editor Back returns results");
+    require(window.page==Booru::GALLERY,"Results editor Back returns results");
     window.button(READER_BACK,1);
     require(window.page==Booru::HOME,"Results Back returns Home");
     window.page=Booru::LOOKUP;window.button(READER_BACK,1);
