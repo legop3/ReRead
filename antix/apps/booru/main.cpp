@@ -458,6 +458,7 @@ class Booru : public Screen {
   }
   void openSearchEditor(){
     if(page==GALLERY||page==POST)rememberSelectedPostTags();
+    stop(imageJob);
     if(page==LOOKUP){
       lookupTimer.stop();stop(lookupApi);stop(tagApi);
     }
@@ -828,6 +829,7 @@ class Booru : public Screen {
   }
   void download(){
     Post *p=current();if(!p)return;
+    stop(imageJob);
     downloadReturnPage=page;
     QUrl u=imageUrl(p->original);
     if(!u.isValid()){status="No downloadable file";update();return;}
@@ -877,9 +879,11 @@ class Booru : public Screen {
       if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
       page=GALLERY;
     }else if(page==GALLERY){
+      stop(imageJob);
       rememberSelectedPostTags();
       page=SEARCH;
     }
+    status.clear();
     chrome();
     if(page==GALLERY){requestThumbs();maybeLoadMore();}
   }
@@ -1165,6 +1169,7 @@ protected:
     }else if(page==HOME){
       openHomeSelection();
     }else if(page==GALLERY&&!posts.isEmpty()){
+      stop(imageJob);
       page=POST;chrome();requestThumbs();maybeLoadMore();
     }else if(page==POST){
       loadFull();
