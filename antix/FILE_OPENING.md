@@ -1,5 +1,8 @@
 # Standard file opening
 
+For the complete application contract, start with
+[Making ReRead apps](../APP_DEVELOPMENT.md). This page details the MIME interface.
+
 ReRead uses freedesktop MIME types, `.desktop` entries and `mimeapps.list`, with
 GLib/GIO dispatch. There is no ReRead file-type registry, viewer daemon, viewer
 plugin ABI, or custom handoff protocol. Xorg/Matchbox handles the launched window;

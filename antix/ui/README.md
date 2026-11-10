@@ -1,5 +1,10 @@
 # ReRead on-device UI
 
+For new apps, start with [Making ReRead apps](../../APP_DEVELOPMENT.md). That is
+the main design/development contract; this page describes shared UI internals.
+The Guide overlay policy is currently implemented by apps, not automatically by
+Screen. The guide documents the required behavior and the remaining migration.
+
 The shared UI is designed as a handheld control panel. Its Qt `QPalette` uses
 pure black (`#000000`), white text and saturated icon colors. Home has an open
 icon grid, cyan focus corners and a white nameplate for the selected app.

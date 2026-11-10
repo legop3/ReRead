@@ -1,5 +1,11 @@
 # Reader buttons and icons
 
+App-facing usage and required glyph shapes are defined in the
+[app development guide](../../APP_DEVELOPMENT.md#buttons-and-their-icons).
+Some SVGs/generated symbol descriptions below still use earlier approximations;
+the guide records the pending centralized artwork corrections. Keep using the
+shared icon names rather than drawing per-app replacements.
+
 The canonical map is [buttons.json](buttons.json). Run `python3 antix/input/generate.py`
 after editing it; `--check` checks the generated C header, udev hwdb, table and visual reference. Builds
 check for drift. The model-specific hwdb changes only the Reader's built-in AT

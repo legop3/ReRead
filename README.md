@@ -2,6 +2,8 @@
 
 A multipurpose handheld platform for the Intel Reader, built on **antiX 26.1 Core 32-bit**.
 
+**[Make ReRead apps: the development guide](APP_DEVELOPMENT.md)** — shared UI, controls and icons, files, system services, building and packaging.
+
 ## Install ReRead
 
 **[Download the USB installer from Releases](https://github.com/legop3/ReRead/releases)** — choose `reread-installer-usb.img` from the newest release containing an installer.
@@ -63,7 +65,7 @@ ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux ev
 
 - [Build and system notes](antix/README.md)
 - [On-device UI and controls](antix/ui/README.md)
-- [Application contract and SDK](antix/apps/README.md)
+- [App development guide](APP_DEVELOPMENT.md) and [application sources](antix/apps/README.md)
 - [Shared storage and web file manager](antix/STORAGE.md)
 - [Bundled file-manager provenance](antix/THIRD_PARTY.md)
 - [UPower and GIO integration](analysis/linux-battery-apps.md)

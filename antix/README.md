@@ -31,7 +31,7 @@ background-service/driver changes; reboot with `reboot` over SSH when indicated.
 **Apps** installs/updates `reread-app-*` packages, lists installed apps, and removes
 them while retaining their data and conffiles. Service apps can be enabled or
 disabled persistently. The installer bundles the separately packaged Camera, Files and Software apps; see the
-[app packaging contract](apps/README.md).
+[app development guide](../APP_DEVELOPMENT.md).
 
 Core code/assets, hardware module and service definitions are package-owned.
 User data stays in `/var/lib/reader`, app data in `/var/lib/reader/apps/<id>`,
