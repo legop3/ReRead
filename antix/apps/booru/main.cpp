@@ -63,12 +63,11 @@ class Booru : public Screen {
   }
   void chrome() {
     showHeader=false;
-    showControls=true;
-    controlsOverlay=page==DOWNLOADING;
+
     if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Host"},{READER_BACK,"Home"}};
     else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_BACK,"Searches"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
-    else if(page==INFO) controls={{READER_BACK,"Image"}};
+    else if(page==INFO) controls={{READER_BACK,"Post"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
     else controls={{READER_BACK,"Gallery"}};
     update();

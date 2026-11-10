@@ -24,7 +24,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: sound
 Priority: optional
-Depends: reread (>= 0.19.0), desktop-file-utils, libgstreamer1.0-0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-alsa
+Depends: reread (>= 0.20.0), desktop-file-utils, libgstreamer1.0-0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-alsa
 Description: ReRead audio player
  MIME audio handler using GStreamer and ALSA for files and HTTP streams.
 ''')

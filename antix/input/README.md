@@ -2,9 +2,9 @@
 
 App-facing usage and required glyph shapes are defined in the
 [app development guide](../../APP_DEVELOPMENT.md#buttons-and-their-icons).
-Some SVGs/generated symbol descriptions below still use earlier approximations;
-the guide records the pending centralized artwork corrections. Keep using the
-shared icon names rather than drawing per-app replacements.
+The shared SVGs match the documented physical markings: hollow-circle OK,
+northeast Play triangle, speed-line Voice Speed arrow and tailless D-pad points.
+Use these shared icon names rather than drawing per-app replacements.
 
 The canonical map is [buttons.json](buttons.json). Run `python3 antix/input/generate.py`
 after editing it; `--check` checks the generated C header, udev hwdb, table and visual reference. Builds
@@ -62,20 +62,20 @@ Shoot, Hold and Power are on the top edge; Volume +/− are on the right edge.
 | `SHOOT` | Top edge; Camera outline | `CAMERA` (212) | `XF86WebCam` | `reread-button-shoot` | Capture or open Camera |
 | `HOLD` | Top edge switch; Padlock | `SCREENLOCK` (152) | `XF86ScreenSaver` | `reread-button-hold` | Lock ordinary input; pressed means unlocked |
 | `POWER` | Top edge; Power | `POWER` (116) | `XF86PowerOff` | `reread-button-power` | Sleep; hardware long hold forces off |
-| `PLAY` | Front, upper right blue button; Right arrow | `PLAYPAUSE` (164) | `XF86AudioPlay` | `reread-button-play` | Play/pause or primary app action |
+| `PLAY` | Front, upper right blue button; Triangle pointing up and right | `PLAYPAUSE` (164) | `XF86AudioPlay` | `reread-button-play` | Play/pause or primary app action |
 | `BACK` | Above-left of D-pad; Diagonal return arrow | `ESC` (1) | `Escape` | `reread-button-back` | Back; close at app root |
-| `UP` | D-pad top; Up arrow | `UP` (103) | `Up` | `reread-button-up` | Move up |
-| `DOWN` | D-pad bottom; Down arrow | `DOWN` (108) | `Down` | `reread-button-down` | Move down |
-| `LEFT` | D-pad left; Left arrow | `LEFT` (105) | `Left` | `reread-button-left` | Move left or decrease |
-| `RIGHT` | D-pad right; Right arrow | `RIGHT` (106) | `Right` | `reread-button-right` | Move right or increase |
-| `OK` | D-pad center; Ring and dot | `ENTER` (28) | `Return` | `reread-button-ok` | Activate selection |
+| `UP` | D-pad top; Up chevron without tail | `UP` (103) | `Up` | `reread-button-up` | Move up |
+| `DOWN` | D-pad bottom; Down chevron without tail | `DOWN` (108) | `Down` | `reread-button-down` | Move down |
+| `LEFT` | D-pad left; Left chevron without tail | `LEFT` (105) | `Left` | `reread-button-left` | Move left or decrease |
+| `RIGHT` | D-pad right; Right chevron without tail | `RIGHT` (106) | `Right` | `reread-button-right` | Move right or increase |
+| `OK` | D-pad center; Empty circle | `ENTER` (28) | `Return` | `reread-button-ok` | Activate selection |
 | `OPTIONS` | Below-left of D-pad; Menu lines | `MENU` (139) | `Menu` | `reread-button-options` | Context menu or settings |
 | `ZOOM_OUT` | Bottom row, first button; Minus | `KPMINUS` (74) | `KP_Subtract` | `reread-button-zoom-out` | Zoom out or decrease |
 | `VIEW_TOGGLE` | Bottom row, second button; Overlapping rectangles | `SWITCHVIDEOMODE` (227) | `XF86Display` | `reread-button-view-toggle` | Change view |
 | `ZOOM_IN` | Bottom row, third button; Plus | `KPPLUS` (78) | `KP_Add` | `reread-button-zoom-in` | Zoom in or increase |
 | `FAVORITES` | Bottom row, fourth button; Record-like circle | `BOOKMARKS` (156) | `XF86Favorites` | `reread-button-favorites` | Return Home; app may close |
-| `VOICE_SPEED` | Bottom row, fifth button; Down arrow | `FASTFORWARD` (208) | `XF86AudioForward` | `reread-button-voice-speed` | App speed or alternate action |
-| `GUIDE` | Bottom row, sixth button; Question mark | `F1` (59) | `F1` | `reread-button-guide` | Help |
+| `VOICE_SPEED` | Bottom row, fifth button; Thick down arrow with speed lines | `FASTFORWARD` (208) | `XF86AudioForward` | `reread-button-voice-speed` | App speed or alternate action |
+| `GUIDE` | Bottom row, sixth button; Question mark | `F1` (59) | `F1` | `reread-button-guide` | Hold for contextual controls; release to hide |
 | `VOLUME_UP` | Right edge, upper button; Speaker plus | `VOLUMEUP` (115) | `XF86AudioRaiseVolume` | `reread-button-volume-up` | Global volume up |
 | `VOLUME_DOWN` | Right edge, lower button; Speaker minus | `VOLUMEDOWN` (114) | `XF86AudioLowerVolume` | `reread-button-volume-down` | Global volume down |
 

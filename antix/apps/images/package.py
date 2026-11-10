@@ -24,7 +24,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.18.0), qt5-image-formats-plugins, desktop-file-utils
+Depends: reread (>= 0.20.0), qt5-image-formats-plugins, desktop-file-utils
 Description: ReRead image viewer
  Standalone MIME image handler with zoom, pan, rotation and Reader controls.
 ''')

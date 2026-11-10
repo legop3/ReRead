@@ -64,8 +64,8 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
     subprocess.run([str(base / 'antix/apps/camera/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/software/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/files/build.sh'), str(ui)], check=True)
-    copy(ui / 'libreader-ui.so.4', 'usr/lib/libreader-ui.so.4', 0o755)
-    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.4')
+    copy(ui / 'libreader-ui.so.5', 'usr/lib/libreader-ui.so.5', 0o755)
+    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.5')
     copy(ui / 'libreader-device.so.1', 'usr/lib/libreader-device.so.1', 0o755)
     (root / 'usr/lib/libreader-device.so').symlink_to('libreader-device.so.1')
     copy(base / 'antix/ui/reader-device.hpp', 'usr/include/reread/reader-device.hpp')
@@ -153,7 +153,7 @@ Section: admin
 Priority: optional
 Depends: desktop-file-utils, shared-mime-info, libglib2.0-bin, xdg-utils, xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Recommends: reread-app-files, reread-app-images, reread-app-text, reread-app-audio
-Breaks: reread-app-camera (<< 0.6.0), reread-app-software (<< 0.3.0), reread-app-files (<< 0.3.0), reread-app-archive (<< 0.7.0), reread-app-booru (<< 0.2.0)
+Breaks: reread-app-camera (<< 0.8.0), reread-app-files (<< 0.6.0), reread-app-software (<< 0.4.0), reread-app-images (<< 0.2.0), reread-app-text (<< 0.2.0), reread-app-audio (<< 0.2.0), reread-app-archive (<< 0.9.0), reread-app-booru (<< 0.4.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
@@ -182,7 +182,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.19.0), libqt5network5t64
+Depends: reread (>= 0.20.0), libqt5network5t64
 Recommends: reread-app-images
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
@@ -215,7 +215,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: reread (>= 0.17.0)
+Depends: reread (>= 0.20.0)
 Description: ReRead Software manager
  Check and install system updates, browse applications, and install or remove apps.
 """)
@@ -247,7 +247,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: utils
 Priority: optional
-Depends: reread (>= 0.18.0)
+Depends: reread (>= 0.20.0)
 Recommends: reread-app-images, reread-app-text, reread-app-audio
 Description: ReRead Files
  Browse shared folders, open files in default viewers, inspect and delete files.

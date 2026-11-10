@@ -23,3 +23,7 @@ For a focused navigation check inside the disposable builder, run
 and provides a temporary CLI fixture. The test checks check/install/remove/system
 update dispatch through real Qt process calls; package transactions are verified by
 the backend and physical Reader checks.
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

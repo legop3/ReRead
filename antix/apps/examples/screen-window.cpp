@@ -8,16 +8,8 @@ class Example : public Screen {
   const QStringList descriptions={"A collection uses the shared list/info layout.",
     "Hold the question-mark button for the controls overlay.",
     "Back or Favorites closes this ordinary X11 window."};
-  void hideHelp() {showControls=false;update();}
 protected:
-  bool event(QEvent *event) override {
-    if(event->type()==QEvent::WindowDeactivate || event->type()==QEvent::Hide)hideHelp();
-    return Screen::event(event);
-  }
-  void idleChanged(bool inactive) override {if(inactive)hideHelp();}
   void button(reader_button id,int value) override {
-    // Handle release before the ordinary navigation filter.
-    if(id==READER_GUIDE){showControls=value!=0;update();return;}
     if(!value)return;
     if(id==READER_UP || id==READER_DOWN) {
       selected=qBound(0,selected+(id==READER_DOWN?1:-1),names.size()-1);update();return;
@@ -39,7 +31,7 @@ protected:
 public:
   Example():Screen("Example") {
     setWindowTitle("ReRead example");
-    showHeader=false;showControls=false;controlsOverlay=true;
+    showHeader=false;
     controls={{READER_UP,"Select"},{READER_OK,"Activate"},{READER_BACK,"Home"}};
   }
 };

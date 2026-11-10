@@ -13,10 +13,10 @@ struct TextTest {
     QFile file(filename);require(file.open(QIODevice::WriteOnly),"Create fixture");file.write(original);file.close();
     Text viewer(QString::fromUtf8(QUrl::fromLocalFile(filename).toEncoded()));viewer.show();app.processEvents();
     require(viewer.error.isEmpty() && viewer.document.toPlainText().startsWith("<b>Plain"),"URI decoding and plain-text markup");
-    require(viewer.maximum()>0 && !viewer.showControls,"Wrapped document, help hidden");
+    require(viewer.maximum()>0 && !viewer.helpVisible(),"Wrapped document, help hidden");
     auto area=viewer.content();viewer.dispatch(READER_GUIDE,1);app.processEvents();
-    require(viewer.showControls && viewer.content()==area,"Help overlays without reserving space");
-    viewer.dispatch(READER_GUIDE,0);require(!viewer.showControls,"Release hides help");
+    require(viewer.helpVisible() && viewer.content()==area,"Help overlays without reserving space");
+    viewer.dispatch(READER_GUIDE,0);require(!viewer.helpVisible(),"Release hides help");
     press(viewer,READER_RIGHT);require(viewer.offset>0,"Page advances");
     auto old=viewer.offset/viewer.maximum();press(viewer,READER_ZOOM_IN);
     require(viewer.fontSize==28 && qAbs(viewer.offset/viewer.maximum()-old)<0.001,"Text zoom preserves progress");

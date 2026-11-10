@@ -15,12 +15,12 @@ def write(path, value):
     target.write_text(value)
 
 write('DEBIAN/control', '''Package: reread-app-example
-Version: 0.1.0
+Version: 0.2.0
 Architecture: i386
 Maintainer: ReRead contributors
 Section: utils
 Priority: optional
-Depends: reread (>= 0.19.0)
+Depends: reread (>= 0.20.0)
 Description: ReRead shared UI example
  Independent Qt application demonstrating collections and button-icon help.
 ''')
@@ -43,7 +43,7 @@ executable = root / 'usr/lib/reread/apps/example/example'
 executable.parent.mkdir(parents=True, exist_ok=True)
 shutil.copy(base / 'build/antix/ui/screen-window-example', executable)
 executable.chmod(0o755)
-output = base / 'out/examples/reread-app-example_0.1.0_i386.deb'
+output = base / 'out/examples/reread-app-example_0.2.0_i386.deb'
 output.parent.mkdir(parents=True, exist_ok=True)
 subprocess.run(['desktop-file-validate', str(root / 'usr/share/applications/reread-example.desktop')], check=True)
 subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '--build', str(root), str(output)], check=True)

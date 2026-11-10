@@ -6,8 +6,17 @@ namespace ReRead {
 class Screen : public QWidget {
   Device *device;
   QTimer clock;
+  QWidget *helpOverlay;
+  bool helpHeld=false;
+  void setHelp(bool);
+  void syncHelp();
+  QVector<QRect> helpGroups() const;
+  void paintHelp(QPainter &);
+  friend class HelpOverlay;
 
 protected:
+  bool event(QEvent *) override;
+  bool eventFilter(QObject *, QEvent *) override;
   void showEvent(QShowEvent *) override;
   void hideEvent(QHideEvent *) override;
   void paintEvent(QPaintEvent *) override;
@@ -20,8 +29,9 @@ protected:
 public:
   struct Control { reader_button button; QString action; };
   QList<Control> controls;
-  // Each app chooses its own chrome. Safety notices remain available without it.
-  bool showHeader = true, showControls = true, controlsOverlay = false;
+  // Apps supply contextual controls; Screen owns the Guide overlay policy.
+  bool showHeader = true;
+  bool helpVisible() const;
   int orientation = 0;
   QString title, subtitle, notice;
   QRect safeArea() const;

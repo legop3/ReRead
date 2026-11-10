@@ -2,8 +2,8 @@
 
 For new apps, start with [Making ReRead apps](../../APP_DEVELOPMENT.md). That is
 the main design/development contract; this page describes shared UI internals.
-The Guide overlay policy is currently implemented by apps, not automatically by
-Screen. The guide documents the required behavior and the remaining migration.
+Screen implements the Guide overlay policy for every app using UI 5; apps
+provide contextual controls without their own visibility or Guide handlers.
 
 The shared UI is designed as a handheld control panel. Its Qt `QPalette` uses
 pure black (`#000000`), white text and saturated icon colors. Home has an open
@@ -34,12 +34,13 @@ packages and device administration. It does not run device applications.
 ## Controls and ownership
 
 `libreader-device.so.1` is an optional QtCore/QtDBus navigation/session adapter. It owns no
-renderer or app lifecycle. `libreader-ui.so.4` supplies optional drawing helpers:
-a safe content rectangle, selection list, notices and physical-button icons. Apps choose whether to
-show a compact header (`showHeader`), grouped icon/action controls (`controls`
-and `showControls`), or overlay controls on their own content (`controlsOverlay`).
-There is no mandatory header, subtitle row or footer bar. Camera uses a full
-preview with small overlays; Home and Settings use the compact system header.
+renderer or app lifecycle. `libreader-ui.so.5` supplies shared drawing helpers,
+a safe content rectangle, collection layouts, notices and physical-button icons.
+Apps choose `showHeader` and supply `controls`; holding Guide shows those controls
+as a raised overlay, and releasing it hides them. No footer space is reserved.
+Screen also clears help on focus loss, hiding, dimming, sleep and Hold lock.
+It intercepts Guide from child widgets, wraps long lists without shrinking text,
+and raises the overlay above app content. There is no mandatory app-name header.
 Set `orientation=180` to rotate the entire screen, including overlays, and reverse
 the D-pad directions to follow the rotated display. Saved camera JPEG rotation
 is separate from screen orientation.
@@ -57,7 +58,7 @@ Apps can open other windows/processes normally; their lifetime is independent of
 Home. xinit owns the X server lifetime and runit supervises the PAM session.
 
 The canonical physical key map and reusable freedesktop SVG button icons are
-[documented here](../input/README.md). Semantic `READER_*` IDs remain stable. UI library version 4 uses ordinary Qt
+[documented here](../input/README.md). Semantic `READER_*` IDs remain stable. UI library version 5 uses ordinary Qt
 key press/release handlers and managed windows. All in-repo apps are rebuilt
 for this interface; framebuffer-era app binaries are not supported.
 
@@ -74,9 +75,8 @@ Use `Screen::listInfo` for a collection with selection details. It returns list
 and info rectangles, the visible row range and row geometry. `listInfoRow` paints
 selection; `label` supplies consistent typography and elision. Files and Software
 use these helpers while supplying their own icons, columns and detail content.
-Keep `list` for short action menus and confirmations. The helpers are optional
-and add no model, application lifecycle or background service. They are part of
-UI SONAME 4; rebuilt apps depend on `reread (>= 0.17.0)`.
+Keep `list` for short action menus and confirmations. The helpers add no model, application lifecycle or background service. They are part of
+UI SONAME 5; rebuilt apps depend on `reread (>= 0.20.0)`.
 
 ## App packaging and SDK
 
@@ -136,7 +136,7 @@ Qt references: [embedded Linux](https://doc.qt.io/qt-6/embedded-linux.html),
 [Linux device input](https://doc.qt.io/qt-6/inputs-linux-device.html). Qt 5 is used
 because Debian supplies its maintained i386 packages for this Reader's CPU.
 
-The X11 platform uses device SONAME 1 and UI SONAME 4. Install ReRead 0.17.0
+The X11 platform uses device SONAME 1 and UI SONAME 5. Install ReRead 0.20.0
 and the rebuilt applications together. Package dependencies prevent mixing this
 platform with the earlier app binaries. New applications declare the minimum
 core version required by their SDK.

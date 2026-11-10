@@ -86,10 +86,11 @@ protected:
     if(id==READER_PLAY || id==READER_OK)playback(!wanted);
     else if(id==READER_LEFT)seek(-10);
     else if(id==READER_RIGHT)seek(10);
-    else if(id==READER_GUIDE)toast("Play / OK pauses · Left / Right seeks 10 seconds · Back closes");
   }
   void closeEvent(QCloseEvent *event) override {playback(false);if(player)gst_element_set_state(player,GST_STATE_NULL);Screen::closeEvent(event);}
   void draw(QPainter &p,const QRect &r) override {
+    controls=error.isEmpty()?QList<Control>{{READER_PLAY,"Play / Pause"},{READER_LEFT,"Seek ±10s"},{READER_BACK,"Close"}}:
+      QList<Control>{{READER_BACK,"Close"}};
     label(p,QRect(r.x(),r.y()+10,r.width(),48),track,30,true,palette().color(QPalette::Link));
     label(p,QRect(r.x(),r.y()+65,r.width(),35),artist,23);
     if(!error.isEmpty()){text(p,r.adjusted(0,115,0,0),error,25);return;}
@@ -107,7 +108,7 @@ protected:
   }
 public:
   explicit Audio(const QString &argument,GstElement *output=nullptr):Screen("Audio") {
-    showHeader=false;controlsOverlay=true;
+    showHeader=false;
     controls={{READER_PLAY,"Play / Pause"},{READER_LEFT,"Seek"},{READER_BACK,"Close"}};
     QUrl uri(argument);
     if(QFileInfo::exists(argument) || uri.scheme().isEmpty())uri=QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath());

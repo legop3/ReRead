@@ -37,8 +37,7 @@ class Launcher : public Screen {
   }
   void refresh() {
     showHeader = true;
-    showControls = true;
-    controlsOverlay = false;
+
     labels.clear();
     details.clear();
     icons.clear();
@@ -47,9 +46,8 @@ class Launcher : public Screen {
             : page == "power"    ? "Power"
                                  : "About ReRead";
     subtitle = "";
-    controls = {{READER_OK,"Open"},{READER_OPTIONS,"Settings"}};
+    controls = {{READER_UP,"Navigate"},{READER_OK,"Open"},{READER_OPTIONS,"Settings"}};
     if (page == "home") {
-      showControls = false;
       apps.clear();
       GList *entries = g_app_info_get_all();
       for (GList *item = entries; item; item = item->next) {
@@ -184,10 +182,6 @@ class Launcher : public Screen {
       return;
     if (id == READER_FAVORITES) {
       go("home");
-      return;
-    }
-    if (id == READER_GUIDE) {
-      toast("Arrows navigate · OK selects · Back returns · Power sleeps");
       return;
     }
     if (id == READER_BACK) {

@@ -16,5 +16,4 @@
 
 - For application work, read [APP_DEVELOPMENT.md](APP_DEVELOPMENT.md), the main
   app development and design contract. Use shared UI helpers for new ReRead
-  screens by default; keep apps independent Linux executables. Its documented
-  UI requirements include intended behavior that is not yet globally enforced.
+  screens by default; keep apps independent Linux executables. UI 5 owns the hold-to-show Guide overlay; apps supply contextual controls.

@@ -50,3 +50,7 @@ video playback remains a later step. Favorites require an account.
 
 The MIME-opening test uses disposable cache/configuration, a local image and an
 isolated desktop handler; it sends no requests or account changes to a live site. Some API servers may return incompatible JSON or rate limit requests. Avoid storing keys on an untrusted device: the web/SSH management environment and all apps run with trusted local privileges.
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

@@ -79,11 +79,10 @@ class Camera : public Screen {
   void chrome() {
     orientation = rotation;
     showHeader = false;
-    controlsOverlay = true;
     if (options)
-      controls = {{READER_OK,"Change"},{READER_BACK,"Camera"}};
+      controls = {{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Camera"}};
     else
-      controls = {{READER_OK,"Shoot"},{READER_OPTIONS,"Settings"},
+      controls = {{READER_OK,"Shoot"},{READER_ZOOM_IN,"View zoom ±"},{READER_OPTIONS,"Settings"},
                   {READER_VIEW_TOGGLE,"Last photo"},{READER_BACK,"Home"}};
   }
   void lastPhoto() {
@@ -198,10 +197,6 @@ class Camera : public Screen {
       if (!options) live();
       chrome();
       update();
-      return;
-    }
-    if (id == READER_GUIDE && value == 1) {
-      toast("OK / Shoot takes photo · Options changes flash and mode");
       return;
     }
     if (options) {

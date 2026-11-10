@@ -47,11 +47,11 @@ docker run --rm -v "$PWD:/work" reread-app-builder sh -c '
 '
 ```
 
-Result: `out/examples/reread-app-example_0.1.0_i386.deb`. Upload it through the
+Result: `out/examples/reread-app-example_0.2.0_i386.deb`. Upload it through the
 web Apps page or copy it to the Reader and run:
 
 ```sh
-reader-update install /path/to/reread-app-example_0.1.0_i386.deb
+reader-update install /path/to/reread-app-example_0.2.0_i386.deb
 ```
 
 For subsequent example edits, reuse the builder and existing SDK output; rerun
@@ -62,9 +62,6 @@ For a real app, use its own directory under `antix/apps/<id>/`, executable,
 [Files](antix/apps/files/) and [Software](antix/apps/software/) show collections;
 [Camera](antix/apps/camera/) shows asynchronous service integration.
 
-The older [device-only example](antix/apps/examples/device-window.cpp) demonstrates
-ordinary Qt widgets without the shared renderer. Use it to understand the
-integration boundary, rather than as the default visual style for new apps.
 
 ## Design with the shared UI
 
@@ -89,7 +86,7 @@ Use the shared drawing functions:
 | Consistent typography and elision | `label`, `text` |
 | Physical control glyph | `buttonIcon` |
 | Brief feedback | `toast` |
-| Contextual control hints | `controls` with `showControls` and `controlsOverlay` |
+| Contextual control hints | `controls`; Screen owns Guide and overlay visibility |
 
 Collections should normally put the selectable rows on the left and useful
 information about the selected item on the right. Keep folder/package metadata,
@@ -127,12 +124,13 @@ physical **button icons**, each paired with a short action label.
   another mode. Guide should serve this purpose; another role needs a specific,
   exceptional reason.
 
-**Current SDK behavior:** Screen does not implement this Guide policy globally
-in 0.19. Its default is a visible footer. New apps must set
-`showControls=false; controlsOverlay=true;` and handle Guide's press **and release**
-before filtering ordinary action events. The starter does this using current
-APIs. Apps with child widgets must ensure the overlay is stacked above those
-widgets too. Existing bundled apps have not all been converted to this policy.
+**SDK behavior (0.20 / UI 5):** populate `controls` for each screen. Screen
+handles Guide press/release, repeat suppression and cleanup on focus loss,
+Hold lock, hiding, dimming and sleep. Help is a raised child overlay, above
+ordinary child widgets too, and never changes `content()`. Long hint lists wrap
+at readable size; inverted screens rotate and reposition help with their UI.
+Do not handle Guide in an app or add a permanent footer. `helpVisible()` exposes
+the state for diagnostics; it is not a visibility toggle.
 
 ## Buttons and their icons
 
@@ -160,8 +158,7 @@ scan codes into apps or create an app-specific key map for this hardware.
 Event values are **0 = released, 1 = pressed, 2 = repeated**. Allow repeat for
 navigation/scrolling, and use only the first press for opening, deleting,
 launching another program or other one-shot actions. This avoids one physical
-press opening several nested folders or starting multiple viewers. Guide needs
-release handling. Close normally with a successful exit; the window manager
+press opening several nested folders or starting multiple viewers. Screen owns Guide press/release; another toolkit must provide both. Close normally with a successful exit; the window manager
 restores the previous window without a custom return-to-Home protocol.
 
 ### Application icons and physical-button icons are different
@@ -194,12 +191,10 @@ The shared artwork must match the Reader's physical markings:
 | Voice Speed | Thick downward arrow with speed lines on its tail |
 | D-pad | Arrow points/chevrons without tails |
 
-**Artwork update pending:** some current shared SVGs and generated descriptions
-still show earlier approximations. These requirements define their correction;
-apps must continue using the shared icon names rather than shipping local fixes.
-When implementing the corrections, edit the central SVGs and descriptions in
-`buttons.json`, then run `python3 antix/input/generate.py` and its `--check` mode.
-The Guide/UI and artwork changes are separate from this documentation update.
+These corrections are implemented in the shared SVGs and generated reference.
+Keep icon names and semantic IDs stable. To change shared artwork, edit the SVGs
+and descriptions in `buttons.json`, then run `python3 antix/input/generate.py`
+and its `--check` mode. Never ship per-app replacements for physical controls.
 
 ## Application identity and icons
 
@@ -348,8 +343,8 @@ implement. Services already owning hardware remain responsible for it.
 
 Screen handles its Device activation. With a different toolkit/widget, mark a
 Device active only while foreground and deactivate it when hidden/backgrounded.
-The [device-only example](antix/apps/examples/device-window.cpp) shows the Qt
-application-state connection. Device does not open raw evdev devices. Its
+Use Qt application activation and widget visibility signals for that connection;
+other toolkits can use their equivalent focused-window events. Device does not open raw evdev devices. Its
 callbacks are `onIdle`, `onHold`, `onNotice` and `onResume`; `activity()` reports
 additional user input that the system's physical keyboard listener cannot see.
 
@@ -406,8 +401,8 @@ without taking down system services. See [manager.py](antix/manager.py).
 ## Build, package and distribute
 
 Use the existing builder, target **i386**, and declare actual runtime dependencies.
-The current baseline for new apps is **ReRead 0.19.0**. Device SONAME is 1 and UI
-SONAME is 4; UI 4 was introduced in 0.17.0. Using a future SDK API requires the
+The current baseline for new apps is **ReRead 0.20.0**. Device SONAME is 1 and UI
+SONAME is 5; UI 5 was introduced in 0.20.0. Using a future SDK API requires the
 corresponding minimum core version. Do not use the obsolete 0.9 minimum from
 earlier documentation for an X11 app.
 
@@ -439,7 +434,7 @@ usr/share/reread/apps/example/                   # optional packaged assets
 
 For compiled code use `Architecture: i386`; use `all` only for genuinely
 architecture-independent packages. Name it `reread-app-<id>`, give it a Debian
-version, declare `Depends: reread (>= 0.19.0)` plus its other runtime libraries,
+version, declare `Depends: reread (>= 0.20.0)` plus its other runtime libraries,
 and supply a meaningful description. Put editable defaults in `DEBIAN/conffiles`.
 Make executables executable. Build with `dpkg-deb --root-owner-group --build`;
 our packagers use gzip compression for the Reader. The starter packager provides

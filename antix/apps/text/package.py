@@ -24,7 +24,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: text
 Priority: optional
-Depends: reread (>= 0.19.0), desktop-file-utils
+Depends: reread (>= 0.20.0), desktop-file-utils
 Description: ReRead text viewer
  Read-only MIME text handler with Unicode, wrapping and Reader controls.
 ''')

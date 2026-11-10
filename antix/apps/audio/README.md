@@ -32,3 +32,7 @@ on the Reader. Future installer builds include these dependencies and the player
 [GStreamer playbin reference](https://gstreamer.freedesktop.org/documentation/playback/playbin.html)
 explains the standard engine used here. See [file opening](../../FILE_OPENING.md)
 for replacing the handler through normal MIME defaults.
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

@@ -11,22 +11,23 @@ class Text : public Screen {
   bool information=false;
   QRect body() const {return content().adjusted(0,48,-12,-30);}
   qreal maximum() const {return qMax(0.0,document.size().height()-body().height());}
+  void chrome() {
+    controls=(!error.isEmpty() || information)?QList<Control>{{READER_BACK,information?"Document":"Close"}}:
+      QList<Control>{{READER_UP,"Scroll"},{READER_RIGHT,"Page"},{READER_ZOOM_IN,"Text size ±"},{READER_OK,"Start"},{READER_OPTIONS,"Info"},{READER_BACK,"Close"}};
+    update();
+  }
   void layout() {
     QFont font("DejaVu Sans");font.setPixelSize(fontSize);
     document.setDefaultFont(font);document.setTextWidth(body().width());
     offset=qBound(0.0,offset,maximum());update();
   }
-  void focusOutEvent(QFocusEvent *event) override {
-    showControls=false;Screen::focusOutEvent(event);update();
-  }
   void resizeEvent(QResizeEvent *event) override {Screen::resizeEvent(event);layout();}
   void button(reader_button id,int value) override {
-    if(id==READER_GUIDE){showControls=value!=0;update();return;}
     if(!value)return;
     if(value==2 && id!=READER_UP && id!=READER_DOWN && id!=READER_LEFT && id!=READER_RIGHT)return;
     if(id==READER_FAVORITES){close();return;}
-    if(id==READER_BACK){if(information){information=false;update();}else close();return;}
-    if(id==READER_OPTIONS){information=!information;update();return;}
+    if(id==READER_BACK){if(information){information=false;chrome();}else close();return;}
+    if(id==READER_OPTIONS){information=!information;chrome();return;}
     if(information || !error.isEmpty())return;
     if(id==READER_ZOOM_IN || id==READER_ZOOM_OUT) {
       const qreal fraction=maximum()>0?offset/maximum():0;
@@ -59,9 +60,7 @@ class Text : public Screen {
   }
 public:
   explicit Text(const QString &argument):Screen("Text") {
-    showHeader=false;showControls=false;controlsOverlay=true;
-    controls={{READER_UP,"Scroll"},{READER_RIGHT,"Page"},{READER_ZOOM_IN,"Text size"},
-      {READER_OPTIONS,"Info"},{READER_BACK,"Close"}};
+    showHeader=false;
     document.setUndoRedoEnabled(false);document.setDocumentMargin(0);
     QTextOption option;option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);document.setDefaultTextOption(option);
     QUrl url(argument);
@@ -87,7 +86,7 @@ public:
         }
       }
     }
-    setWindowTitle("Text — "+QFileInfo(filename).fileName());layout();
+    setWindowTitle("Text — "+QFileInfo(filename).fileName());chrome();layout();
   }
 };
 int main(int argc,char **argv) {

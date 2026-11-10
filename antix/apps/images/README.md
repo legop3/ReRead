@@ -8,7 +8,7 @@ codec is added. The image window closes back to whichever app was underneath it.
 - Zoom buttons magnify; OK switches between fit and decoded actual size.
 - Arrows pan when zoomed. Left/Right browse adjacent images at fit size.
 - View rotates the displayed image 90° without editing the file.
-- Options shows filename, decoded dimensions, zoom and position; Guide explains controls.
+- Options shows filename, decoded dimensions, zoom and position; hold Guide shows the shared controls overlay.
 - Back closes the image (or returns from information). Favorites closes the viewer.
 
 Qt applies EXIF orientation. Images above 4096 pixels on either axis are decoded
@@ -42,3 +42,7 @@ physical SVG control hints and readable UI without modifying an upstream viewer.
 Decoding, window ownership, file associations and app launching stay with Qt,
 Xorg and the freedesktop/GIO interfaces. Another viewer can replace it through
 normal MIME defaults.
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

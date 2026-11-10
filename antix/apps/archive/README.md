@@ -38,3 +38,7 @@ and its SDK libraries are built; no installer is rebuilt. Install the resulting
 `test-opening.cpp` exercises real GIO dispatch with isolated MIME defaults,
 Unicode/punctuation filenames, cached images/text, streamed audio URIs, cache
 retention and eviction. It makes no public Archive requests or account changes.
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

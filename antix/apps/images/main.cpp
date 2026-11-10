@@ -21,10 +21,10 @@ class Images : public Screen {
     pan.setX(qBound(-x,pan.x(),x));pan.setY(qBound(-y,pan.y(),y));
   }
   void chrome() {
-    showHeader=info;controlsOverlay=false;
+    showHeader=info;
     title="Image information";subtitle=QFileInfo(files.value(index)).fileName();
-    controls=info?QList<Control>{{READER_BACK,"Image"}}:
-      QList<Control>{{READER_ZOOM_IN,"Zoom"},{READER_OK,"Fit / 1:1"},{READER_VIEW_TOGGLE,"Rotate"},{READER_BACK,"Close"}};
+    controls=!error.isEmpty()?QList<Control>{{READER_BACK,"Close"}}:info?QList<Control>{{READER_BACK,"Image"}}:
+      QList<Control>{{READER_ZOOM_IN,"Zoom ±"},{READER_UP,"Pan / Browse"},{READER_OK,"Fit / 1:1"},{READER_VIEW_TOGGLE,"Rotate"},{READER_OPTIONS,"Info"},{READER_BACK,"Close"}};
     update();
   }
   void load() {
@@ -56,9 +56,6 @@ class Images : public Screen {
     if(id==READER_FAVORITES) {close();return;}
     if(id==READER_BACK) {if(info){info=false;chrome();}else close();return;}
     if(id==READER_OPTIONS) {info=!info;chrome();return;}
-    if(id==READER_GUIDE) {
-      toast("Zoom buttons magnify · Arrows pan; Left/Right browse at fit · OK fits / actual size · View rotates · Options shows info");return;
-    }
     if(info || image.isNull())return;
     if(id==READER_ZOOM_IN || id==READER_ZOOM_OUT) {
       zoom=qBound(1.0,zoom*(id==READER_ZOOM_IN?1.414213562:0.707106781),qMax(16.0,1.0/fit()));

@@ -41,3 +41,7 @@ It also runs the real entry point to verify GUI input does not open raw evdev. I
 Hardware validation for 0.1.1: one evdev OK press enters exactly one directory;
 Back at the shared root and Favorites both exit with status 0. These checks used
 a disposable directory, leaving shared user files untouched.
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

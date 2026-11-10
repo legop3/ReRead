@@ -13,6 +13,15 @@ static reader_button keyButton(QKeyEvent *e) {
     case Qt::Key_Minus:return READER_ZOOM_OUT;default:return READER_NONE;
   }
 }
+class HelpOverlay final : public QWidget {
+  Screen &screen;
+  void paintEvent(QPaintEvent *) override {QPainter painter(this);screen.paintHelp(painter);}
+public:
+  explicit HelpOverlay(Screen &owner):QWidget(&owner),screen(owner) {
+    setObjectName("reread-help");setFocusPolicy(Qt::NoFocus);
+    setAttribute(Qt::WA_TransparentForMouseEvents);hide();
+  }
+};
 Screen::Screen(const QString &name) : title(name) {
   QPalette colors;
   colors.setColor(QPalette::Window, QColor("#000000"));
@@ -32,8 +41,11 @@ Screen::Screen(const QString &name) : title(name) {
   setWindowFlags(Qt::Window);
   setCursor(Qt::BlankCursor);
   resize(960, 544);
+  helpOverlay=new HelpOverlay(*this);
+  qApp->installEventFilter(this);
   device = new Device(this);
   device->onButton([this](reader_button id, int value) {
+    if(id==READER_GUIDE){if(value!=2)setHelp(value==1);return;}
     if (orientation == 180) {
       if (id == READER_UP) id = READER_DOWN;
       else if (id == READER_DOWN) id = READER_UP;
@@ -42,8 +54,8 @@ Screen::Screen(const QString &name) : title(name) {
     }
     button(id, value);
   });
-  device->onIdle([this](bool dimmed) { idleChanged(dimmed); });
-  device->onHold([this](bool) { update(); });
+  device->onIdle([this](bool dimmed) { if(dimmed)setHelp(false);idleChanged(dimmed); });
+  device->onHold([this](bool locked) { if(locked)setHelp(false);update(); });
   device->onNotice([this](const QString &message) { toast(message); });
   device->onResume([this] { update(); });
   connect(qGuiApp,&QGuiApplication::applicationStateChanged,this,[this](Qt::ApplicationState state){
@@ -75,7 +87,7 @@ Screen::Screen(const QString &name) : title(name) {
             }
           });
 }
-Screen::~Screen() { device->setActive(false); }
+Screen::~Screen() { qApp->removeEventFilter(this);device->setActive(false); }
 void Screen::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
   device->setActive(true);
@@ -89,8 +101,62 @@ void Screen::dispatch(reader_button id, int value) {
 }
 QRect Screen::safeArea() const { return rect().adjusted(14, 14, -14, -14); }
 QRect Screen::content() const {
-  return safeArea().adjusted(0, showHeader ? 56 : 0, 0,
-      showControls && !controlsOverlay && !controls.isEmpty() ? -56 : 0);
+  return safeArea().adjusted(0, showHeader ? 56 : 0, 0, 0);
+}
+bool Screen::helpVisible() const {return helpHeld && !controls.isEmpty();}
+void Screen::setHelp(bool held) {
+  if(helpHeld==held)return;
+  helpHeld=held;syncHelp();
+}
+bool Screen::event(QEvent *event) {
+  if(event->type()==QEvent::WindowDeactivate || event->type()==QEvent::Hide)setHelp(false);
+  return QWidget::event(event);
+}
+bool Screen::eventFilter(QObject *object,QEvent *event) {
+  auto target=qobject_cast<QWidget *>(object);
+  if(target && (target==this || isAncestorOf(target)) &&
+     (event->type()==QEvent::KeyPress || event->type()==QEvent::KeyRelease)) {
+    auto key=static_cast<QKeyEvent *>(event);
+    if(keyButton(key)==READER_GUIDE) {
+      if(event->type()==QEvent::KeyPress)dispatch(READER_GUIDE,key->isAutoRepeat()?2:1);
+      else if(!key->isAutoRepeat())dispatch(READER_GUIDE,0);
+      return true;
+    }
+  }
+  return QWidget::eventFilter(object,event);
+}
+QVector<QRect> Screen::helpGroups() const {
+  QFont font=this->font();font.setPixelSize(21);QFontMetrics metrics(font);
+  const int available=qMax(1,safeArea().width()-16);int x=8,y=8;
+  QVector<QRect> groups;
+  for(const auto &control:controls) {
+    int width=qMin(available,58+metrics.horizontalAdvance(control.action));
+    if(x>8 && x+width>available+8){x=8;y+=50;}
+    groups.append(QRect(x,y,width,42));x+=width+16;
+  }
+  return groups;
+}
+void Screen::syncHelp() {
+  if(!isVisible() || !helpVisible()){helpOverlay->hide();return;}
+  auto groups=helpGroups();
+  const auto safe=safeArea();int height=groups.isEmpty()?0:groups.last().bottom()+9;
+  QRect area(safe.left(),safe.bottom()-height+1,safe.width(),height);
+  if(orientation==180)area.moveTop(height?this->height()-safe.bottom()-1:0);
+  helpOverlay->setGeometry(area);
+  helpOverlay->setVisible(isVisible() && helpVisible());
+  if(helpVisible()){helpOverlay->raise();helpOverlay->update();}
+}
+void Screen::paintHelp(QPainter &p) {
+  if(orientation==180){p.translate(helpOverlay->width(),helpOverlay->height());p.rotate(180);}
+  p.setRenderHint(QPainter::Antialiasing);
+  p.fillRect(helpOverlay->rect(),Qt::black);p.setPen(QPen(Qt::white,2));
+  p.drawRect(helpOverlay->rect().adjusted(1,1,-1,-1));
+  const auto groups=helpGroups();
+  for(int i=0;i<groups.size();++i) {
+    const auto box=groups[i];
+    buttonIcon(p,QRect(box.x()+4,box.y()+5,32,32),controls[i].button);
+    label(p,box.adjusted(45,0,0,0),controls[i].action,21,false,Qt::white);
+  }
 }
 // Physical control glyphs are standard SVG icon-theme assets.
 void Screen::buttonIcon(QPainter &p, const QRect &r, reader_button id) {
@@ -143,29 +209,7 @@ void Screen::paintEvent(QPaintEvent *) {
                QTime::currentTime().toString("HH:mm"));
   }
   draw(p, content());
-  if (showControls && !controls.isEmpty()) {
-    int total = 0;
-    QFont f = p.font(); f.setPixelSize(21); p.setFont(f);
-    QFontMetrics metrics(f);
-    for (const auto &control : controls) total += 58 + metrics.horizontalAdvance(control.action) + 16;
-    int x = safe.left();
-    // Explicit icon/action groups replace ambiguous runs of button names.
-    // Apps choose these groups, whether to show them and whether they overlay.
-    double scale = qMin(1.0, double(safe.width()) / qMax(1,total));
-    p.save(); p.translate(x, safe.bottom()-43); p.scale(scale,scale);
-    x = 0;
-    for (const auto &control : controls) {
-      int w = 58 + metrics.horizontalAdvance(control.action);
-      p.setPen(Qt::NoPen); p.setBrush(palette().base());
-      p.drawRect(QRect(x,0,w,42));
-      p.setPen(QPen(Qt::white,1)); p.setBrush(Qt::black);
-      p.drawRect(QRect(x+5,2,38,38));
-      buttonIcon(p,QRect(x+9,6,30,30),control.button);
-      text(p,QRect(x+48,0,w-52,42),control.action,21,palette().color(QPalette::Text));
-      x += w+16;
-    }
-    p.restore();
-  }
+  syncHelp();
   QString warning;
   const QString level = battery.value("level").toString();
   if (level == "critical" || level == "low" || level == "warning") {

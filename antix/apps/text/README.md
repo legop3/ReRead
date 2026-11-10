@@ -24,3 +24,7 @@ replaced through ordinary MIME defaults; see [file opening](../../FILE_OPENING.m
 
 Qt references: [QTextDocument](https://doc.qt.io/archives/qt-5.15/qtextdocument.html),
 [QTextCodec](https://doc.qt.io/archives/qt-5.15/qtextcodec.html).
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

@@ -11,7 +11,6 @@ It replaces the old contract on this page, including its outdated SDK minimum.
 | Source | Purpose |
 | --- | --- |
 | [Shared UI starter](examples/screen-window.cpp) and [packager](examples/package-screen.py) | Recommended starting point; collection/details layout and Guide overlay |
-| [Device-only example](examples/device-window.cpp) | Advanced integration with an ordinary Qt widget and no shared renderer |
 | [Files](files/README.md) | Shared storage browser, collection layout and MIME dispatch |
 | [Software](software/README.md) | Package/update management and collection layout |
 | [Camera](camera/README.md) | Asynchronous camera-service client and live preview |

@@ -60,7 +60,7 @@ class Software : public Screen {
   void refresh() {
     title = "Software";
     subtitle = running() ? "Package operation in progress" : "";
-    controls = {{READER_OK,"Select"},{READER_BACK,page == "home" ? "Home" : "Back"}};
+    controls = {{READER_UP,"Navigate"},{READER_OK,"Select"},{READER_BACK,page == "home" ? "Home" : "Back"}};
     labels.clear(); details.clear(); packages.clear(); actions.clear();
     auto catalog = state.value("catalog").toObject();
     auto platform = candidate("reread");

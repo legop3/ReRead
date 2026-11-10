@@ -39,12 +39,12 @@ class Files : public Screen {
     chrome();
   }
   void chrome() {
-    showHeader=true; showControls=true; controlsOverlay=false;
+    showHeader=true;
     title=page=="confirm"?"Delete permanently?":page=="options"?"File actions":page=="details"?"Details":"Files";
     subtitle=directory.isEmpty()?"Shared files":directory;
     if(page=="browse") {
       subtitle += " · "+QString::number(names.size())+" items";
-      controls={{READER_OK,"Open"},{READER_OPTIONS,"Actions"},{READER_BACK,directory.isEmpty()?"Home":"Up"}};
+      controls={{READER_UP,"Select"},{READER_OK,"Open"},{READER_OPTIONS,"Actions"},{READER_BACK,directory.isEmpty()?"Home":"Up"}};
     } else if(page=="options") controls={{READER_OK,"Select"},{READER_BACK,"Files"}};
     else if(page=="confirm") controls={{READER_OK,"Select"},{READER_BACK,"Cancel"}};
     else controls={{READER_OPTIONS,"Actions"},{READER_BACK,"Files"}};
@@ -91,7 +91,6 @@ class Files : public Screen {
     if(!value || busy) return;
     if(value==2 && id!=READER_UP && id!=READER_DOWN && id!=READER_LEFT && id!=READER_RIGHT) return;
     if(id==READER_FAVORITES) { QApplication::quit(); return; }
-    if(id==READER_GUIDE) { toast("OK opens · Options shows actions · Back goes up · Favorites returns Home"); return; }
     if(id==READER_BACK) {
       if(page!="browse") { browse(); return; }
       if(directory.isEmpty()) { QApplication::quit(); return; }

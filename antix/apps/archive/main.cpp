@@ -14,8 +14,7 @@
 using namespace ReRead;
 
 namespace {
-const QColor bg("#fafafa"), panel("#ffffff"), outline("#d7d7d7");
-const QColor ink("#242424"), muted("#666666"), accent("#1769aa"), blue("#1769aa");
+
 QString value(const QJsonValue &v) {
   if (v.isString()) return v.toString();
   if (v.isDouble()) return QString::number(v.toDouble());
@@ -97,9 +96,11 @@ class Archive : public Screen {
   QStringList types={"audio","texts","image","software","collection",""};
   QString storagePath() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-archive");}
   QString sharedPath() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
+  QColor bg, panel, outline, ink, muted, accent, blue;
   QColor color(bool active) const {return active?accent:ink;}
-  void txt(QPainter &p,const QRect &r,const QString &str,int px=23,QColor c=ink,
+  void txt(QPainter &p,const QRect &r,const QString &str,int px=23,QColor c=QColor(),
            int align=Qt::AlignLeft|Qt::AlignVCenter,bool bold=false) const {
+    if(!c.isValid())c=ink;
     QFont f=p.font();f.setPixelSize(px);f.setBold(bold);p.setFont(f);
     p.setPen(c);
     p.drawText(r,align|Qt::TextWordWrap,str);
@@ -111,7 +112,8 @@ class Archive : public Screen {
   void round(QPainter &p,const QRect &r,QColor c,int radius=3) const {
     p.setPen(Qt::NoPen);p.setBrush(c);p.drawRoundedRect(r,radius,radius);
   }
-  void icon(QPainter &p,const QRect &rect,const QString &kind,QColor c=accent) const {
+  void icon(QPainter &p,const QRect &rect,const QString &kind,QColor c=QColor()) const {
+    if(!c.isValid())c=accent;
     p.save();p.setRenderHint(QPainter::Antialiasing);p.setPen(QPen(c,3,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
     p.setBrush(Qt::NoBrush);
     auto r=rect.adjusted(8,8,-8,-8);
@@ -152,20 +154,20 @@ class Archive : public Screen {
   }
   void card(QPainter &p,const QRect &r,const QString &name,const QString &sub,
             const QImage &img,bool active,const QString &symbol) const {
-    p.fillRect(r,Qt::white);
-    p.setPen(QPen(active?QColor("#177bbb"):QColor("#d5d5d5"),active?3:1));
+    p.fillRect(r,bg);
+    p.setPen(QPen(active?accent:ink,active?3:1));
     p.setBrush(Qt::NoBrush);
     p.drawRect(r.adjusted(1,1,-2,-2));
     QRect cover=r.adjusted(5,5,-5,-65);
-    p.fillRect(cover,QColor("#e7e7e7"));
+    p.fillRect(cover,bg);
     if(!img.isNull())imageIn(p,cover,img,true);
     else {
-      icon(p,QRect(cover.center().x()-29,cover.center().y()-29,58,58),symbol,QColor("#858585"));
+      icon(p,QRect(cover.center().x()-29,cover.center().y()-29,58,58),symbol,ink);
     }
     txt(p,QRect(r.x()+9,r.bottom()-57,r.width()-18,34),
-        fitText(name,22,r.width()-22),22,QColor("#135c96"),Qt::AlignLeft|Qt::AlignVCenter,true);
+        fitText(name,22,r.width()-22),22,accent,Qt::AlignLeft|Qt::AlignVCenter,true);
     txt(p,QRect(r.x()+9,r.bottom()-27,r.width()-18,18),
-        fitText(sub,18,r.width()-22),18,QColor("#777777"));
+        fitText(sub,18,r.width()-22),18,ink);
   }
 
   void abortApi() {if(api){api->disconnect(this);api->abort();api->deleteLater();api=nullptr;}}
@@ -520,7 +522,7 @@ class Archive : public Screen {
     else if(page==DOWNLOAD_CONFIRM)page=downloadReturn;
     update();
   }
-  int activeFiles() const {return qMax(1,(safeArea().height()-140)/58);}
+  int activeFiles() const {return qMax(1,(content().height()-100)/58);}
   void navigate(int dx,int dy) {
     if(page==HOME){
       selected=qBound(0,selected+dx+dy*3,5);
@@ -538,48 +540,26 @@ class Archive : public Screen {
       maybeLoadMore();
     } else if(page==FILES){
       selected=qBound(0,selected+dx+dy,qMax(0,files.size()-1));
-      if(selected<fileStart)fileStart=selected;
-      if(selected>=fileStart+activeFiles())fileStart=selected-activeFiles()+1;
+      fileStart=(selected/activeFiles())*activeFiles();
       requestFilePreviews();
     }
     update();
   }
-  void paintChrome(QPainter &p,const QRect &safe) {
-    // Navigation hints only. Content itself is the page title; no repeated
-    // app identity strip. Viewers use all pixels and skip this entirely.
-    const int bottom=safe.bottom()-41;
-    p.fillRect(QRect(safe.x(),bottom,safe.width(),42),QColor("#f1f1f1"));
-    p.setPen(QPen(QColor("#dedede")));p.drawLine(safe.x(),bottom,safe.right(),bottom);
-    using Hint=QPair<reader_button,QString>;
-    QList<Hint> hints;
-    if(page==HOME)hints={{READER_UP,"Move"},{READER_OK,"Open"},{READER_BACK,"Exit"}};
-    else if(page==BROWSE)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_OPTIONS,"Sort"},{READER_BACK,"Back"}};
-    else if(page==ITEM)hints={{READER_UP,"Action"},{READER_OK,"Select"},{READER_BACK,"Results"}};
-    else if(page==FILES)hints={{READER_OK,"Open"},{READER_OPTIONS,"Download"},{READER_BACK,"Item"}};
-    else if(page==DOWNLOAD_CONFIRM)hints={{READER_OK,"Download"},{READER_BACK,"Cancel"}};
-    else if(page==DOWNLOADING)hints={{READER_BACK,"Cancel"}};
-    else hints={{READER_BACK,"Return"}};
-    QFont f=p.font();f.setPixelSize(18);QFontMetrics metrics(f);
-    int total=0;
-    for(const auto &hint:hints)total+=43+metrics.horizontalAdvance(hint.second)+22;
-    double scale=qMin(1.0,double(safe.width()-24)/qMax(1,total));
-    p.save();p.translate(safe.x()+14,bottom+4);p.scale(scale,scale);
-    int pos=0;
-    for(const auto &hint:hints) {
-      int width=43+metrics.horizontalAdvance(hint.second);
-      p.fillRect(QRect(pos+1,1,35,33),QColor("#3d3d3d"));
-      buttonIcon(p,QRect(pos+5,4,27,27),hint.first);
-      txt(p,QRect(pos+43,0,width-37,35),hint.second,18,QColor("#404040"));
-      pos+=width+22;
-    }
-    p.restore();
+  void contextualControls() {
+    if(page==HOME)controls={{READER_UP,"Move"},{READER_OK,"Open"},{READER_BACK,"Exit"}};
+    else if(page==BROWSE)controls={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_OPTIONS,"Sort"},{READER_BACK,"Back"}};
+    else if(page==ITEM)controls={{READER_UP,"Action"},{READER_OK,"Select"},{READER_BACK,"Results"}};
+    else if(page==FILES)controls={{READER_OK,"Open"},{READER_OPTIONS,"Download"},{READER_BACK,"Item"}};
+    else if(page==DOWNLOAD_CONFIRM)controls={{READER_OK,"Download"},{READER_BACK,"Cancel"}};
+    else if(page==DOWNLOADING)controls={{READER_BACK,"Cancel"}};
+    else controls={{READER_BACK,"Return"}};
   }
 
 protected:
   void draw(QPainter &p,const QRect &r) override {
     p.fillRect(r,bg);
-    paintChrome(p,r);
-    QRect area=r.adjusted(8,8,-8,-48);
+    contextualControls();
+    QRect area=r.adjusted(8,8,-8,-8);
     if(page==HOME) {
       const QStringList sub={
         "Music, radio & recordings","Books, magazines & documents",
@@ -587,24 +567,24 @@ protected:
         "Saved items"
       };
       const QColor tileColors[]={
-        QColor("#326f9d"),QColor("#b88a46"),QColor("#7b72a5"),
-        QColor("#6b9074"),QColor("#797979"),QColor("#a26d6c")
+        QColor("#00bfff"),QColor("#ffd000"),QColor("#bf70ff"),
+        QColor("#00df40"),QColor("#ffffff"),QColor("#ff5050")
       };
       const int gap=12;
       const int cw=(area.width()-2*gap)/3;
       const int ch=(area.height()-gap)/2;
       for(int i=0;i<6;++i) {
         QRect box(area.x()+(i%3)*(cw+gap),area.y()+(i/3)*(ch+gap),cw,ch);
-        p.fillRect(box,Qt::white);
-        p.setPen(QPen(i==selected?QColor("#1769aa"):outline,i==selected?3:1));
+        p.fillRect(box,bg);
+        p.setPen(QPen(i==selected?accent:outline,i==selected?3:1));
         p.drawRect(box.adjusted(1,1,-2,-2));
         QRect picture(box.x()+8,box.y()+8,box.width()-16,box.height()-69);
-        p.fillRect(picture,tileColors[i]);
+        p.setPen(QPen(tileColors[i],2));p.drawRect(picture.adjusted(1,1,-1,-1));
         int glyph=qMin(78,picture.height()-10);
         icon(p,QRect(picture.center().x()-glyph/2,picture.center().y()-glyph/2,
-                     glyph,glyph),sections[i],Qt::white);
+                     glyph,glyph),sections[i],tileColors[i]);
         txt(p,QRect(box.x()+12,box.bottom()-60,box.width()-24,34),
-            sections[i],25,QColor("#1769aa"),Qt::AlignLeft|Qt::AlignVCenter,true);
+            sections[i],25,accent,Qt::AlignLeft|Qt::AlignVCenter,true);
         txt(p,QRect(box.x()+12,box.bottom()-29,box.width()-24,23),
             fitText(sub[i],19,box.width()-24),19,muted);
       }
@@ -634,7 +614,7 @@ protected:
     } else if(page==ITEM) {
       QRect left(area.x()+7,area.y()+9,235,area.height()-20);
       QRect right(left.right()+22,area.y()+2,area.right()-left.right()-28,area.height()-5);
-      p.fillRect(left,QColor("#eeeeee"));
+      p.fillRect(left,bg);
       if(!thumbs.value(itemId).isNull())
         imageIn(p,left.adjusted(8,8,-8,-8),thumbs.value(itemId),false);
       else icon(p,QRect(left.center().x()-45,left.center().y()-45,90,90),"Collections",muted);
@@ -648,50 +628,54 @@ protected:
       int y=right.y()+143;
       for(int i=0;i<actions.size();++i){
         QRect row(right.x(),y+i*47,right.width()-3,42);
-        if(i==selected)p.fillRect(row,QColor("#e3edf6"));
+        if(i==selected)p.fillRect(row,palette().highlight());
         p.setPen(QPen(i==selected?accent:outline));
         p.drawRect(row.adjusted(0,0,-1,-1));
         txt(p,row.adjusted(15,0,-10,0),
             QString(i==selected?"›  ":"   ")+actions[i],23,
-            i==selected?accent:ink);
+            i==selected?palette().color(QPalette::HighlightedText):ink);
       }
       txt(p,QRect(right.x()+1,right.y()+298,right.width()-4,70),
           fitText(description,20,right.width()*3),20,muted,Qt::AlignLeft|Qt::AlignTop);
     } else if(page==FILES) {
       txt(p,QRect(area.x()+4,area.y(),area.width()-8,39),
           fitText(itemTitle,25,area.width()-12),25,ink,Qt::AlignLeft|Qt::AlignVCenter,true);
-      p.fillRect(QRect(area.x(),area.y()+47,area.width(),32),QColor("#eeeeee"));
+      p.fillRect(QRect(area.x(),area.y()+47,area.width(),32),bg);
       txt(p,QRect(area.x()+10,area.y()+47,area.width()-20,32),
           "Files and available formats",19,muted);
-      int top=area.y()+84,step=57,visible=qMax(1,(area.bottom()-top)/step);
-      for(int i=fileStart;i<qMin(files.size(),fileStart+visible);++i){
-        QRect row(area.x(),top+(i-fileStart)*step,area.width(),step-2);
-        p.fillRect(row,i==selected?QColor("#e2edf6"):QColor(i%2?"#ffffff":"#f6f6f6"));
-        QRect preview(row.x()+7,row.y()+4,49,47);
-        const QImage previewImage=fileThumbs.contains(files[i].name)?
-          fileThumbs.value(files[i].name):thumbs.value(itemId);
-        if(!previewImage.isNull()) {
-          p.fillRect(preview,QColor("#e5e5e5"));
-          imageIn(p,preview,previewImage,false);
-        } else {
-          icon(p,preview.adjusted(2,1,-2,-1),
-               isAudio(files[i].name)?"Audio":isText(files[i].name)?"Books":
-               isImage(files[i].name)?"Images":"Software",
-               i==selected?accent:muted);
+      auto layout=listInfo(p,area.adjusted(0,84,0,0),files.size(),selected,58);
+      for(int i=layout.first;i<qMin(files.size(),layout.first+layout.visible);++i) {
+        const auto row=listInfoRow(p,layout,i,selected);
+        const auto foreground=palette().color(i==selected?QPalette::HighlightedText:QPalette::Text);
+        const QRect preview(row.x()+7,row.y()+6,44,44);
+        const QImage thumbnail=fileThumbs.contains(files[i].name)?fileThumbs.value(files[i].name):thumbs.value(itemId);
+        if(!thumbnail.isNull())imageIn(p,preview,thumbnail,false);
+        else icon(p,preview,isAudio(files[i].name)?"Audio":isText(files[i].name)?"Books":
+                  isImage(files[i].name)?"Images":"Software",foreground);
+        label(p,QRect(row.x()+61,row.y(),row.width()-69,29),files[i].name,23,i==selected,foreground);
+        label(p,QRect(row.x()+61,row.y()+29,row.width()-69,25),files[i].format+" · "+human(files[i].size),18,false,foreground);
+      }
+      if(selected>=0 && selected<files.size()) {
+        const auto &file=files[selected];const auto side=layout.info;
+        const QImage preview=fileThumbs.contains(file.name)?fileThumbs.value(file.name):thumbs.value(itemId);
+        const QRect picture(side.x(),side.y(),side.width(),qMin(160,side.height()/2));
+        if(!preview.isNull())imageIn(p,picture,preview,false);
+        else {
+          const int glyph=qMin(96,qMin(picture.width(),picture.height())-12);
+          icon(p,QRect(picture.center()-QPoint(glyph/2,glyph/2),QSize(glyph,glyph)),
+               isAudio(file.name)?"Audio":isText(file.name)?"Books":isImage(file.name)?"Images":"Software",accent);
         }
-        txt(p,QRect(row.x()+65,row.y()+2,row.width()-310,27),
-            fitText(files[i].name,23,row.width()-315),23,QColor("#1769aa"));
-        txt(p,QRect(row.x()+65,row.y()+30,row.width()-310,19),
-            fitText(files[i].format,18,row.width()-315),18,muted);
-        txt(p,QRect(row.right()-210,row.y(),197,row.height()),
-            human(files[i].size),20,muted,Qt::AlignRight|Qt::AlignVCenter);
+        label(p,QRect(side.x(),picture.bottom()+12,side.width(),34),file.name,24,true,ink);
+        text(p,QRect(side.x(),picture.bottom()+55,side.width(),110),file.format+"\n"+human(file.size),22,ink);
+        buttonIcon(p,QRect(side.x(),side.bottom()-42,28,28),READER_OK);
+        label(p,QRect(side.x()+38,side.bottom()-44,side.width()-38,32),"Open in default viewer",19,false,accent);
       }
       if(files.isEmpty())txt(p,area,loaded?"No files listed":"Loading files...",22,muted,Qt::AlignCenter);
     } else if(page==DOWNLOAD_CONFIRM||page==DOWNLOADING) {
       QRect dialog=area.adjusted(120,35,-120,-35);
-      p.fillRect(dialog,Qt::white);
+      p.fillRect(dialog,bg);
       p.setPen(QPen(outline));p.drawRect(dialog.adjusted(0,0,-1,-1));
-      p.fillRect(QRect(dialog.x(),dialog.y(),dialog.width(),45),QColor("#eeeeee"));
+      p.fillRect(QRect(dialog.x(),dialog.y(),dialog.width(),45),bg);
       txt(p,QRect(dialog.x()+18,dialog.y()+3,dialog.width()-36,38),
           page==DOWNLOAD_CONFIRM?"Download file":"Downloading file",25,ink);
       txt(p,QRect(dialog.x()+22,dialog.y()+66,dialog.width()-44,60),downloadFile.name,21,ink);
@@ -703,7 +687,7 @@ protected:
             "Save to Files / Internet Archive. No files are stored by browsing.",18,muted);
       else {
         QRect bar(dialog.x()+22,dialog.y()+212,dialog.width()-44,13);
-        p.fillRect(bar,QColor("#dddddd"));
+        p.fillRect(bar,outline);
         if(expected>0)p.fillRect(QRect(bar.x(),bar.y(),
           int(bar.width()*qMin(1.0,double(received)/expected)),bar.height()),accent);
       }
@@ -718,8 +702,8 @@ protected:
     if(!status.isEmpty()&&
        page!=DOWNLOAD_CONFIRM&&page!=DOWNLOADING) {
       QRect note(area.x()+4,area.bottom()-30,area.width()-8,30);
-      p.fillRect(note,QColor("#fff3de"));
-      txt(p,note.adjusted(8,0,-8,0),fitText(status,15,note.width()-16),15,QColor("#804d16"));
+      p.fillRect(note,Qt::black);
+      txt(p,note.adjusted(8,0,-8,0),fitText(status,15,note.width()-16),15,QColor("#ffd000"));
     }
   }
 
@@ -760,7 +744,10 @@ protected:
   }
 public:
   Archive():Screen("Internet Archive") {
-    showHeader=false;showControls=false;
+    showHeader=false;
+    bg=palette().color(QPalette::Window);panel=palette().color(QPalette::Base);
+    outline=palette().color(QPalette::Mid);ink=palette().color(QPalette::Text);
+    muted=ink;accent=palette().color(QPalette::Link);blue=accent;
     loadFavorites();loaded=true;
   }
   ~Archive() override {

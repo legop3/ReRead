@@ -23,3 +23,7 @@ Removing Camera removes the app, retaining that platform support and user photos
 Last photo opens the saved JPEG in the default image viewer through GIO. Back
 closes that viewer and exposes Camera again. Camera yields its live preview
 lease while unfocused and resumes on return; it has no embedded photo viewer.
+
+UI 5 supplies the shared physical-button hints: hold Guide to show them over
+the current screen, release to hide. No footer space is reserved. The shared
+SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.

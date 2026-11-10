@@ -43,7 +43,7 @@
     "linux_code": 164,
     "xkb": "XF86AudioPlay",
     "location": "Front, upper right blue button",
-    "symbol": "Right arrow",
+    "symbol": "Triangle pointing up and right",
     "action": "Play/pause or primary app action",
     "icon": "reread-button-play"
   },
@@ -67,7 +67,7 @@
     "linux_code": 103,
     "xkb": "Up",
     "location": "D-pad top",
-    "symbol": "Up arrow",
+    "symbol": "Up chevron without tail",
     "action": "Move up",
     "icon": "reread-button-up"
   },
@@ -79,7 +79,7 @@
     "linux_code": 108,
     "xkb": "Down",
     "location": "D-pad bottom",
-    "symbol": "Down arrow",
+    "symbol": "Down chevron without tail",
     "action": "Move down",
     "icon": "reread-button-down"
   },
@@ -91,7 +91,7 @@
     "linux_code": 105,
     "xkb": "Left",
     "location": "D-pad left",
-    "symbol": "Left arrow",
+    "symbol": "Left chevron without tail",
     "action": "Move left or decrease",
     "icon": "reread-button-left"
   },
@@ -103,7 +103,7 @@
     "linux_code": 106,
     "xkb": "Right",
     "location": "D-pad right",
-    "symbol": "Right arrow",
+    "symbol": "Right chevron without tail",
     "action": "Move right or increase",
     "icon": "reread-button-right"
   },
@@ -115,7 +115,7 @@
     "linux_code": 28,
     "xkb": "Return",
     "location": "D-pad center",
-    "symbol": "Ring and dot",
+    "symbol": "Empty circle",
     "action": "Activate selection",
     "icon": "reread-button-ok"
   },
@@ -187,7 +187,7 @@
     "linux_code": 208,
     "xkb": "XF86AudioForward",
     "location": "Bottom row, fifth button",
-    "symbol": "Down arrow",
+    "symbol": "Thick down arrow with speed lines",
     "action": "App speed or alternate action",
     "icon": "reread-button-voice-speed"
   },
@@ -200,7 +200,7 @@
     "xkb": "F1",
     "location": "Bottom row, sixth button",
     "symbol": "Question mark",
-    "action": "Help",
+    "action": "Hold for contextual controls; release to hide",
     "icon": "reread-button-guide"
   },
   {
