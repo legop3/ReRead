@@ -53,8 +53,10 @@ Native packages use `Architecture: i386` and declare their real dependencies.
 Apps choosing the current device/session helper need `Depends: reread (>= 0.9.0)`; apps
 using neither helper can declare the earliest platform version they require. Code belongs in `/usr/lib/reread/apps/<id>/`, shared
 assets in `/usr/share/reread/apps/<id>/`. The launcher exports `READER_APP_ID`,
-`READER_APP_DATA_DIR=/var/lib/reader/apps/<desktop-basename>` and `XDG_DATA_HOME`
-pointing to that private data location. Apps create their own files there. Public
+`READER_APP_DATA_DIR=/var/lib/reader/apps/<desktop-basename>`. Existing apps keep
+that private data location. `XDG_DATA_HOME=/var/lib/reader/apps` is user-wide,
+not changed for each app; new programs namespace their own data below it using
+standard XDG/toolkit paths. Public
 photos/documents intended for transfer belong under `REREAD_FILES_DIR`, exported as
 `/var/lib/reader/files`. Use subdirectories, for example `Pictures/Camera/` and
 `Documents/`; see the [shared storage policy](../STORAGE.md). This is the same
@@ -190,3 +192,11 @@ Build with `dpkg-deb --root-owner-group --build package-directory`. Install/upda
 through Apps, or `reader-update install /path/to/app.deb` over SSH. Remove through
 Apps, or `reader-update remove reread-app-example`. The bundled Camera is the
 first separately packaged foreground app and follows this same contract.
+
+## Opening files
+
+Use normal GIO or `gio open FILE` to open a file in its default application;
+see [file opening](../FILE_OPENING.md). Do not execute a hardcoded viewer or
+copy its display code into a browser. The current migration moves image viewing
+out of Files; Internet Archive, Booru, Camera review and text/audio viewers will
+move in later steps. Their thumbnails and browsing previews may stay local.

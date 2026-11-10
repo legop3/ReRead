@@ -1,0 +1,15 @@
+[Default Applications]
+image/jpeg=reread-images.desktop;
+image/png=reread-images.desktop;
+image/bmp=reread-images.desktop;
+image/gif=reread-images.desktop;
+image/webp=reread-images.desktop;
+image/tiff=reread-images.desktop;
+image/svg+xml=reread-images.desktop;
+image/x-icon=reread-images.desktop;
+image/vnd.microsoft.icon=reread-images.desktop;
+image/x-portable-bitmap=reread-images.desktop;
+image/x-portable-graymap=reread-images.desktop;
+image/x-portable-pixmap=reread-images.desktop;
+image/x-xbitmap=reread-images.desktop;
+image/x-xpixmap=reread-images.desktop;

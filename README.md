@@ -13,7 +13,8 @@ You need an Intel Reader, a **1 GB or larger USB stick**, and a **powered USB hu
 3. Connect the stick to the Reader through the powered hub and select USB boot in its BIOS boot menu, using a USB keyboard if needed.
 4. Installation runs automatically and reboots. Keep the stick connected until **INSTALLATION COMPLETE**, then remove it during the reboot countdown.
 
-No source checkout, Docker, stock disk dump or registered USB drive is required. The installer includes **Camera**, **Software** and **Files**. Use Software to update the platform and apps or install additional applications.
+No source checkout, Docker, stock disk dump or registered USB drive is required. The published 0.17.0 installer includes **Camera**, **Software** and **Files**.
+New source builds also include the **Images** file handler. Use Software to update the platform and apps or install additional applications.
 
 ### Linux command line
 
@@ -45,7 +46,7 @@ Existing installations can update in place through the [signed APT repository](r
 
 ReRead 0.16 uses a high-contrast black interface with bright icons, clear focus marks and white selection labels. Files and Software share a collection/details view; each app supplies its own content. Home uses a button-operated icon grid; system settings are grouped into categories. Apps are separately packaged Linux programs with their own UI and standard desktop-entry icons; device and drawing helpers are optional. There is no desktop or browser on the device. Large text and a fixed safe inset on every side account for the overlapping bezel.
 
-Default apps are **Camera**, **Files** and **Software**. [Files](antix/apps/files/README.md) browses folders, previews photos/text and deletes files or folders with confirmation; it is a separately managed app. Software manages system updates and application installs/removal directly with the Reader’s buttons, without a USB connection. Camera provides live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
+Default apps are **Camera**, **Files** and **Software**. [Files](antix/apps/files/README.md) browses folders, opens images through the default MIME handler, previews text and deletes files or folders with confirmation; it is a separately managed app. Software manages system updates and application installs/removal directly with the Reader’s buttons, without a USB connection. Camera provides live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
 
 Power-button sleep, stock fan behavior, battery monitoring, ALSA speaker audio and physical volume control use normal Linux services. Settings provides brightness, sound, idle dimming, optional auto-suspend, connection information and power options. USB Ethernet supplies DHCP, SSH and a management web interface for files, Wi-Fi provisioning, apps and updates. **Files** embeds Copyparty for folders, drag-and-drop uploads, previews, rename/move/delete and downloads. Apps and both file browsers share the ordinary `/var/lib/reader/files` directory; [storage policy](antix/STORAGE.md). Management daemons run only while connected to a USB host; camera streaming stops when no app needs it. Use a powered USB hub for installation.
 

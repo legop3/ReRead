@@ -80,3 +80,15 @@ sleep/wake check the user confirmed preview and direction buttons returned
 without touching Hold; SSH confirmed `locked:false`, one X server, a live frame
 counter, clean `dpkg --audit`, and a completed resume hook. Kernel captures for
 these checks are retained under ignored `build/xorg-migration/`.
+
+## Image opening, 0.18 development
+
+Files now calls GIO's default URI handler. Images is a separate MIME-associated
+Qt application with a desktop entry and icon; system defaults are standard
+`/etc/xdg/reread-mimeapps.list`. XDG_DATA_HOME is user-wide rather than inherited
+as a caller's private directory. Existing explicit app data paths are preserved.
+The user confirmed physical zoom, pan, rotation and return to Files on hardware.
+Offscreen tests cover GIO filename preservation, view-only rotation, error exit,
+and existing Files navigation/deletion. Text/audio and other apps' viewing
+actions remain for later steps. No new installer image has been built for this
+step; source fresh-image dependencies/default packages include Images.

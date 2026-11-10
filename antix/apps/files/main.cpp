@@ -1,3 +1,4 @@
+#include <gio/gio.h>
 #include "reader-ui.hpp"
 #include <QMimeDatabase>
 using namespace ReRead;
@@ -7,9 +8,7 @@ class Files : public Screen {
   QStringList names, labels, details, lines;
   QFileSystemWatcher watcher;
   QMap<QString,int> positions;
-  int selected=0, action=0, sort=0, scroll=0, zoom=1;
-  QPoint pan;
-  QImage image;
+  int selected=0, action=0, sort=0, scroll=0;
   bool busy=false;
   QString path() const { return QDir(root).filePath(directory); }
   QString chosen() const { return QDir(path()).filePath(names.value(selected)); }
@@ -40,7 +39,7 @@ class Files : public Screen {
     chrome();
   }
   void chrome() {
-    showHeader=page!="image"; showControls=true; controlsOverlay=page=="image";
+    showHeader=true; showControls=true; controlsOverlay=false;
     title=page=="confirm"?"Delete permanently?":page=="options"?"File actions":page=="details"?"Details":"Files";
     subtitle=directory.isEmpty()?"Shared files":directory;
     if(page=="browse") {
@@ -48,11 +47,10 @@ class Files : public Screen {
       controls={{READER_OK,"Open"},{READER_OPTIONS,"Actions"},{READER_BACK,directory.isEmpty()?"Home":"Up"}};
     } else if(page=="options") controls={{READER_OK,"Select"},{READER_BACK,"Files"}};
     else if(page=="confirm") controls={{READER_OK,"Select"},{READER_BACK,"Cancel"}};
-    else if(page=="image") controls={{READER_ZOOM_IN,"Zoom"},{READER_OPTIONS,"Actions"},{READER_BACK,"Files"}};
     else controls={{READER_UP,"Scroll"},{READER_OPTIONS,"Actions"},{READER_BACK,"Files"}};
     update();
   }
-  void browse() { page="browse"; image=QImage(); refresh(); }
+  void browse() { page="browse"; refresh(); }
   void open() {
     if(names.isEmpty()) return;
     target=chosen();
@@ -60,15 +58,19 @@ class Files : public Screen {
     if(QFileInfo(target).isDir()) {
       positions[directory]=selected; directory=relative(target); selected=positions.value(directory); browse(); return;
     }
-    QImageReader reader(target); reader.setAutoTransform(true);
-    if(reader.canRead()) {
-      const auto limit=content().size()*4;
-      if(reader.size().width()>limit.width() || reader.size().height()>limit.height())
-        reader.setScaledSize(reader.size().scaled(limit,Qt::KeepAspectRatio));
-      image=reader.read();
-      if(image.isNull()) { toast("Unable to read this image."); return; }
-      page="image"; zoom=1; pan={}; chrome(); return;
-    }
+    auto context=g_app_launch_context_new();
+    // A separately launched app must not inherit Files' private app identity.
+    g_app_launch_context_unsetenv(context,"READER_APP_ID");
+    g_app_launch_context_unsetenv(context,"READER_APP_DATA_DIR");
+    GError *error=nullptr;
+    auto uri=QUrl::fromLocalFile(target).toEncoded();
+    bool opened=g_app_info_launch_default_for_uri(uri.constData(),context,&error);
+    g_object_unref(context);
+    if(opened)return; // Files stays mapped; X returns focus here when the viewer closes.
+    bool missing=error && g_error_matches(error,G_IO_ERROR,G_IO_ERROR_NOT_SUPPORTED);
+    QString message=error?QString::fromUtf8(error->message):QStringLiteral("Unable to open this file.");
+    if(error)g_error_free(error);
+    if(!missing){toast(message);return;}
     const auto mime=QMimeDatabase().mimeTypeForFile(target);
     if(mime.name().startsWith("text/") || QStringList{"json","log","md","csv"}.contains(QFileInfo(target).suffix().toLower())) {
       QFile file(target);
@@ -115,26 +117,6 @@ class Files : public Screen {
         else if(action==1) { if(target.isEmpty()) toast("Select a file or folder first.");else {page="confirm";action=0;chrome();} }
         else if(action==2) { sort=(sort+1)%3; browse(); }
         else browse();
-      }
-      return;
-    }
-    if(page=="image") {
-      if(id==READER_ZOOM_IN || id==READER_ZOOM_OUT) {
-        zoom=qBound(1,zoom*(id==READER_ZOOM_IN?2:1)/ (id==READER_ZOOM_OUT?2:1),4); pan={}; update();
-      } else if(id==READER_LEFT || id==READER_RIGHT || id==READER_UP || id==READER_DOWN) {
-        if(zoom>1) {
-          pan+=QPoint(id==READER_LEFT?80:id==READER_RIGHT?-80:0,id==READER_UP?60:id==READER_DOWN?-60:0);
-          const auto scaled=image.size().scaled(content().size(),Qt::KeepAspectRatio)*zoom;
-          pan.setX(qBound(-qMax(0,(scaled.width()-content().width())/2),pan.x(),qMax(0,(scaled.width()-content().width())/2)));
-          pan.setY(qBound(-qMax(0,(scaled.height()-content().height())/2),pan.y(),qMax(0,(scaled.height()-content().height())/2)));
-          update();
-        } else if(id==READER_LEFT || id==READER_RIGHT) {
-          int step=id==READER_RIGHT?1:-1;
-          for(int next=selected+step;next>=0&&next<names.size();next+=step) {
-            QImageReader candidate(QDir(path()).filePath(names[next]));
-            if(candidate.canRead()) {selected=next;open();break;}
-          }
-        }
       }
       return;
     }
@@ -197,9 +179,6 @@ class Files : public Screen {
            {target.isEmpty()?"No item selected":QFileInfo(target).fileName(),"Permanently remove the selected item","Folders stay first","Reload this folder"},action);
     } else if(page=="confirm") {
       list(p,r,{"Cancel","Delete permanently"},{"Keep "+QFileInfo(target).fileName(),QFileInfo(target).isDir()?"Delete this folder and ALL its contents. No undo.":"Delete "+QFileInfo(target).fileName()+". No undo."},action);
-    } else if(page=="image") {
-      const auto scaled=image.size().scaled(r.size(),Qt::KeepAspectRatio)*zoom;
-      p.setClipRect(r); p.drawImage(QRect(QPoint(r.center().x()-scaled.width()/2,r.center().y()-scaled.height()/2)+pan,scaled),image);
     } else if(page=="details") {
       QFileInfo file(target);
       QString info=relative(target)+"\n\n"+(file.isDir()?"Folder":QMimeDatabase().mimeTypeForFile(target).comment()+" · "+size(file.size()));
@@ -225,8 +204,6 @@ public:
   }
 };
 int main(int argc,char **argv) {
-  // Screen already reads evdev; Qt's LinuxFB keyboard handler would deliver
-  // each navigation press a second time.
   QApplication app(argc,argv);app.setFont(QFont("DejaVu Sans"));
   Files window;window.show();return app.exec();
 }

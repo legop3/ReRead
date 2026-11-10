@@ -68,7 +68,7 @@ local_package = root/'tmp'/release.name
 shutil.copy(release, local_package)
 run('chroot',str(root),'dpkg','--force-confdef','--force-confold','-i','/tmp/'+release.name)
 local_package.unlink()
-for name in ('camera', 'software', 'files'):
+for name in ('camera', 'software', 'files', 'images'):
     app_version = (BASE / f'antix/apps/{name}/VERSION').read_text().strip()
     app_package = OUT / f'reread-app-{name}_{app_version}_i386.deb'
     shutil.copy(app_package, root / 'tmp' / app_package.name)

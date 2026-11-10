@@ -28,7 +28,9 @@ Existing files stay where the owner put them. Apps must handle files being moved
 renamed, replaced or deleted through another app or the web file manager.
 
 Private app state still belongs in `READER_APP_DATA_DIR` (normally
-`/var/lib/reader/apps/<desktop-basename>`), with `XDG_DATA_HOME` pointing there.
+`/var/lib/reader/apps/<desktop-basename>`), while `XDG_DATA_HOME=/var/lib/reader/apps` is user-wide. New programs should use
+normal XDG/toolkit paths with their own application name; a launched viewer must
+not inherit the caller's app identity.
 System configuration belongs in `/etc`; package/cache/transfer bookkeeping belongs
 outside shared files. Removing an app must preserve its user files and data.
 Reinstalling the OS still replaces SSD contents; in-place updates retain them.

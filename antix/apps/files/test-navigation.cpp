@@ -25,7 +25,25 @@ static void checkEntryInput() {
 Q_COREAPP_STARTUP_FUNCTION(checkEntryInput)
 int main(int argc,char **argv) {
   if(argc>1 && QByteArray(argv[1])=="--entry-test")return reread_files_main(argc,argv);
-  QApplication app(argc,argv);QTemporaryDir fixture;
+  if(argc>1 && QByteArray(argv[1])=="--record-open") {
+    QCoreApplication app(argc,argv);QFile record(qEnvironmentVariable("REREAD_OPEN_RECORD"));
+    return record.open(QIODevice::WriteOnly) && record.write(app.arguments().last().toUtf8())>0?0:1;
+  }
+  QTemporaryDir fixture, settings;
+  qputenv("XDG_DATA_HOME",(settings.path()+"/data").toUtf8());
+  qputenv("XDG_CONFIG_HOME",(settings.path()+"/config").toUtf8());
+  qputenv("XDG_CURRENT_DESKTOP","ReRead");
+  qputenv("REREAD_OPEN_RECORD",(settings.path()+"/opened-uri").toUtf8());
+  QApplication app(argc,argv);
+  QDir().mkpath(settings.path()+"/data/applications");QDir().mkpath(settings.path()+"/config");
+  QFile desktop(settings.path()+"/data/applications/test-images.desktop");
+  require(desktop.open(QIODevice::WriteOnly),"Create MIME handler");
+  desktop.write(("[Desktop Entry]\nType=Application\nName=Fixture image handler\nExec="+
+    QCoreApplication::applicationFilePath()+" --record-open %U\nMimeType=image/png;\nNoDisplay=true\n").toUtf8());desktop.close();
+  QFile defaults(settings.path()+"/config/mimeapps.list");
+  require(defaults.open(QIODevice::WriteOnly),"Create MIME defaults");
+  defaults.write("[Default Applications]\nimage/png=test-images.desktop;\n");defaults.close();
+  require(QProcess::execute("update-desktop-database",{settings.path()+"/data/applications"})==0,"Update MIME cache");
   qputenv("REREAD_FILES_DIR",fixture.path().toUtf8());
   QProcess entry;
   auto environment=QProcessEnvironment::systemEnvironment();
@@ -36,7 +54,7 @@ int main(int argc,char **argv) {
           "Real entry point uses focused toolkit input without raw evdev readers");
   QDir().mkpath(fixture.path()+"/A/Camera");
   QImage image(16,16,QImage::Format_RGB32);image.fill(Qt::green);
-  require(image.save(fixture.path()+"/A/Camera/photo.png"),"Create fixture");
+  require(image.save(fixture.path()+"/A/Camera/photo ' # ü %.png"),"Create fixture");
   QFile text(fixture.path()+"/z.txt");require(text.open(QIODevice::WriteOnly),"Create text");text.write("Hello Files\n");text.close();
   Files window;window.show();QCoreApplication::processEvents();
   // Shared collection layout: pagination and row bounds with a nonzero origin.
@@ -50,15 +68,19 @@ int main(int argc,char **argv) {
   painter.end();
   press(window,READER_OK);require(window.subtitle.startsWith("A ·"),"Enter folder");
   press(window,READER_OK);require(window.subtitle.startsWith("A/Camera ·"),"Enter nested folder");
-  press(window,READER_OK);require(!window.showHeader,"Image preview");
-  press(window,READER_ZOOM_IN);press(window,READER_RIGHT);press(window,READER_ZOOM_OUT);
-  press(window,READER_BACK);require(window.showHeader,"Back from preview");
+  press(window,READER_OK);
+  QElapsedTimer opening;opening.start();
+  while(QFileInfo(settings.path()+"/opened-uri").size()==0 && opening.elapsed()<5000)settle();
+  QFile record(settings.path()+"/opened-uri");require(record.open(QIODevice::ReadOnly),"GIO launched default handler");
+  auto received=record.readAll();auto url=QUrl::fromEncoded(received);
+  require((url.isLocalFile()?url.toLocalFile():QString::fromUtf8(received))==fixture.path()+"/A/Camera/photo ' # ü %.png","Handler receives exact filename, as a path or file URI");
+  require(window.subtitle.startsWith("A/Camera ·") && window.showHeader,"Files preserves folder when launching another app");
   press(window,READER_OPTIONS);press(window,READER_DOWN);press(window,READER_OK);
   require(window.title=="Delete permanently?","Delete confirmation");
-  press(window,READER_OK);require(QFile::exists(fixture.path()+"/A/Camera/photo.png"),"Cancel is default");
+  press(window,READER_OK);require(QFile::exists(fixture.path()+"/A/Camera/photo ' # ü %.png"),"Cancel is default");
   press(window,READER_OPTIONS);press(window,READER_DOWN);press(window,READER_OK);
   press(window,READER_DOWN);press(window,READER_OK);settle();
-  require(!QFile::exists(fixture.path()+"/A/Camera/photo.png"),"Confirmed file deletion");
+  require(!QFile::exists(fixture.path()+"/A/Camera/photo ' # ü %.png"),"Confirmed file deletion");
   press(window,READER_BACK);press(window,READER_BACK);
   require(window.subtitle.startsWith("Shared files"),"Back to shared root");
   // Delete the complete nested folder through the same button flow.

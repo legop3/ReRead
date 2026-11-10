@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from gadget import stage, build_module
 from third_party import stage_file_manager
+from apps.images.package import build as build_images
 
 KERNEL = '5.10.256-antix.1-486-smp'
 
@@ -148,14 +149,15 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
-Recommends: reread-app-files
+Depends: desktop-file-utils, shared-mime-info, libglib2.0-bin, xdg-utils, xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Recommends: reread-app-files, reread-app-images
 Breaks: reread-app-camera (<< 0.6.0), reread-app-software (<< 0.3.0), reread-app-files (<< 0.3.0), reread-app-archive (<< 0.7.0), reread-app-booru (<< 0.2.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
 ''')
-    write('DEBIAN/conffiles', '/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n/etc/reader/files.conf\n/etc/dpkg/dpkg.cfg.d/80-reread-space\n/etc/apt/apt.conf.d/80-reread-indexes\n')
+    write('DEBIAN/conffiles', '/etc/xdg/reread-mimeapps.list\n/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n/etc/reader/files.conf\n/etc/dpkg/dpkg.cfg.d/80-reread-space\n/etc/apt/apt.conf.d/80-reread-indexes\n')
+    copy(base / 'antix/x11/reread-mimeapps.list', 'etc/xdg/reread-mimeapps.list')
     copy(base / 'antix/files-head.html', 'usr/share/reader/files-head.html')
     copy(base / 'antix/storage/80-reread-space', 'etc/dpkg/dpkg.cfg.d/80-reread-space')
     copy(base / 'antix/storage/80-reread-indexes', 'etc/apt/apt.conf.d/80-reread-indexes')
@@ -242,7 +244,8 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: utils
 Priority: optional
-Depends: reread (>= 0.17.0)
+Depends: reread (>= 0.18.0)
+Recommends: reread-app-images
 Description: ReRead Files
  Browse shared folders, view photos and text, inspect and delete files.
 """)
@@ -265,6 +268,7 @@ Terminal=false
     shutil.copy(ui / 'reader-files-app', target)
     target.chmod(0o755)
     subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '--build', str(app), str(output / f'reread-app-files_{files_version}_i386.deb')], check=True)
+    build_images(base, build_dir, output)
     return package
 
 

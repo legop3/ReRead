@@ -22,6 +22,8 @@ findmnt -n -o TARGET,SOURCE,FSTYPE /
 findmnt -n -o TARGET,SOURCE,FSTYPE /boot || true
 # The X server uses the existing framebuffer; apps use ordinary X windows.
 export REREAD_FILES_DIR=/var/lib/reader/files
+# XDG locations are per user, so MIME handlers share defaults and namespace their own data.
+export XDG_DATA_HOME=${XDG_DATA_HOME:-/var/lib/reader/apps}
 export QT_QPA_PLATFORM=xcb
 export QT_XCB_GL_INTEGRATION=none
 export QT_QPA_GENERIC_PLUGINS=

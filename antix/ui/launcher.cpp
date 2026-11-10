@@ -164,7 +164,6 @@ class Launcher : public Screen {
     g_app_launch_context_setenv(context,"REREAD_FILES_DIR",filesRoot().toUtf8());
     g_app_launch_context_setenv(context,"READER_APP_ID",app.id.toUtf8());
     g_app_launch_context_setenv(context,"READER_APP_DATA_DIR",data.toUtf8());
-    g_app_launch_context_setenv(context,"XDG_DATA_HOME",data.toUtf8());
     int log = open("/var/log/reader/apps.log",O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC,0644);
     GError *error = nullptr;
     gboolean ok = g_desktop_app_info_launch_uris_as_manager_with_fds(
