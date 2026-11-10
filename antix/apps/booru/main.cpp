@@ -165,11 +165,33 @@ class Booru : public Screen {
     queryTerms[index]=(exclude?"-":"")+term;
     activeSearchChanged();
   }
+  void changeTerm(int index,int direction){
+    if(index<0||index>=queryTerms.size())return;
+    const QString term=queryTerms[index];
+    if(!term.contains(":")){
+      toggleExclusion(index,direction>0);return;
+    }
+    const QStringList groups={"rating","order","type","score"};
+    const QList<QStringList> choices={
+      {"rating:s","rating:q","rating:e"},
+      {"order:id","order:score","order:favcount","order:hot","order:random","order:updated"},
+      {"type:jpg","type:png","type:gif","type:webp","type:mp4","type:webm"},
+      {"score:>=10","score:>=50","score:>=100"}
+    };
+    for(int k=0;k<groups.size();++k){
+      if(!term.startsWith(groups[k]+":"))continue;
+      const int at=choices[k].indexOf(term);
+      const int next=(at+direction+choices[k].size())%choices[k].size();
+      queryTerms[index]=choices[k][next];
+      activeSearchChanged();
+      return;
+    }
+  }
   QString selectedTermDetail() const {
     if(searchIndex<queryTerms.size()){
       const QString term=queryTerms[searchIndex];
       return "Part of the active search.\n\nOK: remove this term"+
-        QString(term.contains(":")?"":"\nLeft: include\nRight: exclude");
+        QString(term.startsWith("fav:")?"":term.contains(":")?"\nLeft / Right: change value":"\nLeft: include\nRight: exclude");
     }
     const int action=searchIndex-queryTerms.size();
     const QStringList descriptions={
@@ -328,9 +350,9 @@ class Booru : public Screen {
     else if(page==SEARCH){
       controls={{READER_UP,"Select"},{READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
                 {READER_OPTIONS,"Results"},{READER_BACK,searchFromGallery?"Gallery":"Home"}};
-      if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].contains(":")){
-        controls.prepend({READER_LEFT,"Include"});
-        controls.prepend({READER_RIGHT,"Exclude"});
+      if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
+        controls.prepend({READER_LEFT,"Previous / Include"});
+        controls.prepend({READER_RIGHT,"Next / Exclude"});
       }
     }else if(page==LOOKUP)controls={{READER_UP,"Choose tag"},{READER_OK,"Add tag"},
           {READER_VIEW_TOGGLE,"Switch area"},{READER_BACK,"Search editor"}};
@@ -696,7 +718,7 @@ class Booru : public Screen {
     else if(page==HOME)homeIndex=qBound(0,homeIndex+dy+dx,sections().size()-1);
     else if(page==SEARCH){
       if(dy)searchIndex=qBound(0,searchIndex+dy,editorRows().size()-1);
-      if(dx && searchIndex<queryTerms.size())toggleExclusion(searchIndex,dx>0);
+      if(dx && searchIndex<queryTerms.size())changeTerm(searchIndex,dx);
       chrome();
     }else if(page==LOOKUP){
       if(lookupMode==0 && !lookupResultsFocus)
@@ -773,8 +795,13 @@ protected:
               names.isEmpty()?"Loading tags...":"Add: "+names.value(suggestionIndex),23,true);
       }
     } else if(page==SEARCH) {
+      label(p,QRect(area.x()+5,area.y()+2,area.width()-10,44),
+            builtSearch().isEmpty()?"Search: (all posts)":"Search: "+builtSearch(),
+            25,true,palette().color(QPalette::Link));
+      p.setPen(QPen(palette().mid(),1));
+      p.drawLine(area.left()+5,area.y()+49,area.right()-5,area.y()+49);
       const QStringList names=editorRows();
-      const auto layout=listInfo(p,area,names.size(),searchIndex,58,0.57);
+      const auto layout=listInfo(p,area.adjusted(0,61,0,0),names.size(),searchIndex,58,0.57);
       for(int i=layout.first;i<qMin(names.size(),layout.first+layout.visible);++i){
         const QRect row=listInfoRow(p,layout,i,searchIndex);
         const bool chosen=i==searchIndex;
@@ -937,7 +964,7 @@ protected:
         }
       }else changePrefix(lookupKey(keyIndex));
     }else if(page==HOME){
-      if(homeIndex==0)initializeSearch("");
+      if(homeIndex==0){} // Reopen the one active search; never silently clear it.
       else if(homeIndex==1)initializeSearch("");
       else if(homeIndex==2){
         if(host().username.isEmpty()){toast("Add your username in web settings");return;}
