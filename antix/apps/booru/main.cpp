@@ -485,7 +485,8 @@ class Booru : public Screen {
     const qint64 now=QDateTime::currentMSecsSinceEpoch();
     const int interval=550;
     if(lastThumbnailStart && now-lastThumbnailStart<interval){
-      if(!thumbTimer.isActive())thumbTimer.start(int(lastThumbnailStart+interval-now));
+      const int delay=int(lastThumbnailStart+interval-now);
+      if(!thumbTimer.isActive()||thumbTimer.remainingTime()>delay)thumbTimer.start(delay);
       return;
     }
     qint64 soonest=0;
@@ -547,10 +548,13 @@ class Booru : public Screen {
         reply->deleteLater();
         if(page==GALLERY||page==POST){requestThumbs();update();}
       });
-      if(!thumbTimer.isActive())thumbTimer.start(interval);
+      if(!thumbTimer.isActive()||thumbTimer.remainingTime()>interval)thumbTimer.start(interval);
       return;
     }
-    if(soonest&&!thumbTimer.isActive())thumbTimer.start(qBound(1,int(soonest),120000));
+    if(soonest){
+      const int delay=qBound(1,int(soonest),120000);
+      if(!thumbTimer.isActive()||thumbTimer.remainingTime()>delay)thumbTimer.start(delay);
+    }
   }
   Post *current(){return selected>=0&&selected<posts.size()?&posts[selected]:nullptr;}
   QString cacheRoot() const {
@@ -964,7 +968,7 @@ protected:
         galleryFromExplore=false;
         pageNumber=1;page=GALLERY;chrome();fetchPage();
       }else if(page==GALLERY&&!posts.isEmpty()){
-        page=POST;chrome();if(autoOpenImages)loadFull();maybeLoadMore();
+        page=POST;chrome();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();
       }else if(page==POST)favorite();
     }
   }
