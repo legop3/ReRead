@@ -330,14 +330,22 @@ class Launcher : public Screen {
       QRect tile(r.x() + (position % columns) * (w + gap),
                  top + (position / columns) * (h + gap), w, h);
       bool focus = i == selected;
-      p.setPen(QPen(focus ? palette().link() : palette().mid(), focus ? 3 : 2));
-      p.setBrush(palette().base());
-      p.drawRect(tile.adjusted(2,2,-2,-2));
-      p.fillRect(tile.adjusted(4,h-53,-4,-4),focus ? palette().highlight() : palette().button());
+      if (focus) {
+        const QRect frame = tile.adjusted(3,3,-3,-3);
+        p.setPen(QPen(palette().link(),3));
+        // Corner marks indicate focus without enclosing every app in a card.
+        for (const auto &corner : {frame.topLeft(),frame.topRight(),frame.bottomLeft(),frame.bottomRight()}) {
+          const int dx = corner.x()==frame.left() ? 20 : -20;
+          const int dy = corner.y()==frame.top() ? 20 : -20;
+          p.drawLine(corner,corner+QPoint(dx,0));
+          p.drawLine(corner,corner+QPoint(0,dy));
+        }
+        p.fillRect(tile.adjusted(10,h-51,-10,-9),palette().highlight());
+      }
       int size = qMin(100, h - 58);
       icons.value(i).paint(&p, QRect(tile.center().x() - size/2, tile.top()+16, size, size));
       auto font = p.font(); font.setPixelSize(27); font.setBold(focus); p.setFont(font);
-      p.setPen(palette().color(focus ? QPalette::HighlightedText : QPalette::WindowText));
+      p.setPen(palette().color(focus ? QPalette::HighlightedText : QPalette::ButtonText));
       QString name = QFontMetrics(font).elidedText(labels[i], Qt::ElideRight, w-28);
       p.drawText(tile.adjusted(14,h-48,-14,-8), Qt::AlignCenter, name);
     }
@@ -359,16 +367,19 @@ class Launcher : public Screen {
       int height = r.height() / labels.size();
       for (int i = 0; i < labels.size(); ++i) {
         QRect row(r.x(),r.y()+i*height,r.width(),height-6);
-        p.setPen(QPen(i == selected ? palette().link() : palette().mid(),i == selected ? 3 : 2));
-        p.setBrush(i == selected ? palette().highlight() : palette().base());
-        p.drawRect(row.adjusted(1,1,-1,-1));
-        if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().link());
+        if (i == selected) {
+          p.fillRect(row,palette().highlight());
+          p.fillRect(QRect(row.left(),row.top(),6,row.height()),palette().link());
+        } else {
+          p.setPen(QPen(palette().mid(),1));
+          p.drawLine(row.left()+80,row.bottom(),row.right(),row.bottom());
+        }
         p.fillRect(QRect(row.x()+8,row.center().y()-28,56,56),palette().base());
         icons.value(i).paint(&p,QRect(row.x()+12,row.center().y()-24,48,48));
-        const auto ink = palette().color(i == selected ? QPalette::HighlightedText : QPalette::WindowText);
+        const auto ink = palette().color(i == selected ? QPalette::HighlightedText : QPalette::Text);
         text(p,QRect(row.x()+80,row.y(),260,row.height()),labels[i],26,ink);
         text(p,QRect(row.x()+350,row.y(),row.width()-390,row.height()),details[i],20,
-             palette().color(i == selected ? QPalette::HighlightedText : QPalette::Dark));
+             palette().color(i == selected ? QPalette::HighlightedText : QPalette::Text));
         text(p,QRect(row.right()-30,row.y(),24,row.height()),"›",30,ink);
       }
     } else if (page == "about" || page == "connections")

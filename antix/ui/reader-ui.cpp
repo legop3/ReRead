@@ -5,15 +5,17 @@ Screen::Screen(const QString &name) : title(name) {
   QPalette colors;
   colors.setColor(QPalette::Window, QColor("#000000"));
   colors.setColor(QPalette::WindowText, QColor("#ffffff"));
-  colors.setColor(QPalette::Base, QColor("#000000"));
-  colors.setColor(QPalette::Text, QColor("#ffffff"));
+  colors.setColor(QPalette::Base, Qt::black);
+  colors.setColor(QPalette::Text, Qt::white);
   colors.setColor(QPalette::Mid, QColor("#ffffff"));
   colors.setColor(QPalette::Dark, QColor("#ffffff"));
-  colors.setColor(QPalette::Highlight, QColor("#00bfff"));
+  colors.setColor(QPalette::Highlight, Qt::white);
   colors.setColor(QPalette::Link, QColor("#00bfff"));
   colors.setColor(QPalette::HighlightedText, Qt::black);
-  colors.setColor(QPalette::Button, QColor("#000000"));
-  colors.setColor(QPalette::ButtonText, QColor("#ffffff"));
+  colors.setColor(QPalette::Button, Qt::black);
+  colors.setColor(QPalette::ButtonText, Qt::white);
+  colors.setColor(QPalette::ToolTipBase, Qt::white);
+  colors.setColor(QPalette::ToolTipText, Qt::black);
   setPalette(colors);
   setWindowFlags(Qt::FramelessWindowHint);
   setCursor(Qt::BlankCursor);
@@ -187,7 +189,7 @@ void Screen::paintEvent(QPaintEvent *) {
       p.setPen(QPen(Qt::white,1)); p.setBrush(Qt::black);
       p.drawRect(QRect(x+5,2,38,38));
       buttonIcon(p,QRect(x+9,6,30,30),control.button);
-      text(p,QRect(x+48,0,w-52,42),control.action,21);
+      text(p,QRect(x+48,0,w-52,42),control.action,21,palette().color(QPalette::Text));
       x += w+16;
     }
     p.restore();
@@ -202,9 +204,9 @@ void Screen::paintEvent(QPaintEvent *) {
   QString message = device->isLocked() ? "Hold locked — slide switch to unlock" : !warning.isEmpty() ? warning : notice;
   if (!message.isEmpty()) {
     QRect box(safe.left(),safe.top()+52,safe.width(),48);
-    p.setPen(QPen(palette().windowText(), 2)); p.setBrush(palette().base());
+    p.setPen(QPen(palette().windowText(), 2)); p.setBrush(palette().toolTipBase());
     p.drawRect(box);
-    text(p,box.adjusted(12,0,-12,0),message,23);
+    text(p,box.adjusted(12,0,-12,0),message,23,palette().color(QPalette::ToolTipText));
   }
 }
 void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
@@ -213,18 +215,20 @@ void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
   int first = qMax(0, selected - visible + 1);
   for (int i = first; i < labels.size() && i < first + visible; i++) {
     QRect row(r.x(), r.y() + (i - first) * 84, r.width(), 76);
-    p.setPen(QPen(i == selected ? palette().link() : palette().mid(),
-                  i == selected ? 3 : 2));
-    p.setBrush(i == selected ? palette().highlight() : palette().base());
-    p.drawRect(row.adjusted(1,1,-1,-1));
-    if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().link());
+    if (i == selected) {
+      p.fillRect(row, palette().highlight());
+      p.fillRect(QRect(row.left(),row.top(),6,row.height()),palette().link());
+    } else {
+      p.setPen(QPen(palette().mid(),1));
+      p.drawLine(row.left()+18,row.bottom(),row.right()-18,row.bottom());
+    }
     auto font = p.font(); font.setBold(i == selected); p.setFont(font);
     text(p, row.adjusted(18, details.value(i).isEmpty() ? 0 : -16, -32, 0),
-         labels[i], 27, palette().color(i == selected ? QPalette::HighlightedText : QPalette::WindowText));
+         labels[i], 27, palette().color(i == selected ? QPalette::HighlightedText : QPalette::Text));
     font.setBold(false); p.setFont(font);
     if (!details.value(i).isEmpty())
       text(p, QRect(row.x() + 18, row.y() + 43, row.width() - 42, 25),
-           details[i], 19, palette().color(i == selected ? QPalette::HighlightedText : QPalette::Dark));
+           details[i], 19, palette().color(i == selected ? QPalette::HighlightedText : QPalette::Text));
   }
   if (labels.isEmpty())
     text(p, r, "Nothing here yet.");

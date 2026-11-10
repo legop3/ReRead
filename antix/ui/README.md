@@ -1,14 +1,13 @@
 # ReRead on-device UI
 
-The shared UI uses a high-contrast industrial Qt `QPalette`: black backgrounds,
-pure white text/outlines and saturated control colors. All background, panel
-and inactive label fills are exactly `#000000`; text and outlines are `#ffffff`. Selection uses solid cyan with black text
-in lists and cyan label strips on Home. Strong outlines also mark selection.
-The battery badge shows its actual charge and AC/battery state, with green,
-amber and red charge ranges. Application and system icons remain ordinary SVG
-theme assets, using bright blue, amber, green and purple. Button hints retain the
-physical control symbols. Apps can use the standard palette roles when painting
-their own views. There are no gradients, shadows or glow effects.
+The shared UI is designed as a handheld control panel. Its Qt `QPalette` uses
+pure black (`#000000`), white text and saturated icon colors. Home has an open
+icon grid, cyan focus corners and a white nameplate for the selected app.
+Menus use simple dividing rules; only the selected row has a white background,
+with black text and a cyan marker. Button hints retain the physical control
+symbols. Status colors describe actual battery state. Application icons remain
+ordinary SVG theme assets, and apps can use standard Qt palette roles. There
+are no shadows, gradients or glow effects.
 
 Home and the [Camera app](../apps/camera/README.md) use Qt 5 Widgets on the LinuxFB platform plugin. Independent
 apps choose their own UI; neither the Screen base class nor these libraries are

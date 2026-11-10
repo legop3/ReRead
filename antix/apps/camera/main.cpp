@@ -291,14 +291,14 @@ class Camera : public Screen {
     QString status = review ? "Last photo" : QString(document ? "Document" : "Photo") +
         " · " + (flash ? "Flash on" : "Flash off");
     p.fillRect(QRect(r.left(),r.top(),320,36),palette().base().color());
-    text(p,QRect(r.left()+10,r.top(),305,36),status,21);
+    text(p,QRect(r.left()+10,r.top(),305,36),status,21,palette().color(QPalette::Text));
     if (!cameraError.isEmpty() && !review)
       text(p,r,cameraError,23);
     if (busy) {
       p.fillRect(QRect(r.left() + 12, r.top() + 12, 380, 42),
                  palette().base().color());
       text(p, QRect(r.left() + 24, r.top() + 12, 355, 42),
-           "Focusing and saving…", 24);
+           "Focusing and saving…", 24, palette().color(QPalette::Text));
     }
   }
 

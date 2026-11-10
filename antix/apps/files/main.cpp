@@ -165,7 +165,7 @@ class Files : public Screen {
       if(file.isDir()) info+="\n"+QString::number(QDir(target).entryList(QDir::AllEntries|QDir::NoDotAndDotDot).size())+" items directly inside";
       text(p,r,info,25);
     } else {
-      p.setClipRect(r); auto font=p.font();font.setPixelSize(23);p.setFont(font);p.setPen(palette().text().color());
+      p.fillRect(r,palette().base()); p.setClipRect(r); auto font=p.font();font.setPixelSize(23);p.setFont(font);p.setPen(palette().text().color());
       int y=r.top();
       for(int i=scroll;i<lines.size()&&y<r.bottom();++i) {
         QRect bounds=p.boundingRect(QRect(r.left(),y,r.width(),10000),Qt::TextWordWrap,lines[i].isEmpty()?" ":lines[i]);
