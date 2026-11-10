@@ -244,6 +244,8 @@ public:
     window.lookupResultsFocus=true;window.chrome();
     require(hint(window,READER_OK)=="Add tag",
             "Tag results Guide shows correct OK function");
+    // Changing the active query intentionally clears stale post results.
+    window.posts.append(post);window.selected=0;window.first=0;
     window.page=Booru::GALLERY;window.selected=0;
     window.button(READER_PLAY,1);
     require(window.page==Booru::GALLERY&&!window.favoritePending,
