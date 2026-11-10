@@ -67,7 +67,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.20.0), libqt5network5t64
+Depends: reread (>= 0.21.0), libqt5network5t64
 Recommends: reread-app-images
 Description: Booru browser for ReRead
  Browse e926/e621-compatible galleries and manage account favorites with buttons.
@@ -83,7 +83,26 @@ Categories=Network;Graphics;
 X-ReRead=true
 Terminal=false
 """)
-    write("usr/share/reread/apps/reread-app-booru.json", '{"name":"Booru","description":"Browse booru galleries","desktop":"reread-booru.desktop"}\n')
+    write("usr/share/reread/apps/reread-app-booru.json", '{"name":"Booru","description":"Browse booru galleries","desktop":"reread-booru.desktop","settings":true}\n')
+    write("etc/reread/apps/booru.json", (SOURCE/"config.example.json").read_text())
+    write("usr/share/reread/apps/booru/settings.schema.json", (SOURCE/"settings.schema.json").read_text())
+    write("DEBIAN/conffiles", "/etc/reread/apps/booru.json\n")
+    # One-time migration keeps existing accounts/searches, and retains the user's source file.
+    write("DEBIAN/postinst", """#!/bin/sh
+set -eu
+if [ "$1" = configure ]; then
+    marker=/var/lib/reader/apps/reread-booru/config-migrated
+    if [ ! -e "$marker" ]; then
+        if [ -f /var/lib/reader/files/Booru/config.json ] &&\
+           cmp -s /etc/reread/apps/booru.json /usr/share/doc/reread-app-booru/config.example.json; then
+            cp /var/lib/reader/files/Booru/config.json /etc/reread/apps/booru.json
+        fi
+        mkdir -p /var/lib/reader/apps/reread-booru
+        touch "$marker"
+    fi
+fi
+""")
+    (stage/"DEBIAN/postinst").chmod(0o755)
     icon=stage/"usr/share/icons/hicolor/scalable/apps/reread-booru.svg"
     icon.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy(SOURCE/"reread-booru.svg",icon)

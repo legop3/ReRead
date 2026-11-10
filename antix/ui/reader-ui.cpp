@@ -23,6 +23,8 @@ public:
   }
 };
 Screen::Screen(const QString &name) : title(name) {
+  // Per-launch grip hint; no global display state is changed.
+  orientation=qEnvironmentVariableIntValue("REREAD_SCREEN_ORIENTATION")==180?180:0;
   QPalette colors;
   colors.setColor(QPalette::Window, QColor("#000000"));
   colors.setColor(QPalette::WindowText, QColor("#ffffff"));

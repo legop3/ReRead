@@ -20,3 +20,15 @@ toolbar labels and omits the unrelated server-log message button.
 Version/checksum pins live in `third_party.py` and should be updated together with
 this document after validation. Copyparty uses MIT and other licenses listed in
 its upstream license bundle, which is included in every platform package.
+
+## App configuration forms
+
+ReRead bundles **@json-editor/json-editor 2.17.4** from
+https://github.com/json-editor/json-editor (MIT and bundled dependency notices).
+The npm archive is pinned in `third_party.py` with SHA-256
+`edfa9eca0e5518c10b59c698de78ef398a07096ae84636dbc49bdd27808954c6`.
+Only its prebuilt browser script and license files are installed; no npm, Node,
+CDN or runtime download is required on the Reader. Installed notices are
+`/usr/share/doc/reread/json-editor-LICENSE.txt` and
+`json-editor-dependencies-LICENSE.txt`. Server validation uses Debian's
+`python3-jsonschema`, rather than a custom schema validator.

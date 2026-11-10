@@ -20,6 +20,7 @@ follow the same interaction, storage and lifecycle rules.
 - [Buttons and their icons](#buttons-and-their-icons)
 - [Application identity and icons](#application-identity-and-icons)
 - [Files, private state and caches](#files-private-state-and-caches)
+- [Web configuration for text entry](#web-configuration-for-text-entry)
 - [Open files in the default application](#open-files-in-the-default-application)
 - [System services and lifecycle](#system-services-and-lifecycle)
 - [Build, package and distribute](#build-package-and-distribute)
@@ -107,7 +108,11 @@ Set `showHeader=false` when a header adds no useful information.
 
 For inverted use, `orientation=180` rotates Screen's painted UI and reverses its
 D-pad directions. Image/camera pixel rotation and saved-file orientation are
-separate decisions. Camera deliberately applies an additional preview rotation
+separate decisions. A launch context may set `REREAD_SCREEN_ORIENTATION` to `0`
+or `180` (core 0.21+) so a shared Screen viewer follows the caller's grip without
+changing the global X display. Set it with `g_app_launch_context_setenv`, never
+by changing Home's environment or an X session configuration. Programs using
+other toolkits may ignore this optional hint. Camera deliberately applies an additional preview rotation
 for its inverted grip; use its implementation as the reference for that case.
 
 ### Help is a hold-to-show overlay
@@ -267,6 +272,47 @@ interface. Bound cache size and memory use: the Reader has about 512 MB RAM and
 a 4 GB SSD. Removal and upgrades must retain user documents and private data;
 never ship or wipe runtime data in a package maintainer script. See the full
 [storage policy](antix/STORAGE.md).
+
+## Web configuration for text entry
+
+**Keep settings that can reasonably be changed with Reader buttons in the app's
+Reader UI.** The web editor is for inputs that need a keyboard: API keys, account
+names, server URLs, saved searches and other text or structured entries. Do not
+move ordinary switches, playback/display options or button-friendly choices to
+the web just because a form can render them. For example, Booru's automatic image
+opening and server selection are Reader controls; account keys and search text
+are web configuration.
+
+Since ReRead **0.21.0**, an app can expose configuration without its own web
+server, web page or settings daemon:
+
+1. Ship `/etc/reread/apps/<id>.json` with usable defaults. Declare it in
+   `DEBIAN/conffiles`; the app reads this ordinary JSON file directly.
+2. Ship `/usr/share/reread/apps/<id>/settings.schema.json`, a **JSON Schema
+   draft 7** object describing that file. Use readable `title` and `description`
+   fields, limits and defaults; use `format: "password"` for API keys. References
+   must be local (`#...`) so editing works offline.
+3. Set `"settings": true` in the existing package metadata at
+   `/usr/share/reread/apps/reread-app-<id>.json`. The ID is the package name
+   without `reread-app-`; paths are conventional, not arbitrary manifest paths.
+4. Declare `Depends: reread (>= 0.21.0)` when relying on this web feature. Explain
+   when changes take effect; the current generic UI tells users to reopen the app.
+
+Web **Apps → installed app → Settings** discovers installed packages through the
+normal manager metadata. The platform bundles upstream **JSON Editor** to render
+schema forms in the computer's browser, with no CDN. The backend validates with
+the distro `python3-jsonschema`, rejects stale saves and atomically replaces the
+JSON file. There is no extra settings database, background polling or per-app
+registration. API keys are stored as configuration, not encrypted secrets.
+
+`GET /api/apps/settings?package=reread-app-<id>` returns `schema`, `value`, `path`
+and `revision`; `POST /api/apps/settings` accepts `package`, `value`, `revision`.
+Apps normally need neither endpoint: read their file at startup and keep normal
+button-configurable preferences in private app state. Upgrades retain edited
+conffiles; app removal retains them unless the user explicitly purges the package.
+Booru's [schema](antix/apps/booru/settings.schema.json) and
+[packager](antix/apps/booru/package.py) are the complete working example, including
+one-time migration from its older shared-Files configuration.
 
 ## Open files in the default application
 

@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Booru settings",
+  "description": "Reopen Booru after saving to apply changes. Use API keys, not account passwords.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "hosts"
+  ],
+  "properties": {
+    "hosts": {
+      "type": "array",
+      "title": "Servers",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "title": "Server",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "url",
+          "username",
+          "api_key",
+          "searches"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "maxLength": 80
+          },
+          "url": {
+            "type": "string",
+            "title": "HTTPS server URL",
+            "pattern": "^https://[a-zA-Z0-9.-]+(?::[0-9]{1,5})?/?$",
+            "default": "https://e926.net"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username",
+            "maxLength": 120
+          },
+          "api_key": {
+            "type": "string",
+            "title": "API key",
+            "format": "password",
+            "maxLength": 512
+          },
+          "searches": {
+            "type": "array",
+            "title": "Saved searches",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "title": "Tags",
+              "minLength": 1,
+              "maxLength": 180
+            }
+          }
+        }
+      }
+    }
+  }
+}

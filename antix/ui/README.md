@@ -146,3 +146,11 @@ power. `auto_suspend_battery_only` defaults to false for compatibility. Battery-
 mode holds an elogind idle inhibitor while UPower reports external power through
 the existing battery status adapter. Unplugging starts a fresh idle interval;
 manual sleep and the Power button remain available.
+
+### Viewer orientation hint
+
+Core 0.21+ initializes Screen's orientation from the optional launch environment
+`REREAD_SCREEN_ORIENTATION` (`0` or `180`; everything else means normal). Camera
+sets this on its GIO launch context for Last photo. This changes only the new
+window's painting, help and directional controls, and requires no UI ABI change.
+The Reader's fbdev Xorg output rejects RandR rotation.

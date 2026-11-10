@@ -24,7 +24,12 @@ public:
    require(old.resize(65LL*1024*1024),"Create sparse cache pressure");
    old.setFileTime(QDateTime::fromMSecsSinceEpoch(1000),QFileDevice::FileModificationTime);old.close();
    window.trimCache(file);require(!QFile::exists(old.fileName()) && QFile::exists(file),"Evict oldest item while preserving current image");
-   window.loadFull(); // Existing sample: no network request, real GIO dispatch.
+   window.page=Booru::GALLERY;
+   window.button(READER_OK,1);
+   require(window.page==Booru::POST && !window.imageJob && !QFile::exists(record),"Opening a post stays on its card by default");
+   window.button(READER_VIEW_TOGGLE,2);
+   require(!window.imageJob && !QFile::exists(record),"Repeated View must not open a viewer");
+   window.button(READER_VIEW_TOGGLE,1); // Explicit request: cached sample, real GIO dispatch.
    QElapsedTimer timer;timer.start();
    while(QFileInfo(record).size()==0 && timer.elapsed()<5000){QApplication::processEvents();QThread::msleep(10);}
    QFile output(record);require(output.open(QIODevice::ReadOnly),"Default MIME handler launched");auto value=output.readAll();auto url=QUrl::fromEncoded(value);

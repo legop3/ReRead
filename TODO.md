@@ -1,0 +1,4 @@
+- [x] In Booru, do not always open images automatically. Post cards are the default; View opens the image. Reader Options can enable automatic opening.
+- [x] Make file editing work in the web file manager. Use the existing Copyparty editor and save the same shared file.
+- [x] Add standard app web configuration and convert Booru. JSON conffiles plus packaged JSON Schemas; web Apps → Settings. Documented in APP_DEVELOPMENT.md. Web settings are for API keys and text entry; normal controls stay on the Reader.
+- [x] Camera review follows the current screen orientation. Pass the grip through the GIO launch environment; fbdev Xorg does not support RandR rotation.

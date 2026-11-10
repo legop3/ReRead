@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from gadget import stage, build_module
-from third_party import stage_file_manager
+from third_party import stage_file_manager, stage_settings_editor
 from apps.images.package import build as build_images
 from apps.text.package import build as build_text
 from apps.audio.package import build as build_audio
@@ -27,6 +27,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
         text=True, capture_output=True, check=True).stdout.strip()
     stage(root, base)
     stage_file_manager(root, base)
+    stage_settings_editor(root, base)
 
     def copy(source, target, mode=0o644):
         path = root / target
@@ -55,6 +56,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
                          ('brightness.py', 'reader-brightness'),
                          ('camera.py', 'reader_camera.py'),
                          ('camera_backend.py', 'reader_camera_backend.py'),
+                         ('app_settings.py', 'reader_app_settings.py'),
                          ('manager.py', 'reader_manager.py'), ('repositories.py', 'reader_repositories.py'),
                          ('files.sh', 'reader-files'), ('software.py', 'reader-software'), ('update.py', 'reader-update')]:
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
@@ -151,7 +153,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: desktop-file-utils, shared-mime-info, libglib2.0-bin, xdg-utils, xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: desktop-file-utils, shared-mime-info, libglib2.0-bin, xdg-utils, xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-jsonschema, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Recommends: reread-app-files, reread-app-images, reread-app-text, reread-app-audio
 Breaks: reread-app-camera (<< 0.8.0), reread-app-files (<< 0.6.0), reread-app-software (<< 0.4.0), reread-app-images (<< 0.2.0), reread-app-text (<< 0.2.0), reread-app-audio (<< 0.2.0), reread-app-archive (<< 0.9.0), reread-app-booru (<< 0.4.0)
 Description: ReRead handheld platform for Intel Reader
@@ -163,6 +165,7 @@ Description: ReRead handheld platform for Intel Reader
     copy(base / 'antix/files-head.html', 'usr/share/reader/files-head.html')
     copy(base / 'antix/storage/80-reread-space', 'etc/dpkg/dpkg.cfg.d/80-reread-space')
     copy(base / 'antix/storage/80-reread-indexes', 'etc/apt/apt.conf.d/80-reread-indexes')
+    copy(base / 'antix/app-settings.js', 'usr/share/reader/app-settings.js')
     copy(base / 'antix/files.conf', 'etc/reader/files.conf')
     copy(base / 'antix/STORAGE.md', 'usr/share/doc/reread/storage.md')
     copy(base / 'antix/THIRD_PARTY.md', 'usr/share/doc/reread/third-party.md')
@@ -182,7 +185,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.20.0), libqt5network5t64
+Depends: reread (>= 0.21.0), libqt5network5t64
 Recommends: reread-app-images
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.

@@ -96,6 +96,8 @@ class Camera : public Screen {
     if(!QFileInfo(filename).isFile()) {toast("Last photo is no longer available. Check Files.");return;}
     auto context=g_app_launch_context_new();
     g_app_launch_context_unsetenv(context,"READER_APP_ID");g_app_launch_context_unsetenv(context,"READER_APP_DATA_DIR");
+    auto angle=QByteArray::number(orientation);
+    g_app_launch_context_setenv(context,"REREAD_SCREEN_ORIENTATION",angle.constData());
     GError *error=nullptr;auto uri=QUrl::fromLocalFile(filename).toEncoded();
     bool opened=g_app_info_launch_default_for_uri(uri.constData(),context,&error);g_object_unref(context);
     if(!opened)toast(error?QString::fromUtf8(error->message):"Unable to open last photo.");

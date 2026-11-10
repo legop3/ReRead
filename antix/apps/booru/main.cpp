@@ -39,7 +39,7 @@ QString safeName(QString name) {
 
 class Booru : public Screen {
   friend class BooruTest;
-  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING };
+  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING, SETTINGS };
   Page page=HOME;
   QNetworkAccessManager net;
   QList<Host> hosts;
@@ -50,10 +50,11 @@ class Booru : public Screen {
   QNetworkReply *api=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
   QString status, search, downloadName;
-  int hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
+  int settingIndex=0, hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
-  bool more=false, loadingMore=false, favoritePending=false;
+  bool autoOpenImages=false, more=false, loadingMore=false, favoritePending=false;
 
+  QString preferencesPath() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-booru")+"/preferences.json";}
   QString filesDir() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
   const Host &host() const {return hosts[hostIndex];}
   QStringList sections() const {
@@ -64,7 +65,8 @@ class Booru : public Screen {
   void chrome() {
     showHeader=false;
 
-    if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Host"},{READER_BACK,"Home"}};
+    if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Searches"}};
+    else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Home"}};
     else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_BACK,"Searches"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
     else if(page==INFO) controls={{READER_BACK,"Post"}};
@@ -92,29 +94,13 @@ class Booru : public Screen {
     return req;
   }
   bool parseConfig() {
-    QString path=filesDir()+"/Booru/config.json";
-    if(!QFile::exists(path)) {
-      QDir().mkpath(filesDir()+"/Booru");
-      QSaveFile initial(path);
-      if(initial.open(QIODevice::WriteOnly)) {
-        QJsonObject exampleHost;
-        exampleHost["name"]="e926";
-        exampleHost["url"]="https://e926.net";
-        exampleHost["username"]="";
-        exampleHost["api_key"]="";
-        exampleHost["searches"]=QJsonArray{"order:score", "cat rating:s"};
-        QJsonObject example;
-        example["hosts"]=QJsonArray{exampleHost};
-        initial.write(QJsonDocument(example).toJson(QJsonDocument::Indented));
-        initial.commit();
-      }
-    }
+    QString path="/etc/reread/apps/booru.json";
     QFile f(path);
     if(f.exists()) {
-      if(!f.open(QIODevice::ReadOnly)){status="Cannot read Files/Booru/config.json";return false;}
+      if(!f.open(QIODevice::ReadOnly)){status="Cannot read web Apps / Booru settings";return false;}
       QJsonParseError err;
       QJsonDocument doc=QJsonDocument::fromJson(f.readAll(),&err);
-      if(err.error!=QJsonParseError::NoError||!doc.isObject()){status="Invalid Files/Booru/config.json";return false;}
+      if(err.error!=QJsonParseError::NoError||!doc.isObject()){status="Invalid web Apps / Booru settings";return false;}
       for(auto v:doc.object().value("hosts").toArray()) {
         auto h=v.toObject();
         Host x;
@@ -127,7 +113,7 @@ class Booru : public Screen {
         hosts<<x;
         if(hosts.size()>=8)break;
       }
-      if(hosts.isEmpty()){status="No valid HTTPS hosts in Files/Booru/config.json";return false;}
+      if(hosts.isEmpty()){status="No valid HTTPS hosts in web Apps / Booru settings";return false;}
     } else {
       Host x;x.name="e926";x.url="https://e926.net";hosts<<x;
     }
@@ -282,7 +268,7 @@ class Booru : public Screen {
   }
   void favorite(){
     Post *p=current();if(!p||favoritePending)return;
-    if(host().username.isEmpty()||host().key.isEmpty()){status="Set account in Files/Booru/config.json";update();return;}
+    if(host().username.isEmpty()||host().key.isEmpty()){status="Set account in web Apps / Booru settings";update();return;}
     int id=p->id;bool add=!p->favorite;favoritePending=true;status=add?"Adding favorite...":"Removing favorite...";update();
     QUrl url(host().url+(add?"/favorites.json":"/favorites/"+QString::number(id)+".json"));
     auto req=request(url,true);req.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
@@ -327,7 +313,8 @@ class Booru : public Screen {
     });
   }
   void back(){
-    if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
+    if(page==SETTINGS){page=HOME;}
+    else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
     else if(page==INFO){page=POST;}
     else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
     else if(page==GALLERY){stop(api);loadingMore=false;page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
@@ -335,7 +322,8 @@ class Booru : public Screen {
     status.clear();chrome();
   }
   void navigate(int dx,int dy){
-    if(page==HOME){
+    if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
+    else if(page==HOME){
       int max=sections().size()-1;homeIndex=qBound(0,homeIndex+dx+dy,max);
 
     }else if(page==GALLERY){
@@ -346,7 +334,7 @@ class Booru : public Screen {
       maybeLoadMore();
     }else if(page==POST){
       if(dx){const int next=qBound(0,selected+dx,posts.size()-1);
-        if(next!=selected){selected=next;loadFull();maybeLoadMore();}}
+        if(next!=selected){selected=next;stop(imageJob);status.clear();if(autoOpenImages)loadFull();maybeLoadMore();}}
 
     }
     update();
@@ -355,7 +343,9 @@ protected:
   void draw(QPainter &p,const QRect &r) override {
     // Screen paints ReRead's palette and standard controls. No app-created header.
     const QRect area=r.adjusted(4,3,-4,-3);
-    if(page==HOME) {
+    if(page==SETTINGS) {
+      list(p,area,{"Server", "Open images automatically"},{host().name,autoOpenImages?"On":"Off · use View on a post"},settingIndex);
+    } else if(page==HOME) {
       const QStringList names=sections();
       QStringList details;
       for(int i=0;i<names.size();++i)
@@ -433,22 +423,27 @@ protected:
     else if(key==READER_RIGHT)navigate(1,0);
     else if(page==POST&&key==READER_VIEW_TOGGLE&&state==1){loadFull();}
     else if(key==READER_OPTIONS&&state==1){
-      if(page==HOME){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;status.clear();update();}
+      if(page==HOME){page=SETTINGS;settingIndex=0;status.clear();chrome();}
       else if(page==POST)download();
     }else if(key==READER_PLAY&&state==1&&page==POST){page=INFO;chrome();}
     else if(key==READER_OK&&state==1) {
-      if(page==HOME){
+      if(page==SETTINGS){
+        if(settingIndex==0){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;}
+        else {autoOpenImages=!autoOpenImages;writeJson(preferencesPath(),{{"auto_open_images",autoOpenImages}});}
+        update();
+      }else if(page==HOME){
         if(homeIndex==1){
-          if(host().username.isEmpty()){status="Set account in Files/Booru/config.json";update();return;}
+          if(host().username.isEmpty()){status="Set account in web Apps / Booru settings";update();return;}
           search="fav:"+host().username;
         } else search=homeIndex==0?QString():host().searches.value(homeIndex-2);
         pageNumber=1;page=GALLERY;chrome();fetchPage();
-      }else if(page==GALLERY&&!posts.isEmpty()){page=POST;chrome();loadFull();maybeLoadMore();}
+      }else if(page==GALLERY&&!posts.isEmpty()){page=POST;chrome();if(autoOpenImages)loadFull();maybeLoadMore();}
       else if(page==POST)favorite();
     }
   }
 public:
   Booru():Screen("booru"){
+    autoOpenImages=readJson(preferencesPath()).value("auto_open_images").toBool(false);
     if(!parseConfig()){Host x;x.name="Configuration error";x.url="https://e926.net";hosts<<x;}
     chrome();
   }

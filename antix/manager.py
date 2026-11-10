@@ -52,7 +52,8 @@ def inventory():
             raw = status.stdout.strip()
             state = 'Running' if raw.startswith('run:') else 'Stopped' if raw.startswith('down:') else 'Waiting to start'
         apps.append(dict(package=package, version=app_version, name=metadata.get('name', package.removeprefix('reread-app-')),
-                         description=metadata.get('description', description), service=service, enabled=enabled, state=state))
+                         description=metadata.get('description', description), service=service, enabled=enabled, state=state,
+                         settings=metadata.get('settings') is True and (REGISTRY / package.removeprefix('reread-app-') / 'settings.schema.json').is_file()))
     return apps
 
 

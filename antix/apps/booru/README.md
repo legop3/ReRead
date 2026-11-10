@@ -10,17 +10,20 @@ From the ReRead checkout with the existing `reread-builder` image:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Package: `out/antix/reread-app-booru_0.1.3_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Package is not yet published to the APT repo; build and test first.
+Package: `out/antix/reread-app-booru_0.5.0_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Published packages are available from the ReRead APT repository.
 
 ## Configuration
 
-On first launch, the app creates an editable config in ReRead's shared Files folder, with anonymous e926 as the default host:
+Use **web Apps → Booru → Settings** to edit servers, account names, API keys and
+saved search text. The app reads `/etc/reread/apps/booru.json` at startup; reopen
+it after saving. The packaged draft-7 JSON Schema drives the platform's offline
+form editor. It accepts at most eight HTTPS hosts and twenty searches per host.
+Existing `Files/Booru/config.json` settings migrate once on upgrade; the original
+file is retained as a backup and is no longer read by the app.
 
-```
-/var/lib/reader/files/Booru/config.json
-```
-
-Edit `Files/Booru/config.json` from your computer using the existing ReRead file manager. No SSH setup, text entry on the Reader, or changes to the platform web UI are needed. It accepts at most eight hosts, each with `name`, HTTPS root `url`, optional `username` and `api_key`, and up to twenty saved tag searches. The configuration is loaded at app startup; restart to apply changes. **Security:** The shared Files folder is accessible through ReRead's file transfer interface. Anyone who can access and download files there may be able to read this config and its API key. Use a dedicated revocable API key, and only use the web file interface on a trusted connection.
+Use **Options on Booru's home screen** for settings that work with Reader buttons:
+server selection and **Open images automatically** (off by default). That choice
+persists in the app's private `preferences.json`, separate from web text entry.
 
 Create an API key in the site's account settings; use the username and **API key**, not a password. If accessing e621/e926, register a descriptive user agent for the application. Authentication is sent through HTTPS Basic auth to the configured API hostname only; downloads and thumbnails receive no credentials. HTTPS redirects are not followed, including for authenticated API responses.
 
@@ -28,13 +31,14 @@ The app supports e621-style `/posts.json`, `/favorites.json`, and `/favorites/{p
 
 ## Controls
 
-- Home: D-pad selects Recent, My favorites, or a configured saved search; OK opens; Options rotates between configured hosts; Back exits.
+- Home: D-pad selects Recent, My favorites, or a configured saved search; OK opens; Options opens server selection and automatic-opening preferences; Back exits.
 - Gallery: D-pad moves through 3×2 cards, OK views, the next 30 posts load automatically near the end, Back returns to Home.
-- Opening a gallery post downloads its image sample into the app cache and opens it
-  with the system's default image viewer. Zoom, pan and rotation belong to that viewer.
+- Opening a gallery post shows its post card. Press View to download its image
+  sample into the app cache and open the system's default image viewer. Zoom, pan and rotation belong to that viewer.
 - Back from the viewer returns to Booru's post card: View reopens the image, OK
   toggles the online favorite, Play shows details, Options saves the original,
-  and Back returns to the same gallery selection. Left/Right opens adjacent posts.
+  and Back returns to the same gallery selection. Left/Right selects adjacent post cards. Enable automatic opening in the Reader
+  settings if you prefer to launch the viewer on entering/changing a post.
 - Favorites button returns to ReRead Home immediately. Power, volume, Hold, and suspend remain with the platform.
 
 Thumbnails stay in bounded RAM. Full viewing uses ordinary GIO/MIME dispatch and

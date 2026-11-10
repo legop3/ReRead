@@ -21,7 +21,11 @@ app uses the same local socket API described in [camera support](../../CAMERA.md
 Removing Camera removes the app, retaining that platform support and user photos.
 
 Last photo opens the saved JPEG in the default image viewer through GIO. Back
-closes that viewer and exposes Camera again. Camera yields its live preview
+closes that viewer and exposes Camera again. The GIO launch context carries
+`REREAD_SCREEN_ORIENTATION` so shared Screen viewers use Camera's current grip
+for their UI and buttons. The saved JPEG already has the capture rotation; no
+additional file rotation or rewrite is performed. Xorg's fbdev output does not
+support RandR rotation, so this does not change Home or the global display. Camera yields its live preview
 lease while unfocused and resumes on return; it has no embedded photo viewer.
 
 UI 5 supplies the shared physical-button hints: hold Guide to show them over

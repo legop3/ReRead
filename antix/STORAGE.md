@@ -65,3 +65,8 @@ interface; use its HTTP/WebDAV endpoints for scripting. The management
 After updating from a version without Copyparty, reconnect USB or reboot to start
 its added management-session child. Future app packages must not install content
 into the shared root or wipe it in maintainer scripts.
+
+The web file manager uses Copyparty's own text editor: open a text file and choose
+Edit, then Save. Edits replace the existing shared file; they do not create a
+separate application copy. `no-script` restricts scripts in downloaded HTML while
+keeping the upstream editor available (`no-html` also disables that editor).

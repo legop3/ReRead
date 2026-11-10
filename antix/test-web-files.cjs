@@ -33,7 +33,7 @@ const assert=require('node:assert/strict');
   let uploaded=false;
   for(let attempt=0;attempt<30;attempt++){
    const result=await request.get(files+folder+'/Browser-created%20folder/browser-upload.txt');
-   if(result.ok()){assert.match(await result.text(),/real browser widget/);uploaded=true;break;}
+   if(result.ok() && /real browser widget/.test(await result.text())){uploaded=true;break;}
    await page.waitForTimeout(500);
   }
   if(!uploaded){console.log(await frame.locator('body').innerText());await page.screenshot({path:'build/web-tests/upload-failure.png',fullPage:true});}
@@ -45,9 +45,23 @@ const assert=require('node:assert/strict');
   assert.equal(await page.locator('#file-manager').getAttribute('src'),source);
   assert.equal(await page.locator('#open-files').getAttribute('href'),files);
   assert.equal(await page.locator('#files-root').textContent(),'/var/lib/reader/files');
+  // Exercise the upstream editor, not a replacement upload under a different name.
+  const embedded=page.frames().find(f=>f.url().startsWith(files));
+  await embedded.goto(files+folder+'/hello.txt?edit');
+  const edited='Edited on ReRead — existing text file\nSecond line\n';
+  await frame.locator('#mt').fill(edited);
+  await frame.locator('#save').click();
+  let saved=false;
+  for(let attempt=0;attempt<30;attempt++){
+   if(await (await request.get(files+folder+'/hello.txt')).text()===edited){saved=true;break;}
+   await page.waitForTimeout(200);
+  }
+  assert(saved,'Editing did not replace the existing file');
+  await embedded.goto(embedded.url());
+  assert.equal(await frame.locator('#mt').inputValue(),edited);
   assert.deepEqual(errors,[]);
   if(process.env.SCREENSHOT)await page.screenshot({path:process.env.SCREENSHOT,fullPage:true});
-  console.log('PASS: real embedded folder browsing, UI folder creation and upload, toolbar, tab navigation and shared-path display');
+  console.log('PASS: embedded browsing, folder creation, upload, text editing/save/reload, tab navigation and shared storage');
  }finally{
   await context.request.fetch(files+folder+'/',{method:'DELETE'});
   await browser.close();

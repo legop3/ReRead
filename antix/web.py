@@ -14,6 +14,7 @@ import reader_wifi as wifi
 import reader_repositories as repositories
 import reader_manager as manager
 import reader_battery as battery
+import reader_app_settings as app_settings
 
 FILES = Path('/var/lib/reader/files')
 PAGE = Path('/usr/share/reader/web.html')
@@ -42,6 +43,16 @@ class Handler(BaseHTTPRequestHandler):
         route = urlsplit(self.path).path
         if route == '/':
             return self.reply(200, PAGE.read_bytes(), 'text/html; charset=utf-8')
+        if route == '/assets/app-settings.js':
+            return self.reply(200, Path('/usr/share/reader/app-settings.js').read_bytes(), 'text/javascript; charset=utf-8')
+        if route == '/assets/jsoneditor.min.js':
+            return self.reply(200, Path('/usr/share/reader/jsoneditor.min.js').read_bytes(), 'text/javascript; charset=utf-8')
+        if route == '/api/apps/settings':
+            try:
+                package = parse_qs(urlsplit(self.path).query).get('package', [''])[0]
+                return self.reply(200, json.dumps(app_settings.load(package, manager.inventory())), 'application/json')
+            except (ValueError, OSError) as error:
+                return self.reply(400, str(error))
         if route == '/api/status':
             usage = shutil.disk_usage(FILES)
             body = dict(hostname=socket.gethostname(), version=manager.version(), kernel=os.uname().release,
@@ -94,12 +105,14 @@ class Handler(BaseHTTPRequestHandler):
                 temporary = None  # The detached worker now owns the upload.
                 return self.reply(202, json.dumps(job), 'application/json')
             if route not in ('/api/settings', '/api/wifi/scan', '/api/wifi/save', '/api/wifi/action', '/api/apps/action',
-                             '/api/packages/check', '/api/packages/install', '/api/repositories') or length > (131072 if route == '/api/repositories' else 4096):
+                             '/api/packages/check', '/api/packages/install', '/api/repositories', '/api/apps/settings') or length > (131072 if route in ('/api/repositories', '/api/apps/settings') else 4096):
                 self.close_connection = True
                 return self.reply(400, 'Invalid request.')
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Expected settings object.')
+            if route == '/api/apps/settings':
+                return self.reply(200, json.dumps(app_settings.save(data, manager.inventory())), 'application/json')
             if route in ('/api/packages/check', '/api/packages/install'):
                 job = manager.start('check' if route.endswith('/check') else 'online', data.get('package', ''))
                 return self.reply(202, json.dumps(job), 'application/json')
