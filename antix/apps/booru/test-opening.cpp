@@ -52,7 +52,7 @@ public:
    window.searchIndex=6;window.button(READER_OK,1);
    require(window.ratingIndex==1 && window.builtSearch().contains("rating:s"),
            "Rating changes the composed search immediately");
-   window.searchIndex=4;window.button(READER_OK,1);
+   window.searchIndex=3;window.button(READER_OK,1);
    require(window.page==Booru::INFO && window.tagSource==1 &&
            window.currentTags().contains("cat"),"Related post tags open from Explore");
    window.button(READER_OK,1);
@@ -60,7 +60,7 @@ public:
    window.button(READER_BACK,1);
    require(window.page==Booru::SEARCH && window.builtSearch().contains("cat"),
            "Returning to Explore keeps tag selections");
-   window.searchIndex=3;window.button(READER_OK,1);
+   window.searchIndex=4;window.button(READER_OK,1);
    require(window.page==Booru::INFO && window.tagSource==2 &&
            window.currentTags().contains("cat"),"Active tags can be edited");
    window.button(READER_OK,1);
@@ -69,7 +69,7 @@ public:
    require(window.tagState("cat")=="Off","Active tag can be removed");
    window.button(READER_BACK,1);
    window.page=Booru::POST;window.initializeSearch("");
-window.button(READER_PLAY,1);
+   window.button(READER_PLAY,1);
    require(window.page==Booru::INFO && window.currentTags().contains("cat"),"Post offers tag discovery");
    window.button(READER_OK,1);
    require(window.tagFilters.value("cat")==1,"OK includes the selected tag");
