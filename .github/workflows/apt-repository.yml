@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apt-repository.yml'
+      - 'repository/**'
 
 permissions:
   contents: read
@@ -51,3 +56,49 @@ jobs:
       - name: Deploy repository
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify public Pages matches this deployment
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          root = Path("build/repository/site/apt")
+          rel = "dists/stable/main/binary-i386/Packages"
+          expected = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+          base = "https://legop3.github.io/ReRead/apt/"
+          # A successful deploy-pages action only confirms the Pages deployment
+          # operation. Independently verify the actual public origin/CDN.
+          for attempt in range(18):
+              url = base + rel + "?verify=" + os.environ["GITHUB_RUN_ID"] + "-" + str(attempt)
+              try:
+                  request = Request(url, headers={"Cache-Control": "no-cache"})
+                  with urlopen(request, timeout=15) as response:
+                      published = response.read()
+                  actual = hashlib.sha256(published).hexdigest()
+                  if actual == expected:
+                      break
+                  print("Public Packages index is still stale (attempt %d/18)" % (attempt + 1), flush=True)
+              except (HTTPError, URLError, TimeoutError) as exc:
+                  print("Public index unavailable: %s" % exc, flush=True)
+              time.sleep(10)
+          else:
+              raise SystemExit("Pages reports success but the public Packages index does NOT match the generated one")
+
+          missing = []
+          for package in sorted((root / "pool/main").glob("*.deb")):
+              url = base + "pool/main/" + package.name
+              try:
+                  with urlopen(Request(url, method="HEAD"), timeout=15) as response:
+                      if response.status != 200:
+                          missing.append(package.name + " HTTP " + str(response.status))
+              except (HTTPError, URLError, TimeoutError) as exc:
+                  missing.append(package.name + ": " + str(exc))
+          if missing:
+              raise SystemExit("Published index is current, but packages are missing:\n" + "\n".join(missing))
+          print("Verified public APT index hash and all published package URLs")
+          PY
