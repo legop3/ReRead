@@ -3,16 +3,17 @@
 namespace ReRead {
 Screen::Screen(const QString &name) : title(name) {
   QPalette colors;
-  colors.setColor(QPalette::Window, QColor("#f4f4f2"));
-  colors.setColor(QPalette::WindowText, QColor("#202020"));
-  colors.setColor(QPalette::Base, Qt::white);
-  colors.setColor(QPalette::Text, QColor("#202020"));
-  colors.setColor(QPalette::Mid, QColor("#a0a0a0"));
-  colors.setColor(QPalette::Dark, QColor("#505050"));
-  colors.setColor(QPalette::Highlight, QColor("#e2e2de"));
-  colors.setColor(QPalette::HighlightedText, QColor("#202020"));
-  colors.setColor(QPalette::Button, QColor("#ececea"));
-  colors.setColor(QPalette::ButtonText, QColor("#202020"));
+  colors.setColor(QPalette::Window, QColor("#000000"));
+  colors.setColor(QPalette::WindowText, QColor("#ffffff"));
+  colors.setColor(QPalette::Base, QColor("#080808"));
+  colors.setColor(QPalette::Text, QColor("#ffffff"));
+  colors.setColor(QPalette::Mid, QColor("#8a8a8a"));
+  colors.setColor(QPalette::Dark, QColor("#d0d0d0"));
+  colors.setColor(QPalette::Highlight, QColor("#00b7ff"));
+  colors.setColor(QPalette::Link, QColor("#00b7ff"));
+  colors.setColor(QPalette::HighlightedText, Qt::black);
+  colors.setColor(QPalette::Button, QColor("#242424"));
+  colors.setColor(QPalette::ButtonText, QColor("#ffffff"));
   setPalette(colors);
   setWindowFlags(Qt::FramelessWindowHint);
   setCursor(Qt::BlankCursor);
@@ -150,15 +151,22 @@ void Screen::paintEvent(QPaintEvent *) {
     auto heading = p.font(); heading.setBold(true); p.setFont(heading);
     text(p, QRect(safe.left(), safe.top(), safe.width()/2, 42), title, 32);
     heading.setBold(false); p.setFont(heading);
-    p.setPen(QPen(palette().mid(), 1));
+    p.setPen(QPen(palette().link(), 2));
     p.drawLine(safe.left(), safe.top()+48, safe.right(), safe.top()+48);
     auto f = p.font(); f.setPixelSize(22); p.setFont(f);
-    p.setPen(palette().color(QPalette::Dark));
-    QString status = (battery.value("external_power").toBool() ? "AC · " : "") +
-        QString::number(battery.value("capacity_percent").toInt()) +
-        "%   " + QTime::currentTime().toString("HH:mm");
-    p.drawText(QRect(safe.center().x(), safe.top(), safe.width()/2, 42),
-               Qt::AlignRight | Qt::AlignVCenter, status);
+    const int charge = battery.value("capacity_percent").toInt();
+    const bool known = battery.contains("capacity_percent");
+    const bool ac = battery.value("external_power").toBool();
+    QColor statusColor = !known ? QColor("#444444") : charge <= 10 ? QColor("#bb2525") :
+        charge <= 20 ? QColor("#a45b00") : QColor("#08783e");
+    QRect badge(safe.right()-235,safe.top()+3,135,34);
+    p.fillRect(badge,statusColor);
+    p.setPen(Qt::white);
+    p.drawText(badge,Qt::AlignCenter,(ac ? "AC " : "BAT ") +
+               (known ? QString::number(charge)+"%" : "--"));
+    p.setPen(palette().color(QPalette::WindowText));
+    p.drawText(QRect(safe.right()-90,safe.top(),90,42),Qt::AlignRight|Qt::AlignVCenter,
+               QTime::currentTime().toString("HH:mm"));
   }
   draw(p, content());
   if (showControls && !controls.isEmpty()) {
@@ -176,8 +184,8 @@ void Screen::paintEvent(QPaintEvent *) {
       int w = 58 + metrics.horizontalAdvance(control.action);
       p.setPen(Qt::NoPen); p.setBrush(palette().base());
       p.drawRect(QRect(x,0,w,42));
-      p.setBrush(palette().windowText());
-      p.drawRoundedRect(QRect(x+5,2,38,38),3,3);
+      p.setPen(QPen(QColor("#888888"),1)); p.setBrush(QColor("#303030"));
+      p.drawRect(QRect(x+5,2,38,38));
       buttonIcon(p,QRect(x+9,6,30,30),control.button);
       text(p,QRect(x+48,0,w-52,42),control.action,21);
       x += w+16;
@@ -205,18 +213,18 @@ void Screen::list(QPainter &p, const QRect &r, const QStringList &labels,
   int first = qMax(0, selected - visible + 1);
   for (int i = first; i < labels.size() && i < first + visible; i++) {
     QRect row(r.x(), r.y() + (i - first) * 84, r.width(), 76);
-    p.setPen(QPen(i == selected ? palette().windowText() : palette().mid(),
+    p.setPen(QPen(i == selected ? palette().link() : palette().mid(),
                   i == selected ? 2 : 1));
     p.setBrush(i == selected ? palette().highlight() : palette().base());
     p.drawRect(row.adjusted(1,1,-1,-1));
-    if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().windowText());
+    if (i == selected) p.fillRect(QRect(row.left()+1,row.top()+1,5,row.height()-2),palette().link());
     auto font = p.font(); font.setBold(i == selected); p.setFont(font);
     text(p, row.adjusted(18, details.value(i).isEmpty() ? 0 : -16, -32, 0),
-         labels[i], 27);
+         labels[i], 27, palette().color(i == selected ? QPalette::HighlightedText : QPalette::WindowText));
     font.setBold(false); p.setFont(font);
     if (!details.value(i).isEmpty())
       text(p, QRect(row.x() + 18, row.y() + 43, row.width() - 42, 25),
-           details[i], 19, palette().color(QPalette::Dark));
+           details[i], 19, palette().color(i == selected ? QPalette::HighlightedText : QPalette::Dark));
   }
   if (labels.isEmpty())
     text(p, r, "Nothing here yet.");

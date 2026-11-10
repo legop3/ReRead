@@ -1,12 +1,13 @@
 # ReRead on-device UI
 
-The shared UI uses a light, neutral Qt `QPalette`: dark text, white panels,
-and a pale background. Selection uses an outline, a gray fill and a left marker
-in lists; it does not depend on color alone. Home uses the same palette for its
-icon grid. Application and system icons remain ordinary SVG theme assets, with
-dark strokes for contrast. Button hints retain the physical control symbols.
-Apps can use the standard palette roles when painting their own views; no theme
-service, animation loop or desktop environment is involved.
+The shared UI uses a high-contrast industrial Qt `QPalette`: black backgrounds,
+white text and bright control colors. Selection uses solid cyan with black text
+in lists and cyan label strips on Home. Strong outlines also mark selection.
+The battery badge shows its actual charge and AC/battery state, with green,
+amber and red charge ranges. Application and system icons remain ordinary SVG
+theme assets, using bright blue, amber, green and purple. Button hints retain the
+physical control symbols. Apps can use the standard palette roles when painting
+their own views. There are no gradients, shadows or glow effects.
 
 Home and the [Camera app](../apps/camera/README.md) use Qt 5 Widgets on the LinuxFB platform plugin. Independent
 apps choose their own UI; neither the Screen base class nor these libraries are
