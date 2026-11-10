@@ -432,15 +432,17 @@ class Booru : public Screen {
         controls.prepend({READER_RIGHT,"Next / Exclude"});
       }
     }else if(page==LOOKUP){
-      controls={{READER_UP,"Choose tag"},{READER_OK,"Add tag"},
+      controls={{READER_UP,lookupMode==0&&!lookupResultsFocus?"Choose character":"Choose tag"},
+                {READER_OK,lookupMode==0&&!lookupResultsFocus?"Type character":"Add tag"},
                 {READER_OPTIONS,"Edit search"},{READER_BACK,"Search editor"}};
       if(lookupMode==0){
         controls.append({READER_VIEW_TOGGLE,"Keyboard / matches"});
         controls.append({READER_ZOOM_OUT,"Delete character"});
       }
     }else if(page==GALLERY||page==POST){
-      controls={{READER_UP,"Browse"},
-                {READER_OK,page==POST?"Open image":"Preview post"},
+      controls={{page==POST?READER_LEFT:READER_UP,
+                 page==POST?"Previous / next":"Browse grid"},
+                {READER_OK,page==POST?"Open image":"Post details"},
                 {READER_VIEW_TOGGLE,"View image"},
                 {READER_PLAY,"Toggle favorite"},
                 {READER_SHOOT,"Download original"},
@@ -451,6 +453,7 @@ class Booru : public Screen {
     }else{
       controls={{READER_OPTIONS,"Edit search"},{READER_BACK,"Return"}};
     }
+    controls.append({READER_FAVORITES,"Close app"});
     update();
   }
   void openSearchEditor(){
@@ -481,11 +484,35 @@ class Booru : public Screen {
     ++searchRevision;
     apiRetryPending=false;loadingMore=false;hasResults=false;more=false;
     hostIndex=(hostIndex+1)%hosts.size();
+    homeIndex=sections().size()-1;
     posts.clear();selected=first=0;pageNumber=1;
     postTagSnapshot.clear();postCategorySnapshot.clear();
     initializeSearch("");
     status="Server: "+host().name;
     chrome();
+  }
+  void openHomeSelection(){
+    if(homeIndex==sections().size()-1){switchServer();return;}
+    // Search editor is a *resume* action. Do not reset or refetch its query.
+    if(homeIndex==0){page=SEARCH;status.clear();chrome();return;}
+    postTagSnapshot.clear();postCategorySnapshot.clear();
+    if(homeIndex==1)initializeSearch("");
+    else if(homeIndex==2){
+      if(host().username.isEmpty()){
+        toast("Configure your username in web Apps / Booru settings");
+        return;
+      }
+      initializeSearch("fav:"+host().username);
+    }else initializeSearch(bookmarks().value(homeIndex-3));
+    ++searchRevision;
+    searchTimer.stop();stop(api);
+    apiRetryPending=false;loadingMore=false;
+    hasResults=false;more=false;
+    posts.clear();selected=first=0;pageNumber=1;
+    // Recent posts is a direct browsing shortcut. Favorites and saved searches
+    // open the same editor, where every tag and metatag can be changed.
+    if(homeIndex==1){page=GALLERY;chrome();fetchPage();}
+    else {page=SEARCH;chrome();searchTimer.start(0);}
   }
   void imageIn(QPainter &p,QRect target,const QImage &img,bool crop=false) const {
     if(img.isNull())return;
@@ -1132,16 +1159,7 @@ protected:
         }
       }else changePrefix(lookupKey(keyIndex));
     }else if(page==HOME){
-      if(homeIndex==sections().size()-1){switchServer();return;}
-      postTagSnapshot.clear();postCategorySnapshot.clear();
-      if(homeIndex==1)initializeSearch("");
-      else if(homeIndex==2){
-        if(host().username.isEmpty()){toast("Add your username in web settings");return;}
-        initializeSearch("fav:"+host().username);
-      }else if(homeIndex>=3)initializeSearch(bookmarks().value(homeIndex-3));
-      ++searchRevision;searchTimer.stop();stop(api);
-      hasResults=false;posts.clear();selected=first=0;
-      page=SEARCH;chrome();searchTimer.start(0);
+      openHomeSelection();
     }else if(page==GALLERY&&!posts.isEmpty()){
       page=POST;chrome();requestThumbs();maybeLoadMore();
     }else if(page==POST){
