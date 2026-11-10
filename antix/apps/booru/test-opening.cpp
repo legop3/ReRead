@@ -176,13 +176,15 @@ public:
       window.button(READER_OPTIONS,2);
       require(window.page==Booru::SEARCH,"Repeated Options does not re-enter");
     }
-    // Back always moves toward Home, never between gallery and editor forever.
+    // Back from the editor always opens results; results Back returns Home.
     window.page=Booru::POST;window.button(READER_BACK,1);
     require(window.page==Booru::GALLERY,"Post Back returns results");
+    window.button(READER_OPTIONS,1);
+    require(window.page==Booru::SEARCH,"Options from results opens editor");
     window.button(READER_BACK,1);
-    require(window.page==Booru::SEARCH,"Results Back returns editor");
+    require(window.page==Booru::GALLERY,"Editor Back returns results");
     window.button(READER_BACK,1);
-    require(window.page==Booru::HOME,"Editor Back returns Home");
+    require(window.page==Booru::HOME,"Results Back returns Home");
     window.page=Booru::LOOKUP;window.button(READER_BACK,1);
     require(window.page==Booru::SEARCH,"Tag picker Back returns editor");
     window.page=Booru::DOWNLOADING;window.downloadReturnPage=Booru::GALLERY;
@@ -196,15 +198,15 @@ public:
     require(window.page==Booru::SEARCH&&window.search=="dog",
             "Search editor on Home resumes existing query");
     window.button(READER_BACK,1);
-    require(window.page==Booru::HOME,"Home is the editor's parent");
+    require(window.page==Booru::GALLERY,"Editor Back always opens results");
+    window.button(READER_BACK,1);
+    require(window.page==Booru::HOME,"Results Back returns Home");
     window.homeIndex=1;window.button(READER_OK,1);
     require(window.page==Booru::GALLERY&&window.search.isEmpty(),
             "Recent posts shortcut opens the actual gallery with an empty search");
     window.stop(window.api);
     window.button(READER_BACK,1);
-    require(window.page==Booru::SEARCH,"Recent results Back reaches editor");
-    window.button(READER_BACK,1);
-    require(window.page==Booru::HOME,"Recent search Back reaches Home");
+    require(window.page==Booru::HOME,"Recent results Back returns Home");
     Host other;other.name="Alternative";other.url="https://other.example.invalid";
     window.hosts.append(other);window.homeIndex=window.sections().size()-1;
     window.button(READER_OK,1);
@@ -234,7 +236,7 @@ public:
     require(window.search=="rating:q","Single right press changes filter once");
     window.searchTimer.stop();
     window.chrome();
-    require(hint(window,READER_BACK)=="Home" &&
+    require(hint(window,READER_BACK)=="Results" &&
             hint(window,READER_OPTIONS)=="Edit search",
             "Editor Guide matches its actual navigation");
     window.page=Booru::LOOKUP;window.lookupMode=0;window.lookupResultsFocus=false;
