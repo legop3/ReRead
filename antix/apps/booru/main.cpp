@@ -1188,7 +1188,6 @@ protected:
     // reassignment of OK, Shoot or Play.
     if((page==GALLERY||page==POST)&&key==READER_SHOOT){download();return;}
     if((page==GALLERY||page==POST)&&key==READER_PLAY){favorite();return;}
-    if(key==READER_VIEW_TOGGLE&&(page==POST||page==GALLERY)){loadFull();return;}
     if(key==READER_VIEW_TOGGLE&&page==LOOKUP&&lookupMode==0){
       lookupResultsFocus=!lookupResultsFocus;chrome();return;
     }
@@ -1198,30 +1197,37 @@ protected:
     if(key!=READER_OK)return;
     if(page==SEARCH){
       if(searchIndex<queryTerms.size()){removeTerm(searchIndex);return;}
-      const int action=searchIndex-queryTerms.size();
-      if(action==0)openTagFinder();
-      else if(action==1)openTagBrowser(0);
-      else if(action==2){
-        if(postTagSnapshot.isEmpty())toast("Open a post first to choose its tags");
-        else openTagBrowser(1);
-      }else if(action==3){
-        if(host().username.isEmpty())toast("Configure a username first");
-        else {
-          const int actionIndex=searchIndex-queryTerms.size();
-          const QString value="fav:"+host().username;
-          const bool already=queryTerms.contains(value);
-          for(int i=queryTerms.size()-1;i>=0;--i)
-            if(queryTerms[i].startsWith("fav:"))queryTerms.removeAt(i);
-          if(!already)queryTerms<<value;
-          searchIndex=qBound(0,queryTerms.size()+actionIndex,editorRows().size()-1);
-          activeSearchChanged();
-        }
-      }else if(action==4)setTerm("order",{"","order:score","order:favcount","order:hot","order:id","order:random","order:updated"});
-      else if(action==5)setTerm("rating",{"","rating:s","rating:q","rating:e"});
-      else if(action==6)setTerm("type",{"","type:jpg","type:png","type:gif","type:webp","type:mp4","type:webm"});
-      else if(action==7)setTerm("score",{"","score:>=10","score:>=50","score:>=100"});
-      else if(action==8)toggleBookmark();
-      else applySearch();
+      switch(selectedEditorAction()){
+        case FROM_POST:
+          openTagBrowser(1);
+          break;
+        case FIND_TAG:openTagFinder();break;
+        case POPULAR_TAG:openTagBrowser(0);break;
+        case FAVORITE_FILTER:
+          if(host().username.isEmpty())toast("Configure a username first");
+          else {
+            const int actionIndex=searchIndex-queryTerms.size();
+            const QString value="fav:"+host().username;
+            const bool already=queryTerms.contains(value);
+            for(int i=queryTerms.size()-1;i>=0;--i)
+              if(queryTerms[i].startsWith("fav:"))queryTerms.removeAt(i);
+            if(!already)queryTerms<<value;
+            searchIndex=qBound(0,queryTerms.size()+actionIndex,editorRows().size()-1);
+            activeSearchChanged();
+          }
+          break;
+        case SORT_ORDER:
+          setTerm("order",{"","order:score","order:favcount","order:hot",
+                           "order:id","order:random","order:updated"});break;
+        case RATING_FILTER:setTerm("rating",{"","rating:s","rating:q","rating:e"});break;
+        case FILE_FILTER:
+          setTerm("type",{"","type:jpg","type:png","type:gif",
+                          "type:webp","type:mp4","type:webm"});break;
+        case SCORE_FILTER:
+          setTerm("score",{"","score:>=10","score:>=50","score:>=100"});break;
+        case SAVE_SEARCH:toggleBookmark();break;
+        case VIEW_RESULTS:showResults();break;
+      }
     }else if(page==LOOKUP){
       if(lookupMode!=0||lookupResultsFocus){
         if(suggestionIndex<suggestions.size()){
