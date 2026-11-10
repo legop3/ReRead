@@ -61,8 +61,7 @@ class Booru : public Screen {
   QHash<QString,int> popularTagCounts;
   int tagPage=1;
   bool tagHasMore=true,tagLoading=false;
-  int tagCategory=0;
-  QList<int> categoryCodes={-1,0,1,3,4,5};
+
   int searchIndex=0;
   bool searchFromGallery=false, galleryFromExplore=false;
   QStringList postTagSnapshot;
@@ -131,6 +130,7 @@ class Booru : public Screen {
   }
   QString termPrefix(const QString &type) const {return type+":";}
   void setTerm(const QString &group,const QStringList &values){
+    const int actionIndex=searchIndex-queryTerms.size();
     const QString prefix=termPrefix(group);
     int current=0;
     for(const QString &term:queryTerms){
@@ -141,13 +141,14 @@ class Booru : public Screen {
     // 0 means no filter. Each press cycles from the current value.
     const int next=(current+1)%values.size();
     if(next>0)queryTerms<<values[next];
-    searchIndex=qBound(0,searchIndex,editorRows().size()-1);
+    searchIndex=qBound(0,queryTerms.size()+actionIndex,editorRows().size()-1);
     activeSearchChanged();
   }
   void addTag(const QString &tag){
     if(tag.isEmpty()||tag.contains(' '))return;
     if(!queryTerms.contains(tag)&&!queryTerms.contains("-"+tag)){
       queryTerms<<tag;
+      searchIndex=queryTerms.size()-1;
       activeSearchChanged();
     }
   }
@@ -218,7 +219,11 @@ class Booru : public Screen {
   void activeSearchChanged(){
     const QString query=builtSearch();
     if(query==search){update();return;}
-    if(queryTerms.size()>40){toast("Too many search terms");return;}
+    if(queryTerms.size()>40){
+      queryTerms=search.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+      searchIndex=qBound(0,searchIndex,editorRows().size()-1);
+      toast("Maximum 40 search terms");update();return;
+    }
     search=query;
     ++searchRevision;
     searchTimer.stop();
@@ -237,7 +242,6 @@ class Booru : public Screen {
     tagLoading=true;status=append?QString():"Loading tags...";update();
     QUrl url(host().url+"/tags.json");QUrlQuery q;
     q.addQueryItem("search[order]","count");
-    if(categoryCodes[tagCategory]>=0)q.addQueryItem("search[category]",QString::number(categoryCodes[tagCategory]));
     q.addQueryItem("limit","60");q.addQueryItem("page",QString::number(tagPage));url.setQuery(q);
     auto r=net.get(request(url,true));tagApi=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>256*1024)r->abort();});
@@ -273,7 +277,7 @@ class Booru : public Screen {
     lookupMode=source==0?1:2;
     page=LOOKUP;prefix.clear();suggestions.clear();suggestionIndex=0;
     lookupResultsFocus=true;status.clear();
-    if(lookupMode==1){tagCategory=0;fetchPopularTags();}
+    if(lookupMode==1)fetchPopularTags();
     else {
       if(const Post *post=current()){
         suggestions=post->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
@@ -964,8 +968,7 @@ protected:
         }
       }else changePrefix(lookupKey(keyIndex));
     }else if(page==HOME){
-      if(homeIndex==0){} // Reopen the one active search; never silently clear it.
-      else if(homeIndex==1)initializeSearch("");
+      if(homeIndex==1)initializeSearch("");
       else if(homeIndex==2){
         if(host().username.isEmpty()){toast("Add your username in web settings");return;}
         initializeSearch("fav:"+host().username);
