@@ -7,9 +7,8 @@ default image application through GIO.
 
 ## The entire app flow
 
-The normal path is **Home → Search editor → Results → Post preview**.
-**Back** reverses that path, so repeatedly pressing it always reaches Home
-and then exits; it never loops between the editor and the gallery.
+The browsing path is **Home → Search editor → Results → Post preview**.
+**Back from Search editor always opens Results**, even if you reached the editor from Home or have just changed a search. Back from Results goes Home; Back from a Post preview goes to Results. This prevents editor/results loops.
 
 Home offers:
 
@@ -34,7 +33,7 @@ selectable underneath: `cat`, `-dog`, `fav:username`, `rating:s`,
 - OK on an action adds tags, changes filters, saves the search or chooses
   **View results**. View results just navigates to the grid; it is not Apply.
 - Options is **Edit search** everywhere. On the editor itself it simply
-  leaves the editor open; Back goes Home.
+  leaves the editor open; **Back goes directly to Results**.
 
 Every edit immediately changes the one query. Network requests are
 coalesced after 500 ms rather than generating requests on each button
@@ -72,7 +71,7 @@ post previews prioritize the current post and adjacent posts.
 | Play | Toggle account favorite | Toggle account favorite |
 | Shoot | Download original | Download original |
 | Options | Edit the one search | Edit the one search |
-| Back | Search editor | Results grid |
+| Back | Home | Results grid |
 | Favorites | Close Booru | Close Booru |
 
 **Options never starts downloads. OK never favorites.** Shoot saves to
@@ -87,9 +86,9 @@ where supported. Booru never reimplements those controls.
 | Screen | OK | Options | Back |
 | --- | --- | --- | --- |
 | Home | Open selected destination or switch server | Search editor | Exit |
-| Search editor | Remove selected term or activate selected action | Stay in search editor | Home |
+| Search editor | Remove selected term or activate selected action | Stay in search editor | Results |
 | Tag picker | Type/add selected tag | Search editor | Search editor |
-| Results | Post preview | Search editor | Search editor |
+| Results | Post preview | Search editor | Home |
 | Post preview | Open image | Search editor | Results |
 | Downloading | — | Cancel, then search editor | Cancel, then origin |
 
@@ -119,7 +118,7 @@ From the ReRead checkout:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Output: `out/antix/reread-app-booru_0.9.0_i386.deb`. Install through the
+Output: `out/antix/reread-app-booru_0.9.1_i386.deb`. Install through the
 Reader's normal web Apps page or Software.
 
 `test-opening.cpp` checks query editing and favorites removal, tag-category
