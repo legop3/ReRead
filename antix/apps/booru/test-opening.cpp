@@ -153,12 +153,30 @@ public:
     QImage placeholder(20,10,QImage::Format_ARGB32);
     placeholder.fill(Qt::white);
     window.thumbnails.insert(post.id,placeholder);
+    // Consistent controls: Options is Edit Search everywhere; never download.
+    for(const auto place:{Booru::HOME,Booru::SETTINGS,Booru::SEARCH,
+                          Booru::LOOKUP,Booru::GALLERY,Booru::POST,
+                          Booru::DOWNLOADING}){
+      window.page=place;
+      window.button(READER_OPTIONS,1);
+      require(window.page==Booru::SEARCH&&!window.transfer&&!window.saving,
+              "Options always opens the search editor without downloading");
+    }
+    window.page=Booru::GALLERY;window.selected=0;
+    window.button(READER_SHOOT,1);
+    require(window.page==Booru::GALLERY && window.status=="No downloadable file",
+            "Shoot, not Options, performs the download action in the gallery");
+    window.page=Booru::POST;
+    window.button(READER_SHOOT,1);
+    require(window.page==Booru::POST && window.status=="No downloadable file",
+            "Shoot is also the download action on post previews");
     window.page=Booru::GALLERY;window.button(READER_OK,1);
     require(window.page==Booru::POST&&!window.imageJob,
-            "Gallery opens post card rather than launching viewer");
-    window.button(READER_VIEW_TOGGLE,2);
-    require(!window.imageJob&&!QFile::exists(record),"Repeated View does not launch");
-    window.button(READER_VIEW_TOGGLE,1);
+            "Gallery OK opens the post preview");
+    window.button(READER_OK,2);
+    require(!window.imageJob&&!QFile::exists(record),
+            "Repeated OK does not open another image");
+    window.button(READER_OK,1);
     QElapsedTimer timer;timer.start();
     while(QFileInfo(record).size()==0 && timer.elapsed()<5000){
       QApplication::processEvents();QThread::msleep(10);
