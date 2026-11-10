@@ -14,13 +14,13 @@ Package: `out/antix/reread-app-booru_0.1.0_i386.deb`. Install with the normal Re
 
 ## Configuration
 
-Default host is https://e926.net with no account. The standalone app reads its optional config from:
+On first launch, the app creates an editable config in ReRead's shared Files folder, with anonymous e926 as the default host:
 
 ```
-/var/lib/reader/apps/reread-booru/config.json
+/var/lib/reader/files/Booru/config.json
 ```
 
-Copy `config.example.json` to that location over SSH and edit it on the desktop. No text entry or platform web UI changes are needed. It accepts at most eight hosts, each with `name`, HTTPS root `url`, optional `username` and `api_key`, and up to twenty saved tag searches. The configuration is loaded at app startup; restart to apply changes. Use `chmod 600` because the config contains credentials.
+Edit `Files/Booru/config.json` from your computer using the existing ReRead file manager. No SSH setup, text entry on the Reader, or changes to the platform web UI are needed. It accepts at most eight hosts, each with `name`, HTTPS root `url`, optional `username` and `api_key`, and up to twenty saved tag searches. The configuration is loaded at app startup; restart to apply changes. **Security:** The shared Files folder is accessible through ReRead's file transfer interface. Anyone who can access and download files there may be able to read this config and its API key. Use a dedicated revocable API key, and only use the web file interface on a trusted connection.
 
 Create an API key in the site's account settings; use the username and **API key**, not a password. If accessing e621/e926, register a descriptive user agent for the application. Authentication is sent through HTTPS Basic auth to the configured API hostname only; downloads and thumbnails receive no credentials. HTTPS redirects are not followed, including for authenticated API responses.
 
