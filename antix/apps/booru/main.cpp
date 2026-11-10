@@ -865,22 +865,66 @@ protected:
           const QRect line(right.x(),right.y()+52+j*49,right.width(),44);
           const bool chosen=lookupResultsFocus&&i==suggestionIndex;
           if(chosen)p.fillRect(line,palette().highlight());
-          label(p,line.adjusted(10,0,-8,0),suggestions[i],21,chosen,
+          p.fillRect(QRect(line.left()+2,line.top()+11,5,line.height()-22),
+                     categoryColor(suggestionCategory(i)));
+          label(p,line.adjusted(13,0,-8,0),suggestions[i],21,chosen,
                 palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
         }
         label(p,QRect(right.x(),right.bottom()-45,right.width(),38),
               "OK on a match adds it to the search",18);
       }else{
-        const QStringList names=suggestions;
-        const auto layout=listInfo(p,area,names.size(),suggestionIndex,64,0.57);
-        for(int i=layout.first;i<qMin(names.size(),layout.first+layout.visible);++i){
-          const QRect row=listInfoRow(p,layout,i,suggestionIndex);
-          const bool chosen=i==suggestionIndex;
-          label(p,row.adjusted(12,0,-10,0),names[i],23,chosen,
-                palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+        // Post tags use the site's real section order. Headers are not
+        // selectable; the existing suggestion index always identifies a tag.
+        QStringList rows;
+        QList<int> rowTags;
+        QList<int> rowCategories;
+        int previous=-1;
+        int selectedRow=0;
+        for(int i=0;i<suggestions.size();++i){
+          const int category=suggestionCategory(i);
+          if(lookupMode==2&&category!=previous){
+            rows<<categoryName(category);
+            rowTags<<-1;
+            rowCategories<<category;
+            previous=category;
+          }
+          if(i==suggestionIndex)selectedRow=rows.size();
+          rows<<suggestions[i];
+          rowTags<<i;
+          rowCategories<<category;
         }
-        label(p,layout.info.adjusted(12,12,-10,-10),
-              names.isEmpty()?"Loading tags...":"Add: "+names.value(suggestionIndex),23,true);
+        const auto layout=listInfo(p,area,rows.size(),selectedRow,55,0.57);
+        for(int i=layout.first;i<qMin(rows.size(),layout.first+layout.visible);++i){
+          const int category=rowCategories[i];
+          const bool header=rowTags[i]<0;
+          const bool chosen=i==selectedRow&&!header;
+          const QRect cell=listInfoRow(p,layout,i,selectedRow);
+          const QColor color=categoryTextColor(category);
+          if(header){
+            p.fillRect(QRect(cell.left()+5,cell.center().y()-10,5,20),categoryColor(category));
+            label(p,cell.adjusted(18,0,-9,0),rows[i],21,true,color);
+          }else{
+            // Preserve e621 category color regardless of selection highlight.
+            p.fillRect(QRect(cell.left()+5,cell.top()+10,5,cell.height()-20),categoryColor(category));
+            label(p,cell.adjusted(18,0,-9,0),rows[i],22,chosen,
+                  palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+          }
+        }
+        const QRect side=layout.info.adjusted(12,12,-10,-10);
+        const QString name=suggestions.value(suggestionIndex);
+        const int category=suggestionCategory(suggestionIndex);
+        label(p,QRect(side.x(),side.y(),side.width(),40),
+              name.isEmpty()?"Tags":"Add tag",27,true,palette().color(QPalette::Link));
+        if(!name.isEmpty()){
+          label(p,QRect(side.x(),side.y()+57,side.width(),42),name,24,true);
+          label(p,QRect(side.x(),side.y()+111,side.width(),34),
+                categoryName(category),22,true,categoryTextColor(category));
+          text(p,QRect(side.x(),side.y()+170,side.width(),135),
+               queryTerms.contains(name)?"Already included in search":
+               queryTerms.contains("-"+name)?"Currently excluded from search":
+               "OK adds this tag to your active search.",21);
+        }else text(p,QRect(side.x(),side.y()+65,side.width(),100),
+                     "No tags available",22);
       }
     } else if(page==SEARCH) {
       label(p,QRect(area.x()+5,area.y()+2,area.width()-10,44),
