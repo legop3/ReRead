@@ -213,6 +213,7 @@ public:
     window.button(READER_OK,1);
     require(window.hostIndex==0,"Switch server cycles back to configured server");
     window.homeIndex=0;
+    window.posts.append(post);window.selected=0;window.first=0;
 
     window.page=Booru::GALLERY;window.chrome();
     require(hint(window,READER_OK)=="Post details" &&
@@ -225,6 +226,14 @@ public:
             hint(window,READER_PLAY)=="Toggle favorite",
             "Preview Guide maps OK, Shoot and Play consistently");
     window.page=Booru::SEARCH;window.searchIndex=0;window.chrome();
+    window.initializeSearch("rating:s");
+    window.page=Booru::SEARCH;window.searchIndex=0;
+    window.button(READER_RIGHT,2);
+    require(window.search=="rating:s","Repeat must not repeatedly change filters");
+    window.button(READER_RIGHT,1);
+    require(window.search=="rating:q","Single right press changes filter once");
+    window.searchTimer.stop();
+    window.chrome();
     require(hint(window,READER_BACK)=="Home" &&
             hint(window,READER_OPTIONS)=="Edit search",
             "Editor Guide matches its actual navigation");
