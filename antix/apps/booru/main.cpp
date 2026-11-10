@@ -902,6 +902,7 @@ protected:
 
 public:
   Booru():Screen("booru"){
+    setWindowTitle("Booru");
     thumbTimer.setSingleShot(true);
     connect(&thumbTimer,&QTimer::timeout,this,[this]{requestThumbs();});
     lookupTimer.setSingleShot(true);
@@ -935,6 +936,9 @@ public:
 };
 } // namespace
 int main(int argc,char **argv){
-  QApplication app(argc,argv);app.setFont(QFont("DejaVu Sans"));
+  QApplication app(argc,argv);
+  app.setApplicationName("reread-booru");
+  app.setDesktopFileName("reread-booru");
+  app.setFont(QFont("DejaVu Sans"));
   Booru window;window.show();return app.exec();
 }
