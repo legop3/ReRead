@@ -26,7 +26,7 @@ The home screen has **Explore / build search**, **Recent posts**, **My favorites
 - Filtering by rating, file type and minimum score.
 - Saving the completed search to Home, without typing (maximum 12 per server).
 
-**There is exactly one active search.** Every tag Include / Exclude / Off action immediately updates its query and schedules a fresh results request. Changes to sorting, rating, file type or score work the same way. Several rapid button presses are coalesced into a single request after 250 ms; there is no pending search, separate Apply step, or confirmation. The Explore and tag views show the active query and whether its results are updating.
+**There is exactly one active search.** Every tag Include / Exclude / Off action immediately updates its query and schedules a fresh results request. Changes to sorting, rating, file type or score work the same way. Several rapid button presses are coalesced into a single request after 500 ms; there is no pending search, separate Apply step, or confirmation. The Explore and tag views show the active query and whether its results are updating.
 
 Press Options or choose **VIEW RESULTS** to navigate to the current gallery; this does not submit a different search. From the gallery press Options to edit that same active search, and Back returns to its results without discarding any changes. A tag picker opened from a post keeps that post's tag list available while matching posts update; when the search has changed, Back returns to the refreshed gallery rather than the stale post.
 
@@ -42,7 +42,7 @@ Per-device choices and Reader-created searches live in `/var/lib/reader/apps/rer
 
 ## Network behavior and limits
 
-An asynchronous Qt network client retrieves posts and tags. Preview downloads are paced (one start every 650 ms, up to two in flight), with bounded cache and retry/backoff for temporary 429/503, timeouts and related transient errors; API post requests also back off. Background/inactive thumbnail loading is cancelled and resumed when visible. These safeguards do not prove rate limiting was the cause of earlier speed fluctuations. Inspect actual HTTP response codes to distinguish server throttling from slow connections and image decoding.
+An asynchronous Qt network client retrieves posts and tags. Preview downloads are paced (one start every 550 ms, up to two in flight), with bounded cache and retry/backoff for temporary 429/503, timeouts and related transient errors; API post requests also back off. Background/inactive thumbnail loading is cancelled and resumed when visible. These safeguards do not prove rate limiting was the cause of earlier speed fluctuations. Inspect actual HTTP response codes to distinguish server throttling from slow connections and image decoding.
 
 There is no built-in general keyboard input or image decoder/player beyond thumbnail browsing; the ReRead default Images app handles full-image interaction. Some booru sites do not implement e621's API and are unsupported.
 
