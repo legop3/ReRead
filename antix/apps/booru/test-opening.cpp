@@ -23,6 +23,16 @@ public:
     post.id=42;
     post.sample="https://example.invalid/image.svg";
     post.tags="cat dog";
+    window.page=Booru::HOME;window.homeIndex=2;
+    window.button(READER_OK,1);
+    require(window.page==Booru::SEARCH &&
+            window.queryTerms==QStringList{"fav:fixture"},
+            "My favorites opens the ONE editor with an editable favorites term");
+    window.searchTimer.stop();
+    window.searchIndex=0;window.button(READER_OK,1);
+    require(window.search.isEmpty()&&window.queryTerms.isEmpty(),
+            "OK removes favorites from the active search");
+    window.searchTimer.stop();
     window.initializeSearch("fav:fixture rating:s cat -dog order:score");
     require(window.queryTerms.size()==5 &&
             window.builtSearch()=="fav:fixture rating:s cat -dog order:score",
