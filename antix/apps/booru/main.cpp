@@ -424,7 +424,7 @@ class Booru : public Screen {
     }else if(page==SEARCH){
       controls={{READER_UP,"Select"},
                 {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
-                {READER_OPTIONS,"Edit search"},{READER_BACK,"Home"}};
+                {READER_OPTIONS,"Edit search"},{READER_BACK,"Results"}};
       if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
         controls.prepend({READER_LEFT,"Previous / Include"});
         controls.prepend({READER_RIGHT,"Next / Exclude"});
@@ -445,7 +445,7 @@ class Booru : public Screen {
                 {READER_PLAY,"Toggle favorite"},
                 {READER_SHOOT,"Download original"},
                 {READER_OPTIONS,"Edit search"},
-                {READER_BACK,page==POST?"Gallery":"Search editor"}};
+                {READER_BACK,page==POST?"Gallery":"Home"}};
     }else if(page==DOWNLOADING){
       controls={{READER_OPTIONS,"Edit search"},{READER_BACK,"Cancel download"}};
     }else{
@@ -868,7 +868,8 @@ class Booru : public Screen {
       lookupTimer.stop();stop(lookupApi);stop(tagApi);
       page=SEARCH;
     }else if(page==SEARCH){
-      page=HOME;
+      applySearch();
+      return;
     }else if(page==DOWNLOADING){
       stop(transfer);
       if(saving)saving->cancelWriting();
@@ -881,8 +882,7 @@ class Booru : public Screen {
       page=GALLERY;
     }else if(page==GALLERY){
       stop(imageJob);
-      rememberSelectedPostTags();
-      page=SEARCH;
+      page=HOME;
     }
     status.clear();
     chrome();
