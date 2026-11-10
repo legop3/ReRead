@@ -1,128 +1,117 @@
 # Booru for ReRead
 
-An i386 Qt5/X11 browser for e621/e926, using the shared ReRead UI 5
-`Screen`, list/detail helpers, palettes, physical input mapping and hold-to-show
-Guide overlay. Requires ReRead 0.21+. Full-size images use the installed
-default image application through GIO.
+Booru is a button-operated e621/e926 browser for the Intel Reader. It uses
+ReRead's shared UI 5 `Screen`, palette, list/detail helpers and Guide overlay.
+Full images are opened in the system's installed Images app through GIO.
 
-## The entire app flow
+## Navigation
 
-The browsing path is **Home → Search editor → Results → Post preview**.
-**Back from Search editor always opens Results**, even if you reached the editor from Home or have just changed a search. Back from Results goes Home; Back from a Post preview goes to Results. This prevents editor/results loops.
+Booru has one active search and **one search editor**. The main screens are:
 
-Home offers:
+1. **Home**: continue your search, view Recent posts, open My favorites,
+   choose a saved search, or switch server (when multiple servers exist).
+2. **Results**: browse the six-post thumbnail grid.
+3. **Post**: preview the selected post, move through posts, favorite or
+   download.
+4. **Search editor**: edit every term in the active query, and add tags from
+   tag finders or the current post.
 
-- **Search editor** — resume the *current* search, without resetting it.
-- **Recent posts** — start a fresh, empty search and open the results grid.
-- **My favorites** — open the same editor with an editable `fav:username`
-  token. This requires a username in the web Booru settings.
-- **Saved searches** — open a saved query in that same editor.
-- **Switch server** — only shown when multiple hosts are configured. Changes
-  host and clears the old host's results/search without touching bookmarks.
+**Options toggles Search from every browsing screen.** From Results it opens
+the editor; pressing Options again returns to Results. From a Post it opens
+the same editor **focused on "Tags from post #…"**, with the post's category
+counts visible beside it. Press Options again to return to that same post
+if the query is unchanged. If you add, remove, or change any terms, it
+returns to the refreshed Results instead; a post from the previous query
+might no longer match.
 
-### Search editor
+Back from the editor follows the same return behavior. Back from a Post
+returns to Results. Back from Results returns Home. Back from Home closes
+Booru. There is no Search ↔ Results navigation trap, no separate post
+search and no hidden Apply step.
 
-There is one active search string at the top. Its terms are directly
-selectable underneath: `cat`, `-dog`, `fav:username`, `rating:s`,
-`order:score` and any other accepted term.
+### One editable query
 
-- Up/Down selects a term or action.
-- OK on a term **removes it**, even `fav:username`.
-- Left/Right on an ordinary tag includes/excludes it. On supported filter
-  terms they move between values. Holding Left/Right never repeats edits.
-- OK on an action adds tags, changes filters, saves the search or chooses
-  **View results**. View results just navigates to the grid; it is not Apply.
-- **Options toggles the search editor**: from any other screen it opens the editor; from the editor it returns to Results. **Back** from the editor also opens Results.
+The editor displays the actual query once, across the top, and its
+individual terms as selectable rows. Terms include ordinary tags,
+exclusions such as `-cat` and metatags such as `fav:username` and
+`rating:s`. Select a term and press OK to remove it, including
+`fav:username`. Left/Right includes or excludes ordinary tags or changes
+a supported filter value. Unrecognized metatags can still be removed but
+do not advertise unsupported Left/Right actions.
 
-Every edit immediately changes the one query. Network requests are
-coalesced after 500 ms rather than generating requests on each button
-repeat. No separate active-filter menu, staging area or Apply action exists.
+The action list below the terms allows you to find tags by name using a
+D-pad character grid, browse popular tags, change favorites/rating/sort/
+file type/minimum-score filters, and save the search. When a post has
+been selected, **Tags from post #…** appears first among these actions.
+The post tag snapshot remains available even after you change the search
+and the old results are replaced.
 
-### Tag pickers
+Tags from a post are organized in e621's sidebar order: Invalid, Artists,
+Contributors, Copyrights, Characters, Species, General, Meta, Lore.
+Empty sections are skipped; category markers use e621's hues with
+readable ReRead text contrast. Post details show a concise category
+summary rather than duplicating a giant raw tag string.
 
-**Find tag by name:** Move over the character grid with the D-pad and press
-OK to type. View switches between the character grid and matching tag list;
-Up/Down moves through the results, OK adds a selected tag. Zoom − deletes
-the last character. The DEL and CLR keys on the grid also work.
+A tag picker **adds** terms to the one editor. To exclude or remove a
+term, return to that editor. The D-pad tag finder uses View only to
+switch between its letter grid and suggestions, and Zoom − to delete
+a character. Search changes refresh the results automatically after
+a short debounce (500 ms). Rapid repeated keypresses do not launch
+duplicate requests.
 
-**Popular tags** and **Tags from selected post:** Up/Down selects a tag,
-OK adds it to the *same* search, Back returns to the editor. The post tags
-use e621's section order: Invalid, Artists, Contributors, Copyrights,
-Characters, Species, General, Meta, Lore. Empty sections are omitted.
-Category colors follow e621's standard hues, adjusted for the shared
-ReRead palette. The tag arrays are supplied by the posts API.
+## Physical controls
 
-Tag pickers are **add-only**. To exclude, change or remove a tag, return
-to the editor: it is the only place that edits the query.
+| Screen | D-pad | OK | Options | Back |
+| --- | --- | --- | --- | --- |
+| Home | Choose a destination | Open selection | Edit search | Exit |
+| Search editor | Up/Down select; Left/Right edit supported terms | Remove term or choose action | Return to post or results | Same return |
+| Tag picker | Navigate tags or letter grid | Type/add tag | Return to editor | Return to editor |
+| Results grid | Move among six posts | Post preview | Edit search | Home |
+| Post preview | Left/Right browse posts | Open image in Images | Edit search (post tags focused) | Results |
+| Download in progress | — | — | Cancel and edit search | Cancel to originating view |
 
-### Results grid and post preview
+In both Results and Post, **Play** toggles a favorite and **Shoot**
+downloads the original to `Pictures/Booru`. This role never changes.
+There is **one image-open action**, OK on the Post preview; the View
+button no longer duplicates it. Results OK opens the Post preview, not
+the full image.
 
-The results grid contains six thumbnails (3 columns × 2 rows); more posts
-append near the end. Post previews use Left/Right to select neighboring
-posts. Previews and grid use the same bounded, paced thumbnail queue;
-post previews prioritize the current post and adjacent posts.
+The Guide only lists actions meaningful on the current screen.
+It does not add a redundant Home/Close control. The physical Favorites
+button still closes the app, as supported by ReRead. System-owned
+Power, Volume and Hold inputs remain untouched. One-shot controls ignore
+key-repeat events; scrolling and D-pad movement may repeat.
 
-| Button | Results grid | Post preview |
-| --- | --- | --- |
-| D-pad | Navigate the grid | Left/Right: previous/next post |
-| OK | Open selected post preview | Open selected image |
-| View | Open selected image directly | Open selected image |
-| Play | Toggle account favorite | Toggle account favorite |
-| Shoot | Download original | Download original |
-| Options | Edit the one search | Edit the one search |
-| Back | Home | Results grid |
-| Favorites | Close Booru | Close Booru |
+The old "open images automatically" option has been removed, so navigating
+into a post never unexpectedly opens another app. The selected post and
+gallery position are preserved when returning without changing the search.
 
-**Options never starts downloads. OK never favorites.** Shoot saves to
-`Pictures/Booru`; after completion Booru returns to the browsing screen
-that initiated the download. Back during a download cancels it and returns
-to its originating view; Options cancels it and goes to Search editor.
-The default Images application handles zoom/pan, rotation and playback
-where supported. Booru never reimplements those controls.
+## Network and configuration
 
-### Control behavior on every screen
+The results API retrieves 30 posts at a time; further batches are
+appended near the end. Preview thumbnails run through a shared bounded,
+paced queue. The selected Post and its neighbors are prioritized while
+browsing. Temporary server failures retry with backoff; requests have
+timeouts, and cache size is bounded.
 
-| Screen | OK | Options | Back |
-| --- | --- | --- | --- |
-| Home | Open selected destination or switch server | Search editor | Exit |
-| Search editor | Remove selected term or activate selected action | View results | Results |
-| Tag picker | Type/add selected tag | Search editor | Search editor |
-| Results | Post preview | Search editor | Home |
-| Post preview | Open image | Search editor | Results |
-| Downloading | — | Cancel, then search editor | Cancel, then origin |
+Servers, usernames and API keys are configured using ReRead's standard
+web **Apps → Booru → Settings** form, backed by
+`/etc/reread/apps/booru.json`. Reader-created search bookmarks live in
+private app data, not the old preset-search configuration.
 
-All button actions that open viewers, change screens, toggle favorites or
-start downloads require a **press**, not a repeat event. D-pad navigation
-may repeat. Guide shows the actual actions for the current screen; hold
-it to show and release to hide. Favorites closes the app on all screens.
-Power, volume, Hold and sleep remain owned by ReRead.
+## Build
 
-The old conditional "open images automatically" preference was removed:
-entering the post preview no longer unexpectedly launches the image viewer.
-Users open it explicitly with OK or View.
-
-## Configuration
-
-Use ReRead's standard web **Apps → Booru → Settings** for HTTPS server
-addresses, usernames and API keys. Booru reads the shared conffile
-`/etc/reread/apps/booru.json` but does not install a separate web UI.
-Bookmarks live in app-private state. The removed legacy preset-search
-configuration is not needed.
-
-## Local build and tests
-
-From the ReRead checkout:
+From your ReRead checkout:
 
 ```sh
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Output: `out/antix/reread-app-booru_0.9.2_i386.deb`. Install through the
-Reader's normal web Apps page or Software.
+Output: `out/antix/reread-app-booru_0.10.0_i386.deb`.
+Install it through the Reader's web Apps page or Software.
 
-`test-opening.cpp` checks query editing and favorites removal, tag-category
-ordering, Home shortcuts and server switching, Guide hints, one-shot button
-behavior, the Back hierarchy, download cancellation, thumbnail selection,
-image cache and GIO default image opening. These checks must be compiled/run
-in the local i386 builder; source inspection alone does not establish that
-the hardware behaves correctly.
+The source test `test-opening.cpp` covers search editing, returning to
+the originating post, post category snapshots after query edits, tag
+pickers, bookmarking, Guide controls, navigation, download actions,
+thumbnail priorities, caching and GIO image opening. Real device behavior
+still requires running the i386 build and testing on the Reader.
