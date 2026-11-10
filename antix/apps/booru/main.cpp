@@ -955,6 +955,14 @@ class Booru : public Screen {
       page=GALLERY;
     }else if(page==GALLERY){
       stop(imageJob);
+      searchTimer.stop();
+      stop(api);
+      apiRetryPending=false;loadingMore=false;
+      thumbTimer.stop();
+      for(auto reply:thumbJobs){
+        reply->disconnect(this);reply->abort();reply->deleteLater();
+      }
+      thumbJobs.clear();pendingThumbnails.clear();
       page=HOME;
     }
     status.clear();
