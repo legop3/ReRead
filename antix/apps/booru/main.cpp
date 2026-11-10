@@ -731,81 +731,69 @@ protected:
     if(page==SETTINGS) {
       list(p,area,{"Server", "Open images automatically"},{host().name,autoOpenImages?"On":"Off · use View on a post"},settingIndex);
     } else if(page==LOOKUP) {
-      // Compact D-pad character picker; no system keyboard or text input required.
-      const QRect left(area.x()+4,area.y()+4,area.width()*45/100,area.height()-8);
-      const QRect right(left.right()+20,area.y()+4,area.right()-left.right()-24,area.height()-8);
-      label(p,QRect(left.x(),left.y(),left.width(),38),"Find a tag",28,true,palette().color(QPalette::Link));
-      label(p,QRect(left.x(),left.y()+43,left.width(),43),
-            prefix.isEmpty()?"Prefix: (empty)":"Prefix: "+prefix,23,true);
-      const int gap=5,cols=6;
-      const int width=(left.width()-(cols-1)*gap)/cols;
-      const int height=51;
-      for(int i=0;i<keyboardLetters.size()+2;++i){
-        const int x=i%cols,y=i/cols;
-        const QRect cell(left.x()+x*(width+gap),left.y()+99+y*(height+gap),width,height);
-        const bool chosen=!lookupResultsFocus&&keyIndex==i;
-        if(chosen)p.fillRect(cell,palette().highlight());
-        else {p.setPen(QPen(palette().mid(),1));p.drawRect(cell.adjusted(1,1,-1,-1));}
-        label(p,cell.adjusted(3,0,-3,0),lookupKey(i),21,chosen,
-              palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+      if(lookupMode==0){
+        const QRect left(area.x()+4,area.y()+4,area.width()*45/100,area.height()-8);
+        const QRect right(left.right()+20,area.y()+4,area.right()-left.right()-24,area.height()-8);
+        label(p,QRect(left.x(),left.y(),left.width(),38),"Add tag",28,true,palette().color(QPalette::Link));
+        label(p,QRect(left.x(),left.y()+43,left.width(),43),
+              prefix.isEmpty()?"Tag prefix: (empty)":prefix,23,true);
+        const int gap=5,cols=6;
+        const int width=(left.width()-(cols-1)*gap)/cols,height=51;
+        for(int i=0;i<keyboardLetters.size()+2;++i){
+          const QRect cell(left.x()+(i%cols)*(width+gap),
+                           left.y()+99+(i/cols)*(height+gap),width,height);
+          const bool chosen=!lookupResultsFocus&&keyIndex==i;
+          if(chosen)p.fillRect(cell,palette().highlight());
+          else {p.setPen(QPen(palette().mid(),1));p.drawRect(cell.adjusted(1,1,-1,-1));}
+          label(p,cell.adjusted(3,0,-3,0),lookupKey(i),21,chosen,
+                palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+        }
+        label(p,QRect(right.x(),right.y(),right.width(),40),"Matching tags",26,true,
+              palette().color(QPalette::Link));
+        const int firstMatch=(suggestionIndex/8)*8;
+        for(int j=0;j<8 && firstMatch+j<suggestions.size();++j){
+          const int i=firstMatch+j;
+          const QRect line(right.x(),right.y()+52+j*49,right.width(),44);
+          const bool chosen=lookupResultsFocus&&i==suggestionIndex;
+          if(chosen)p.fillRect(line,palette().highlight());
+          label(p,line.adjusted(10,0,-8,0),suggestions[i],21,chosen,
+                palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+        }
+        label(p,QRect(right.x(),right.bottom()-45,right.width(),38),
+              "OK on a match adds it to the search",18);
+      }else{
+        const QStringList names=suggestions;
+        const auto layout=listInfo(p,area,names.size(),suggestionIndex,64,0.57);
+        for(int i=layout.first;i<qMin(names.size(),layout.first+layout.visible);++i){
+          const QRect row=listInfoRow(p,layout,i,suggestionIndex);
+          const bool chosen=i==suggestionIndex;
+          label(p,row.adjusted(12,0,-10,0),names[i],23,chosen,
+                palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+        }
+        label(p,layout.info.adjusted(12,12,-10,-10),
+              names.isEmpty()?"Loading tags...":"Add: "+names.value(suggestionIndex),23,true);
       }
-      label(p,QRect(right.x(),right.y(),right.width(),40),
-            "Matching tags",26,true,palette().color(QPalette::Link));
-      const int visible=8;
-      const int firstMatch=(suggestionIndex/visible)*visible;
-      for(int j=0;j<visible&&firstMatch+j<suggestions.size();++j){
-        const int i=firstMatch+j;
-        const QRect line(right.x(),right.y()+52+j*49,right.width(),44);
-        const bool chosen=lookupResultsFocus&&i==suggestionIndex;
-        if(chosen)p.fillRect(line,palette().highlight());
-        else {p.setPen(QPen(palette().mid(),1));p.drawLine(line.left(),line.bottom(),line.right(),line.bottom());}
-        const QString name=suggestions[i];
-        label(p,line.adjusted(10,0,-8,0),
-              (tagState(name)=="Include"?"+ ":tagState(name)=="Exclude"?"− ":"")+name,
-              21,chosen,
-              palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
-      }
-      if(suggestions.isEmpty())
-        text(p,QRect(right.x()+5,right.y()+76,right.width()-10,150),
-             prefix.isEmpty()?"Select letters to find matching tags.":"Finding matches...",21);
-      label(p,QRect(right.x(),right.bottom()-43,right.width(),37),
-            !hasResults?"UPDATING POSTS":"ACTIVE SEARCH",18,
-            true,palette().color(QPalette::Link));
     } else if(page==SEARCH) {
-      const QStringList names={"Find tag by name","Browse popular tags","Tag category","Tags on selected post","Edit active tags",
-        "Sort order","Rating","File type","Minimum score",
-        bookmarks().contains(builtSearch())?"Remove saved search":"Save this search","VIEW RESULTS"};
-      const QStringList descriptions={"Build a tag prefix using the D-pad","Explore tags without typing",
-        categories[tagCategory],"Find related tags","Remove or change tags",sorts[sortIndex],ratings[ratingIndex],
-        mediaTypes[mediaIndex],scoreLevels[scoreIndex],"Available from Home","Open matching posts"};
-      const auto layout=listInfo(p,area,names.size(),searchIndex,53,0.54);
-      for(int i=layout.first;i<qMin(layout.first+layout.visible,names.size());++i){
-        const QRect line=listInfoRow(p,layout,i,searchIndex);
+      const QStringList names=editorRows();
+      const auto layout=listInfo(p,area,names.size(),searchIndex,58,0.57);
+      for(int i=layout.first;i<qMin(names.size(),layout.first+layout.visible);++i){
+        const QRect row=listInfoRow(p,layout,i,searchIndex);
         const bool chosen=i==searchIndex;
-        label(p,line.adjusted(12,0,-9,0),names[i],22,chosen,
+        label(p,row.adjusted(12,0,-10,0),names[i],22,chosen,
               palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
       }
-      const QRect right=layout.info.adjusted(10,10,-9,-8);
-      label(p,QRect(right.left(),right.top(),right.width(),37),"Explore",29,true,palette().color(QPalette::Link));
-      label(p,QRect(right.left(),right.top()+44,right.width(),44),descriptions[searchIndex],20);
-      p.setPen(QPen(palette().mid(),1));p.drawLine(right.left(),right.top()+94,right.right(),right.top()+94);
-      QStringList active;
-      for(const auto &token:baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)){
-        const QString bare=token.startsWith("-")?token.mid(1):token;
-        if(token.contains(":")||tagFilters.contains(bare))continue;
-        active<<(token.startsWith("-")?"− ":"+ ")+bare;
-      }
-      for(auto it=tagFilters.cbegin();it!=tagFilters.cend();++it)
-        if(it.value())active<<(it.value()<0?"− ":"+ ")+it.key();
-      label(p,QRect(right.left(),right.top()+107,right.width(),33),"Tags in this search",21,true);
-      text(p,QRect(right.left(),right.top()+144,right.width(),qMax(40,right.height()-245)),
-           active.isEmpty()?"No tag restrictions":active.join("   "),21);
-      const QString query=builtSearch();
-      label(p,QRect(right.left(),right.bottom()-88,right.width(),30),
-            !hasResults?"UPDATING POSTS":"ACTIVE SEARCH",18,true,
+      const QRect side=layout.info.adjusted(10,10,-8,-10);
+      label(p,QRect(side.x(),side.y(),side.width(),42),"Search editor",28,true,
             palette().color(QPalette::Link));
-      label(p,QRect(right.left(),right.bottom()-50,right.width(),38),
-            query.isEmpty()?"All posts":query,17);
+      label(p,QRect(side.x(),side.y()+50,side.width(),33),
+            QString::number(queryTerms.size())+" terms",20);
+      text(p,QRect(side.x(),side.y()+91,side.width(),104),
+           selectedTermDetail(),21);
+      p.setPen(QPen(palette().mid(),1));
+      p.drawLine(side.left(),side.y()+205,side.right(),side.y()+205);
+      label(p,QRect(side.x(),side.y()+214,side.width(),32),"Active query",21,true);
+      text(p,QRect(side.x(),side.y()+252,side.width(),qMax(45,side.height()-267)),
+           builtSearch().isEmpty()?"(all posts)":builtSearch(),21);
     } else if(page==HOME) {
       const QStringList names=sections();
       const auto layout=listInfo(p,area,names.size(),homeIndex,66,0.57);
@@ -847,31 +835,8 @@ protected:
               palette().color(active?QPalette::HighlightedText:QPalette::Text));
       }
       if(posts.isEmpty()&&status.isEmpty())text(p,area,"No posts found.",25);
-    } else if(page==POST||page==INFO||page==CONFIRM||page==DOWNLOADING) {
+    } else if(page==POST||page==CONFIRM||page==DOWNLOADING) {
       Post *post=current();
-      if(page==INFO) {
-        const QStringList names=currentTags();
-        const auto layout=listInfo(p,area,names.size(),tagIndex,62,0.58);
-        for(int i=layout.first;i<qMin(names.size(),layout.first+layout.visible);++i){
-          const QRect cell=listInfoRow(p,layout,i,tagIndex);
-          const bool chosen=i==tagIndex;
-          label(p,cell.adjusted(12,0,-10,0),names[i],22,chosen,
-                palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
-        }
-        if(!names.isEmpty()){
-          const QString tag=names.value(tagIndex);
-          const QString rule=tagState(tag);
-          label(p,QRect(layout.info.x()+8,layout.info.y()+12,layout.info.width()-16,45),
-                tag,27,true);
-          text(p,QRect(layout.info.x()+8,layout.info.y()+72,layout.info.width()-16,180),
-               "Filter: "+rule+
-               (tagSource==0?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
-               (!hasResults?"\n\nUpdating matching posts...":"\n\nActive search updated"),22);
-          label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
-                tagSource==0?"Page "+QString::number(tagPage)+" · "+QString::number(names.size())+" tags":
-                  QString::number(tagFilters.size())+" overrides",19);
-        }else if(status.isEmpty())text(p,layout.info,"No tags found",23);
-      } else {
         if(post) {
           QRect picture(area.x()+8,area.y()+8,area.width()/2-20,area.height()-24);
           imageIn(p,picture,thumbnails.value(post->id));
