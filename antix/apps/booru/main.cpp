@@ -248,7 +248,8 @@ class Booru : public Screen {
   }
   void back(){
     if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=VIEW;}
-    else if(page==VIEW||page==INFO||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
+    else if(page==INFO){page=VIEW;}
+    else if(page==VIEW||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
     else if(page==GALLERY){stop(api);page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
     else {close();return;}
     status.clear();update();
