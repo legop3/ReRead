@@ -54,7 +54,9 @@ class Booru : public Screen {
   bool thumbnailsPaused=false;
   QNetworkReply *api=nullptr, *tagApi=nullptr, *lookupApi=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
-  QString status, search, baseSearch, downloadName;
+  QString status, search, downloadName;
+  QStringList queryTerms;
+  int lookupMode=0; // 0 typed tag search, 1 popular tags, 2 tags from a post
   QStringList popularTags;
   QHash<QString,int> popularTagCounts;
   int tagPage=1;
@@ -121,54 +123,89 @@ class Booru : public Screen {
     bookmarksByHost.insert(host().url,saved);
     savePreferences();update();
   }
-  QStringList currentTags() const {
-    if(tagSource==0)return popularTags;
-    if(tagSource==2){
-      QStringList names;
-      for(const auto &token:baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)){
-        const QString name=token.startsWith("-")?token.mid(1):token;
-        if(!name.contains(":")&&!names.contains(name))names<<name;
-      }
-      for(auto it=tagFilters.cbegin();it!=tagFilters.cend();++it)
-        if(!names.contains(it.key()))names<<it.key();
-      names.sort(Qt::CaseInsensitive);return names;
-    }
-    if(tagSource==1 && !postTagSnapshot.isEmpty())return postTagSnapshot;
-    if(selected<0||selected>=posts.size())return {};
-    auto result=posts[selected].tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-    result.removeDuplicates();result.sort(Qt::CaseInsensitive);return result;
+  QString builtSearch() const {return queryTerms.join(" ");}
+
+  QStringList editorActions() const {
+    return {"Add tag by name","Browse popular tags","Tags from selected post",
+            "Add / change favorites filter","Add / change sorting","Add / change rating",
+            "Add / change file type","Add / change minimum score",
+            bookmarks().contains(builtSearch())?"Remove saved search":"Save this search",
+            "View results"};
   }
-  QString builtSearch() const {
-    QStringList parts;
-    for(const auto &token:baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)) {
-      if(token.startsWith("order:") || (ratingIndex&&token.startsWith("rating:")) ||
-         (mediaIndex&&token.startsWith("type:")) || (scoreIndex&&token.startsWith("score:")))
-        continue;
-      const QString bare=token.startsWith("-")?token.mid(1):token;
-      if(tagFilters.contains(bare))continue;
-      parts<<token;
+  QStringList editorRows() const {
+    QStringList names;
+    for(const QString &term:queryTerms) names<<"  "+term;
+    names<<editorActions();
+    return names;
+  }
+  QString termPrefix(const QString &type) const {return type+":";}
+  void setTerm(const QString &group,const QStringList &values){
+    const QString prefix=termPrefix(group);
+    int current=-1;
+    for(const QString &term:queryTerms){
+      if(term.startsWith(prefix)){current=values.indexOf(term);break;}
     }
-    for(auto it=tagFilters.cbegin();it!=tagFilters.cend();++it)
-      if(it.value())parts << (it.value()<0?"-":"")+it.key();
-    if(sortIndex)parts<<sortTerms[sortIndex];
-    if(ratingIndex)parts<<"rating:"+QStringList{"","s","q","e"}[ratingIndex];
-    if(mediaIndex==1)parts<<"-type:mp4"<<"-type:webm"<<"-type:swf";
-    else if(mediaIndex>1)parts<<"type:"+QStringList{"","","jpg","png","gif","webp","mp4","webm"}[mediaIndex];
-    if(scoreIndex)parts<<"score:>="+QStringList{"","10","50","100"}[scoreIndex];
-    return parts.join(" ");
+    for(int i=queryTerms.size()-1;i>=0;--i)
+      if(queryTerms[i].startsWith(prefix))queryTerms.removeAt(i);
+    // 0 means no filter. Each press cycles from the current value.
+    const int next=(current+1)%values.size();
+    if(next>0)queryTerms<<values[next];
+    searchIndex=qBound(0,searchIndex,editorRows().size()-1);
+    activeSearchChanged();
+  }
+  void addTag(const QString &tag){
+    if(tag.isEmpty()||tag.contains(' '))return;
+    if(!queryTerms.contains(tag)&&!queryTerms.contains("-"+tag)){
+      queryTerms<<tag;
+      activeSearchChanged();
+    }
+  }
+  void removeTerm(int index){
+    if(index<0||index>=queryTerms.size())return;
+    queryTerms.removeAt(index);
+    searchIndex=qBound(0,searchIndex,editorRows().size()-1);
+    activeSearchChanged();
+  }
+  void toggleExclusion(int index,bool exclude){
+    if(index<0||index>=queryTerms.size())return;
+    QString term=queryTerms[index];
+    if(term.contains(":"))return;
+    if(term.startsWith("-"))term=term.mid(1);
+    queryTerms[index]=(exclude?"-":"")+term;
+    activeSearchChanged();
+  }
+  QString selectedTermDetail() const {
+    if(searchIndex<queryTerms.size()){
+      const QString term=queryTerms[searchIndex];
+      return "Part of the active search.\n\nOK: remove this term"+
+        QString(term.contains(":")?"":"\nLeft: include\nRight: exclude");
+    }
+    const int action=searchIndex-queryTerms.size();
+    const QStringList descriptions={
+      "Choose a tag with the D-pad character picker.",
+      "Browse popular tags to add to this search.",
+      "Add a tag from the selected post.",
+      "Add or remove fav:username. It is an ordinary editable term.",
+      "Cycle through server sorting options.",
+      "Choose a content rating, or none.",
+      "Choose a file extension, or none.",
+      "Set a minimum score, or none.",
+      "Store or remove this query from Home.",
+      "See posts matching the active query."
+    };
+    return descriptions.value(action);
   }
   QString tagState(const QString &tag) const {
-    if(tagFilters.contains(tag))return tagFilters.value(tag)==1?"Include":tagFilters.value(tag)==-1?"Exclude":"Off";
-    const QStringList terms=baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-    return terms.contains(tag)?"Include":terms.contains("-"+tag)?"Exclude":"Off";
+    return queryTerms.contains(tag)?"Include":queryTerms.contains("-"+tag)?"Exclude":"Off";
+  }
+  void cycleTag(const QString &tag){
+    // Tag picker adds a term. The editor is the ONLY place to modify or remove it.
+    addTag(tag);
   }
   void activeSearchChanged(){
     const QString query=builtSearch();
     if(query==search){update();return;}
-    if(query.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts).size()>40){
-      toast("Too many search terms");return;
-    }
-    // There is ONE active search. Every edit replaces it immediately.
+    if(queryTerms.size()>40){toast("Too many search terms");return;}
     search=query;
     ++searchRevision;
     searchTimer.stop();
@@ -176,22 +213,10 @@ class Booru : public Screen {
     apiRetryPending=false;loadingMore=false;
     apiRetries=0;hasResults=false;more=false;
     pageNumber=1;
-    // When editing from a post, keep its tags in a snapshot while results refresh.
-    if(page==INFO && !tagsFromSearch)postTagsChanged=true;
     posts.clear();selected=0;first=0;
     status="Updating results...";
-    searchTimer.start(500); // Query updates now; coalesce rapid edits before network I/O.
+    searchTimer.start(500);
     update();
-  }
-  void cycleTag(const QString &tag){
-    const QString was=tagState(tag);
-    const int next=was=="Off"?1:was=="Include"?-1:0;
-    if(next==0){
-      const QStringList terms=baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-      if(terms.contains(tag)||terms.contains("-"+tag))tagFilters.insert(tag,0);
-      else tagFilters.remove(tag);
-    }else tagFilters.insert(tag,next);
-    activeSearchChanged();
   }
   void fetchPopularTags(bool append=false){
     if(tagApi)return;
@@ -225,29 +250,10 @@ class Booru : public Screen {
       update();
     });
   }
-  void initializeSearch(const QString &preset) {
-    tagFilters.clear();
-    sortIndex=ratingIndex=mediaIndex=scoreIndex=0;
-    QStringList remaining;
-    for(const auto &token:preset.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)){
-      const int order=sortTerms.indexOf(token);
-      if(order>0)sortIndex=order;
-      else if(token=="rating:s"||token=="rating:safe")ratingIndex=1;
-      else if(token=="rating:q"||token=="rating:questionable")ratingIndex=2;
-      else if(token=="rating:e"||token=="rating:explicit")ratingIndex=3;
-      else if(token=="type:jpg")mediaIndex=2;
-      else if(token=="type:png")mediaIndex=3;
-      else if(token=="type:gif")mediaIndex=4;
-      else if(token=="type:webp")mediaIndex=5;
-      else if(token=="type:mp4")mediaIndex=6;
-      else if(token=="type:webm")mediaIndex=7;
-      else if(token=="score:>=10")scoreIndex=1;
-      else if(token=="score:>=50")scoreIndex=2;
-      else if(token=="score:>=100")scoreIndex=3;
-      else remaining<<token;
-    }
-    baseSearch=remaining.join(" ");
+  void initializeSearch(const QString &preset){
+    queryTerms=preset.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
     search=builtSearch();
+    searchIndex=0;
   }
   void openTagBrowser(int source){
     tagSource=source;tagIndex=0;page=INFO;status.clear();
