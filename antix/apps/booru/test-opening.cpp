@@ -40,10 +40,19 @@ public:
    window.button(READER_OK,1);
    require(window.page==Booru::SEARCH && window.searchIndex==0,
            "Explore starts a search workspace from Home");
-   window.searchIndex=5;window.button(READER_OK,1);
+   window.searchIndex=0;window.button(READER_OK,1);
+   require(window.page==Booru::LOOKUP && window.prefix.isEmpty(),
+           "Explore has a keyboardless tag finder");
+   window.changePrefix("c");window.changePrefix("a");window.changePrefix("t");
+   require(window.prefix=="cat","D-pad picker composes tag prefixes");
+   window.changePrefix("DEL");
+   require(window.prefix=="ca","D-pad picker deletes a letter");
+   window.lookupTimer.stop();window.button(READER_BACK,1);
+   require(window.page==Booru::SEARCH,"Back from tag finder returns to Explore");
+   window.searchIndex=6;window.button(READER_OK,1);
    require(window.ratingIndex==1 && window.builtSearch().contains("rating:s"),
            "Rating changes the composed search immediately");
-   window.searchIndex=2;window.button(READER_OK,1);
+   window.searchIndex=4;window.button(READER_OK,1);
    require(window.page==Booru::INFO && window.tagSource==1 &&
            window.currentTags().contains("cat"),"Related post tags open from Explore");
    window.button(READER_OK,1);
