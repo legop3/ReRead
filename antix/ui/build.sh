@@ -15,15 +15,6 @@ ln -sf libreader-device.so.1 "$build_dir/libreader-device.so"
 g++ -m32 -std=c++17 -O2 -fPIC -Wall -Wextra -Werror $device_cflags -I"$source_dir/.." -I"$build_dir" "$source_dir/session.cpp" -L"$build_dir" -lreader-device $device_libs -o "$build_dir/reader-session"
 g++ -m32 -std=c++17 -O2 -fPIC -Wall -Wextra -Werror $qt_cflags -I"$source_dir/.." -shared -Wl,-soname,libreader-ui.so.3 "$source_dir/reader-ui.cpp" -L"$build_dir" -lreader-device $qt_libs -o "$build_dir/libreader-ui.so.3"
 ln -sf libreader-ui.so.3 "$build_dir/libreader-ui.so"
-for executable in launcher camera; do
-    extra_cflags= extra_libs=
-    if [ "$executable" = launcher ]; then
-        extra_cflags=$(pkg-config --cflags gio-unix-2.0)
-        extra_libs=$(pkg-config --libs gio-unix-2.0)
-    fi
-    if [ "$executable" = camera ]; then
-        extra_cflags=$(pkg-config --cflags Qt5Network)
-        extra_libs=$(pkg-config --libs Qt5Network)
-    fi
-    g++ -m32 -std=c++17 -O2 -fPIC -Wall -Wextra -Werror $qt_cflags $extra_cflags -I"$source_dir/.." "$source_dir/$executable.cpp" -L"$build_dir" -lreader-ui -lreader-device $qt_libs $extra_libs -o "$build_dir/reader-$executable"
-done
+gio_cflags=$(pkg-config --cflags gio-unix-2.0)
+gio_libs=$(pkg-config --libs gio-unix-2.0)
+g++ -m32 -std=c++17 -O2 -fPIC -Wall -Wextra -Werror $qt_cflags $gio_cflags -I"$source_dir/.." "$source_dir/launcher.cpp" -L"$build_dir" -lreader-ui -lreader-device $qt_libs $gio_libs -o "$build_dir/reader-launcher"

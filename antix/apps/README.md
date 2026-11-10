@@ -1,6 +1,6 @@
 # ReRead application contract
 
-Default foreground apps are [Camera](../CAMERA.md), [Files](files/README.md) and
+Default foreground apps are [Camera](camera/README.md), [Files](files/README.md) and
 [Software](software/). Each is an independent executable and Debian package.
 
 Apps are ordinary Debian packages named `reread-app-<id>`. The USB management Apps

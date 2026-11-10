@@ -57,6 +57,7 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
     ui = build_dir / 'ui'
     subprocess.run([str(base / 'antix/ui/build.sh'), str(ui)], check=True)
+    subprocess.run([str(base / 'antix/apps/camera/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/software/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/files/build.sh'), str(ui)], check=True)
     copy(ui / 'libreader-ui.so.3', 'usr/lib/libreader-ui.so.3', 0o755)
@@ -95,8 +96,6 @@ Cflags: -I/usr/include/reread
     copy(base / 'repository/reread.sources', 'etc/apt/sources.list.d/reread.sources')
     write('etc/reader/display.json', '{"brightness_percent":100,"idle_dim_seconds":120,"auto_suspend_seconds":0}\n')
     for asset in (base / 'antix/ui/icons').iterdir():
-        if asset.name == 'reread-camera.svg':
-            continue  # The Camera package owns its application icon.
         target = 'index.theme' if asset.name == 'index.theme' else 'scalable/apps/' + asset.name
         copy(asset, 'usr/share/icons/reread/' + target)
     native_camera = build_dir / 'libreader-camera.so'
@@ -188,10 +187,10 @@ Terminal=false
     appwrite('usr/share/reread/apps/reread-app-camera.json', '{"name":"Camera","description":"Live view, photographs and documents","desktop":"reread-camera.desktop"}\n')
     camera_icon = app / 'usr/share/icons/hicolor/scalable/apps/reread-camera.svg'
     camera_icon.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(base / 'antix/ui/icons/reread-camera.svg', camera_icon)
+    shutil.copy(base / 'antix/apps/camera/reread-camera.svg', camera_icon)
     target = app / 'usr/lib/reread/apps/camera/reader-camera-app'
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(ui / 'reader-camera', target)
+    shutil.copy(ui / 'reader-camera-app', target)
     target.chmod(0o755)
     subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '--build', str(app), str(output / f'reread-app-camera_{app_version}_i386.deb')], check=True)
     app = build_dir / 'reread-app-software'

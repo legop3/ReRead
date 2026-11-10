@@ -1,6 +1,6 @@
 # ReRead on-device UI
 
-Home and Camera use Qt 5 Widgets on the LinuxFB platform plugin. Independent
+Home and the [Camera app](../apps/camera/README.md) use Qt 5 Widgets on the LinuxFB platform plugin. Independent
 apps choose their own UI; neither the Screen base class nor these libraries are
 mandatory. See [the program contract](../apps/README.md). Qt paints straight to
 Linux `/dev/fb0`; there is no desktop, X server, Wayland compositor, browser, or
@@ -61,9 +61,10 @@ shared library and pkg-config file. Install Qt development headers in a separate
 build environment, not on the handheld. SDK ABI changes require a new library
 SONAME and rebuilt app packages; source-level button IDs stay stable.
 
-Build all UI binaries with `antix/ui/build.sh`, inside the image builder, or call
-`antix/release.py` to build both the core and Camera app packages. The normal
-one-command USB build includes both. Apps can be updated separately afterward.
+Build Home and the shared helpers with `antix/ui/build.sh`, inside the image
+builder. Each app has its own build script under `antix/apps/`.
+`antix/release.py` builds the core and all default app packages; the normal
+one-command USB build includes them. Apps can be updated separately afterward.
 
 ## Display and idle policy
 
