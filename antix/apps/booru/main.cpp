@@ -53,8 +53,9 @@ class Booru : public Screen {
   int hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1, zoom=0;
   int panX=0,panY=0;
   qint64 received=0,total=0;
-  bool more=false, favoritePending=false;
-  const double zooms[8]={1.0,1.25,1.5,2,2.75,4,6,8};
+  bool more=false, loadingMore=false, favoritePending=false;
+  static constexpr int zoomSteps=13;
+  const double zooms[zoomSteps]={1.0,1.15,1.3,1.5,1.75,2.0,2.5,3.0,4.0,5.0,6.0,8.0,10.0};
 
   QString filesDir() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
   const Host &host() const {return hosts[hostIndex];}
@@ -65,10 +66,10 @@ class Booru : public Screen {
   }
   void chrome() {
     showHeader=false;
-    showControls=true;
-    controlsOverlay=page==VIEW||page==DOWNLOADING;
+    showControls=page!=VIEW;
+    controlsOverlay=page==DOWNLOADING;
     if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Host"},{READER_BACK,"Home"}};
-    else if(page==GALLERY) controls={{READER_OK,"View"},{READER_OPTIONS,"Next page"},{READER_BACK,"Searches"}};
+    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_BACK,"Searches"}};
     else if(page==VIEW) controls={{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
     else if(page==INFO) controls={{READER_BACK,"Image"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
@@ -136,30 +137,46 @@ class Booru : public Screen {
     }
     return true;
   }
-  void fetchPage() {
-    stop(api);
-    for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
-    thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();thumbnails.clear();
-    posts.clear();selected=0;first=0;full=QImage();
-    status="Loading posts...";update();
+  void fetchPage(bool append=false) {
+    if(api)return;
+    loadingMore=append;
+    if(!append){
+      for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
+      thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();thumbnails.clear();
+      posts.clear();selected=0;first=0;full=QImage();
+      pageNumber=1;more=false;
+    }
+    status=append?QString():"Loading posts...";
+    update();
+    const int requestedPage=pageNumber;
     QUrl u(host().url+"/posts.json");QUrlQuery q;
-    q.addQueryItem("limit","30");q.addQueryItem("page",QString::number(pageNumber));
+    q.addQueryItem("limit","30");q.addQueryItem("page",QString::number(requestedPage));
     if(!search.isEmpty())q.addQueryItem("tags",search);
     u.setQuery(q);
     auto r=net.get(request(u,true));api=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>1536*1024)r->abort();});
-    connect(r,&QNetworkReply::finished,this,[this,r]{
-      if(api!=r){r->deleteLater();return;}api=nullptr;
+    connect(r,&QNetworkReply::finished,this,[this,r,append]{
+      if(api!=r){r->deleteLater();return;}api=nullptr;loadingMore=false;
       QByteArray b=r->readAll();int statusCode=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       QString error=r->errorString();bool ok=r->error()==QNetworkReply::NoError&&statusCode==200&&b.size()<=1536*1024;
       r->deleteLater();
-      if(!ok){status="Posts request failed (HTTP "+QString::number(statusCode)+"): "+error;update();return;}
+      if(!ok){
+        if(append){--pageNumber;more=true;}
+        status="Posts request failed (HTTP "+QString::number(statusCode)+"): "+error;
+        update();return;
+      }
       QJsonParseError e;auto doc=QJsonDocument::fromJson(b,&e);
-      if(e.error!=QJsonParseError::NoError||!doc.isObject()){status="Invalid API response";update();return;}
+      if(e.error!=QJsonParseError::NoError||!doc.isObject()){
+        if(append){--pageNumber;more=true;}
+        status="Invalid API response";update();return;
+      }
       auto items=doc.object().value("posts").toArray();
+      QSet<int> seen;
+      for(const auto &existing:posts)seen.insert(existing.id);
       for(auto v:items) {
         auto o=v.toObject();Post p;p.id=o.value("id").toInt();
-        if(p.id<=0)continue;
+        if(p.id<=0||seen.contains(p.id))continue;
+        seen.insert(p.id);
         p.preview=str(o.value("preview").toObject().value("url"));
         p.sample=str(o.value("sample").toObject().value("url"));
         auto file=o.value("file").toObject();p.original=str(file.value("url"));p.ext=str(file.value("ext")).toLower();
@@ -173,6 +190,12 @@ class Booru : public Screen {
       status=posts.isEmpty()?"No posts found.":QString();
       requestThumbs();update();
     });
+  }
+  void maybeLoadMore(){
+    if(page!=GALLERY || api || loadingMore || !more || posts.isEmpty())return;
+    if(selected<posts.size()-6)return;
+    ++pageNumber;
+    fetchPage(true);
   }
   void requestThumbs(){
     if(page!=GALLERY)return;
@@ -273,9 +296,17 @@ class Booru : public Screen {
     if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=VIEW;}
     else if(page==INFO){page=VIEW;}
     else if(page==VIEW||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
-    else if(page==GALLERY){stop(api);page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
+    else if(page==GALLERY){stop(api);loadingMore=false;page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
     else {close();return;}
     status.clear();chrome();
+  }
+  void clampPan(){
+    if(full.isNull()||zoom==0){panX=panY=0;return;}
+    QSize scaled=full.size();scaled.scale(size(),Qt::KeepAspectRatio);
+    const int maxX=qMax(0,int((scaled.width()*zooms[zoom]-width())/2));
+    const int maxY=qMax(0,int((scaled.height()*zooms[zoom]-height())/2));
+    panX=qBound(-maxX,panX,maxX);
+    panY=qBound(-maxY,panY,maxY);
   }
   void navigate(int dx,int dy){
     if(page==HOME){
@@ -286,8 +317,12 @@ class Booru : public Screen {
       if(selected<first)first=(selected/3)*3;
       if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
       requestThumbs();
+      maybeLoadMore();
     }else if(page==VIEW){
-      if(zoom>0){panX+=dx*70;panY+=dy*70;}else if(dx){selected=qBound(0,selected+dx,posts.size()-1);loadFull();}
+      // The D-pad moves the viewport through the picture, not the picture itself.
+      if(zoom>0){panX-=dx*80;panY-=dy*80;clampPan();}
+      else if(dx){const int next=qBound(0,selected+dx,posts.size()-1);
+        if(next!=selected){selected=next;loadFull();}}
     }
     update();
   }
@@ -373,11 +408,11 @@ protected:
     else if(key==READER_DOWN)navigate(0,1);
     else if(key==READER_LEFT)navigate(-1,0);
     else if(key==READER_RIGHT)navigate(1,0);
-    else if(page==VIEW&&key==READER_ZOOM_IN&&state==1){zoom=qMin(7,zoom+1);update();}
-    else if(page==VIEW&&key==READER_ZOOM_OUT&&state==1){zoom=qMax(0,zoom-1);if(!zoom)panX=panY=0;update();}
+    else if(page==VIEW&&key==READER_ZOOM_IN&&state==1){zoom=qMin(zoomSteps-1,zoom+1);clampPan();update();}
+    else if(page==VIEW&&key==READER_ZOOM_OUT&&state==1){zoom=qMax(0,zoom-1);clampPan();update();}
     else if(key==READER_OPTIONS&&state==1){
       if(page==HOME){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;status.clear();update();}
-      else if(page==GALLERY){if(more){++pageNumber;fetchPage();}else {status="End of results";update();}}
+      else if(page==GALLERY){if(more&&!api){++pageNumber;fetchPage(true);}}
       else if(page==VIEW)download();
     }else if(key==READER_PLAY&&state==1&&page==VIEW){page=INFO;chrome();}
     else if(key==READER_OK&&state==1) {
