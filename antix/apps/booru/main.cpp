@@ -855,7 +855,6 @@ protected:
           label(p,QRect(r.right()-65,r.top()+8,48,40),"★",32,true,
                 palette().color(QPalette::Link));
         }
-      }
     }
     if(!status.isEmpty()&&page!=DOWNLOADING) {
       const QRect note(area.left()+6,area.bottom()-46,area.width()-12,39);
@@ -869,79 +868,89 @@ protected:
     if(key==READER_FAVORITES&&state==1){close();return;}
     if(key==READER_BACK&&state==1){back();return;}
     if(page==DOWNLOADING)return;
-    if(key==READER_UP)navigate(0,-1);
-    else if(key==READER_DOWN)navigate(0,1);
-    else if(key==READER_LEFT)navigate(-1,0);
-    else if(key==READER_RIGHT)navigate(1,0);
-    else if(state!=1)return;
-    else if(page==LOOKUP&&key==READER_VIEW_TOGGLE){
-      lookupResultsFocus=!lookupResultsFocus;update();
-    }else if(page==LOOKUP&&key==READER_ZOOM_OUT)changePrefix("DEL");
-    else if(page==POST&&key==READER_VIEW_TOGGLE)loadFull();
-    else if(key==READER_OPTIONS){
-      if(page==HOME){page=SETTINGS;settingIndex=0;status.clear();chrome();}
-      else if(page==GALLERY){
-        searchFromGallery=true;page=SEARCH;searchIndex=0;status.clear();chrome();
-      }else if(page==SEARCH||page==INFO||page==LOOKUP)applySearch();
-      else if(page==POST)download();
-    }else if(key==READER_PLAY&&page==POST){
-      tagsFromSearch=false;openTagBrowser(1);
-    }else if(key==READER_OK){
-      if(page==SETTINGS){
-        if(settingIndex==0){
-          hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;
-          // Post IDs are not globally unique across configured servers.
-          thumbTimer.stop();
-          for(auto reply:thumbJobs){reply->disconnect(this);reply->abort();reply->deleteLater();}
-          thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
-          thumbAttempts.clear();thumbRetryAt.clear();thumbnails.clear();
-          posts.clear();selected=first=0;
-          initializeSearch("");
-        }
-        else {autoOpenImages=!autoOpenImages;savePreferences();}
-        update();
-      }else if(page==SEARCH){
-        if(searchIndex==0)openTagFinder();
-        else if(searchIndex==1){tagsFromSearch=true;openTagBrowser(0);}
-        else if(searchIndex==2){tagCategory=(tagCategory+1)%categories.size();update();}
-        else if(searchIndex==3){
-          if(posts.isEmpty())toast("Open a post first to browse its tags");
-          else {tagsFromSearch=true;openTagBrowser(1);}
-        }else if(searchIndex==4){tagsFromSearch=true;openTagBrowser(2);}
-        else if(searchIndex==5){sortIndex=(sortIndex+1)%sorts.size();activeSearchChanged();}
-        else if(searchIndex==6){ratingIndex=(ratingIndex+1)%ratings.size();activeSearchChanged();}
-        else if(searchIndex==7){mediaIndex=(mediaIndex+1)%mediaTypes.size();activeSearchChanged();}
-        else if(searchIndex==8){scoreIndex=(scoreIndex+1)%scoreLevels.size();activeSearchChanged();}
-        else if(searchIndex==9)toggleBookmark();
-        else applySearch();
-      }else if(page==LOOKUP){
-        if(lookupResultsFocus){
-          if(suggestionIndex<suggestions.size()){
-            cycleTag(suggestions[suggestionIndex]);
-            toast(suggestions[suggestionIndex]+": "+tagState(suggestions[suggestionIndex]));
-          }
-        }else changePrefix(lookupKey(keyIndex));
-      }else if(page==INFO){
-        const auto names=currentTags();
-        if(tagIndex<names.size())cycleTag(names[tagIndex]);
-      }else if(page==HOME){
-        if(homeIndex==0){
-          initializeSearch("");searchFromGallery=false;searchIndex=0;
-          posts.clear();selected=first=0;hasResults=false;
-          page=SEARCH;status.clear();chrome();
-          ++searchRevision;searchTimer.start(0);return;
-        }
-        if(homeIndex==1)initializeSearch("");
-        else if(homeIndex==2){
-          if(host().username.isEmpty()){toast("Add account in web Apps / Booru settings");return;}
-          initializeSearch("fav:"+host().username);
-        }else initializeSearch(bookmarks().value(homeIndex-3));
-        galleryFromExplore=false;
-        pageNumber=1;page=GALLERY;chrome();fetchPage();
-      }else if(page==GALLERY&&!posts.isEmpty()){
-        page=POST;chrome();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();
-      }else if(page==POST)favorite();
+    if(key==READER_UP){navigate(0,-1);return;}
+    if(key==READER_DOWN){navigate(0,1);return;}
+    if(key==READER_LEFT){navigate(-1,0);return;}
+    if(key==READER_RIGHT){navigate(1,0);return;}
+    if(state!=1)return;
+    if(key==READER_VIEW_TOGGLE&&page==POST){loadFull();return;}
+    if(key==READER_VIEW_TOGGLE&&page==LOOKUP&&lookupMode==0){
+      lookupResultsFocus=!lookupResultsFocus;update();return;
     }
+    if(key==READER_ZOOM_OUT&&page==LOOKUP&&lookupMode==0){changePrefix("DEL");return;}
+    if(key==READER_OPTIONS){
+      if(page==HOME){page=SETTINGS;settingIndex=0;chrome();}
+      else if(page==GALLERY){searchFromGallery=true;page=SEARCH;searchIndex=0;chrome();}
+      else if(page==SEARCH||page==LOOKUP)applySearch();
+      else if(page==POST)download();
+      return;
+    }
+    if(key==READER_PLAY&&page==POST){
+      postTagSnapshot.clear();
+      if(const Post *post=current()){
+        postTagSnapshot=post->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+        postTagSnapshot.removeDuplicates();
+        postTagSnapshot.sort(Qt::CaseInsensitive);
+      }
+      page=SEARCH;searchFromGallery=true;searchIndex=queryTerms.size()+2;
+      chrome();return;
+    }
+    if(key!=READER_OK)return;
+    if(page==SETTINGS){
+      if(settingIndex==0){
+        hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;
+        thumbTimer.stop();
+        for(auto reply:thumbJobs){reply->disconnect(this);reply->abort();reply->deleteLater();}
+        thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
+        thumbAttempts.clear();thumbRetryAt.clear();thumbnails.clear();
+        posts.clear();selected=first=0;initializeSearch("");
+      }else{autoOpenImages=!autoOpenImages;savePreferences();}
+      update();
+    }else if(page==SEARCH){
+      if(searchIndex<queryTerms.size()){
+        removeTerm(searchIndex);return;
+      }
+      const int action=searchIndex-queryTerms.size();
+      if(action==0)openTagFinder();
+      else if(action==1)openTagBrowser(0);
+      else if(action==2){
+        if(postTagSnapshot.isEmpty())toast("Open a post first to choose its tags");
+        else openTagBrowser(1);
+      }else if(action==3){
+        if(host().username.isEmpty())toast("Configure a username first");
+        else {
+          const QString value="fav:"+host().username;
+          if(queryTerms.contains(value))queryTerms.removeAll(value);
+          else queryTerms<<value;
+          activeSearchChanged();
+        }
+      }else if(action==4)setTerm("order",{"","order:score","order:favcount","order:hot","order:id","order:random","order:updated"});
+      else if(action==5)setTerm("rating",{"","rating:s","rating:q","rating:e"});
+      else if(action==6)setTerm("type",{"","type:jpg","type:png","type:gif","type:webp","type:mp4","type:webm"});
+      else if(action==7)setTerm("score",{"","score:>=10","score:>=50","score:>=100"});
+      else if(action==8)toggleBookmark();
+      else applySearch();
+    }else if(page==LOOKUP){
+      if(lookupMode!=0||lookupResultsFocus){
+        if(suggestionIndex<suggestions.size()){
+          addTag(suggestions[suggestionIndex]);
+          toast("Added "+suggestions[suggestionIndex]);
+        }
+      }else changePrefix(lookupKey(keyIndex));
+    }else if(page==HOME){
+      if(homeIndex==0)initializeSearch("");
+      else if(homeIndex==1)initializeSearch("");
+      else if(homeIndex==2){
+        if(host().username.isEmpty()){toast("Add your username in web settings");return;}
+        initializeSearch("fav:"+host().username);
+      }else initializeSearch(bookmarks().value(homeIndex-3));
+      ++searchRevision;searchTimer.stop();stop(api);
+      hasResults=false;posts.clear();selected=first=0;
+      searchFromGallery=false;galleryFromExplore=true;
+      page=SEARCH;chrome();searchTimer.start(0);
+    }else if(page==GALLERY&&!posts.isEmpty()){
+      page=POST;chrome();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();
+    }else if(page==POST)favorite();
   }
 
 public:
