@@ -401,7 +401,7 @@ class Booru : public Screen {
     u.setQuery(q);
     auto r=net.get(request(u,true));api=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>1536*1024)r->abort();});
-    connect(r,&QNetworkReply::finished,this,[this,r,append]{
+    connect(r,&QNetworkReply::finished,this,[this,r,append,revision]{
       if(api!=r||revision!=searchRevision){r->deleteLater();return;}api=nullptr;loadingMore=false;
       QByteArray b=r->readAll();int statusCode=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       QString error=r->errorString();bool ok=r->error()==QNetworkReply::NoError&&statusCode==200&&b.size()<=1536*1024;
