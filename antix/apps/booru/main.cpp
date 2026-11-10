@@ -18,7 +18,6 @@ struct Post {
   QString preview, sample, original, ext, rating, tags;
   bool favorite=false;
 };
-const QColor ink("#ffffff"), muted("#aaaaaa"), blue("#00bfff");
 QString str(const QJsonValue &v) { return v.isString()?v.toString():QString(); }
 QString cleanHost(QString s) {
   QUrl u(s.trimmed());
@@ -57,26 +56,12 @@ class Booru : public Screen {
   bool more=false, favoritePending=false;
   const double zooms[8]={1.0,1.25,1.5,2,2.75,4,6,8};
 
-  QString dataDir() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-booru");}
   QString filesDir() const {return qEnvironmentVariable("REREAD_FILES_DIR","/var/lib/reader/files");}
   const Host &host() const {return hosts[hostIndex];}
   QStringList sections() const {
     QStringList s={"Recent","My favorites"};
     for(const auto &x:host().searches)s<<x;
     return s;
-  }
-  void caption(QPainter &p,const QRect &r,const QString &s,int px=21,
-               QColor color=ink,bool bold=false) {
-    label(p,r,s,px,bold,color);
-  }
-  void corners(QPainter &p,const QRect &r) {
-    p.save();p.setPen(QPen(palette().link(),4,Qt::SolidLine,Qt::SquareCap));
-    const int n=19;
-    p.drawLine(r.topLeft(),r.topLeft()+QPoint(n,0));p.drawLine(r.topLeft(),r.topLeft()+QPoint(0,n));
-    p.drawLine(r.topRight(),r.topRight()-QPoint(n,0));p.drawLine(r.topRight(),r.topRight()+QPoint(0,n));
-    p.drawLine(r.bottomLeft(),r.bottomLeft()+QPoint(n,0));p.drawLine(r.bottomLeft(),r.bottomLeft()-QPoint(0,n));
-    p.drawLine(r.bottomRight(),r.bottomRight()-QPoint(n,0));p.drawLine(r.bottomRight(),r.bottomRight()-QPoint(0,n));
-    p.restore();
   }
   void chrome() {
     showHeader=false;
@@ -308,73 +293,75 @@ class Booru : public Screen {
   }
 protected:
   void draw(QPainter &p,const QRect &r) override {
-    p.fillRect(r,palette().window());
-    const QRect area=r.adjusted(8,5,-8,-5);
+    // Screen paints ReRead's palette and standard controls. No app-created header.
+    const QRect area=r.adjusted(4,3,-4,-3);
     if(page==HOME) {
-      caption(p,QRect(area.left()+8,area.top(),area.width()-16,36),
-              host().name,30,ink,true);
-      caption(p,QRect(area.left()+8,area.top()+39,area.width()-16,28),
-              host().url,19,muted);
-      p.setPen(QPen(palette().link(),2));
-      p.drawLine(area.left()+8,area.top()+73,area.right()-8,area.top()+73);
-      QStringList names=sections();
+      const QStringList names=sections();
       QStringList details;
       for(int i=0;i<names.size();++i)
-        details<< (i==0?"Latest posts":i==1?"Account favorites":"Saved tag search");
-      list(p,area.adjusted(4,84,-4,-6),names,details,homeIndex);
+        details << (i==0 ? host().name+" · Latest posts" :
+                    i==1 ? host().name+" · Account favorites" : "Saved search");
+      list(p,area,names,details,homeIndex);
     } else if(page==GALLERY) {
-      caption(p,QRect(area.left()+8,area.top(),area.width()-16,35),
-              search.isEmpty()?"Recent posts":search,27,ink,true);
-      caption(p,QRect(area.left()+8,area.top()+36,area.width()-16,23),
-              host().name+"   Page "+QString::number(pageNumber),19,muted);
-      p.setPen(QPen(palette().link(),2));
-      p.drawLine(area.left()+8,area.top()+66,area.right()-8,area.top()+66);
-      const QRect grid=area.adjusted(0,77,0,-8);
-      const int gap=12,cw=(grid.width()-2*gap)/3,ch=(grid.height()-gap)/2;
+      const int gap=12;
+      const int cw=(area.width()-2*gap)/3;
+      const int ch=(area.height()-gap)/2;
       for(int n=0;n<6;++n) {
-        const int i=first+n;if(i>=posts.size())break;
-        const QRect cell(grid.x()+(n%3)*(cw+gap),grid.y()+(n/3)*(ch+gap),cw,ch);
-        QRect picture=cell.adjusted(4,4,-4,-34);
-        p.fillRect(picture,QColor("#202020"));
+        const int i=first+n;
+        if(i>=posts.size())break;
+        const QRect cell(area.x()+(n%3)*(cw+gap),area.y()+(n/3)*(ch+gap),cw,ch);
+        const bool active=i==selected;
+        if(active) p.fillRect(cell,palette().highlight());
+        const QRect picture=cell.adjusted(5,5,-5,-34);
+        p.fillRect(picture,palette().color(QPalette::Base));
         imageIn(p,picture,thumbnails.value(posts[i].id),true);
-        p.setPen(QPen(palette().mid(),1));
-        p.drawLine(cell.left()+4,cell.bottom()-31,cell.right()-4,cell.bottom()-31);
-        caption(p,QRect(cell.x()+9,cell.bottom()-29,cell.width()-18,25),
-                "#"+QString::number(posts[i].id)+"   "+posts[i].rating+
-                    (posts[i].favorite?"   ★":""),18,i==selected?ink:muted,i==selected);
-        if(i==selected)corners(p,cell.adjusted(1,1,-1,-1));
+        if(!active) {
+          p.setPen(QPen(palette().mid(),1));
+          p.drawLine(cell.left()+5,cell.bottom()-31,cell.right()-5,cell.bottom()-31);
+        } else {
+          p.fillRect(QRect(cell.left(),cell.top(),6,cell.height()),palette().link());
+        }
+        label(p,QRect(cell.x()+12,cell.bottom()-30,cell.width()-20,26),
+              "#"+QString::number(posts[i].id)+" · "+posts[i].rating+
+              (posts[i].favorite?" ★":""),19,active,
+              palette().color(active?QPalette::HighlightedText:QPalette::Text));
       }
-      if(posts.isEmpty()&&status.isEmpty())
-        text(p,grid,"No posts found.",25);
+      if(posts.isEmpty()&&status.isEmpty())text(p,area,"No posts found.",25);
     } else if(page==VIEW||page==INFO||page==CONFIRM||page==DOWNLOADING) {
       Post *post=current();
       if(page==INFO) {
-        caption(p,QRect(area.x()+10,area.y(),area.width()-20,42),
-                post?"Post #"+QString::number(post->id)+"  |  "+post->rating:"Post",27,ink,true);
-        p.setPen(QPen(palette().link(),2));p.drawLine(area.x()+10,area.y()+48,area.right()-10,area.y()+48);
-        text(p,area.adjusted(13,60,-13,-8),post?post->tags:"",21);
+        // Post information is content, not a second application title bar.
+        label(p,QRect(area.x()+8,area.y()+4,area.width()-16,45),
+              post?"Post #"+QString::number(post->id)+" · "+post->rating:"Post",27,true);
+        text(p,area.adjusted(12,56,-12,-8),post?post->tags:"",21);
       } else {
         if(!full.isNull()) {
           QSizeF sz=full.size();sz.scale(r.size(),Qt::KeepAspectRatio);
-          const double scale=zooms[zoom];QSizeF scaled(sz.width()*scale,sz.height()*scale);
+          const double scale=zooms[zoom];
+          QSizeF scaled(sz.width()*scale,sz.height()*scale);
           QRectF dest(0,0,scaled.width(),scaled.height());
           dest.moveCenter(QPointF(r.center().x()+panX,r.center().y()+panY));
-          p.save();p.setClipRect(r);p.setRenderHint(QPainter::SmoothPixmapTransform);p.drawImage(dest,full);p.restore();
+          p.save();p.setClipRect(r);p.setRenderHint(QPainter::SmoothPixmapTransform);
+          p.drawImage(dest,full);p.restore();
         }
         if(page==DOWNLOADING) {
-          QRect box(area.x()+95,area.center().y()-46,area.width()-190,92);
-          p.fillRect(box,Qt::black);p.setPen(QPen(palette().link(),2));p.drawRect(box);
-          text(p,box.adjusted(16,8,-16,-8),"Downloading  "+QString::number(received/1024)+
-               " KiB"+(total>0?" / "+QString::number(total/1024)+" KiB":""),23);
+          const QRect box(area.x()+95,area.center().y()-46,area.width()-190,92);
+          p.fillRect(box,palette().base());
+          p.setPen(QPen(palette().mid(),2));p.drawRect(box);
+          text(p,box.adjusted(16,8,-16,-8),
+               "Downloading "+QString::number(received/1024)+" KiB"+
+               (total>0?" / "+QString::number(total/1024)+" KiB":""),23);
         } else if(post&&post->favorite) {
-          caption(p,QRect(r.right()-65,r.top()+8,48,40),"★",32,blue,true);
+          label(p,QRect(r.right()-65,r.top()+8,48,40),"★",32,true,
+                palette().color(QPalette::Link));
         }
       }
     }
     if(!status.isEmpty()&&page!=DOWNLOADING) {
       const QRect note(area.left()+6,area.bottom()-46,area.width()-12,39);
       p.fillRect(note,palette().toolTipBase());
-      label(p,note.adjusted(11,0,-11,0),status,18,false,palette().color(QPalette::ToolTipText));
+      label(p,note.adjusted(11,0,-11,0),status,18,false,
+            palette().color(QPalette::ToolTipText));
     }
   }
   void button(reader_button key,int state) override {
