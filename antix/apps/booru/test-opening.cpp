@@ -120,8 +120,8 @@ public:
             window.suggestionCategories==QList<int>({1,5,0,0,7,8}),
             "Post picker preserves API categories in the site's section order");
     window.suggestionIndex=0;window.button(READER_OK,1);
-    require(window.search.contains("cat"),
-            "Post tag selection changes the active query");
+    require(window.search.contains("an_artist"),
+            "Post tag selection adds the selected categorized tag to active query");
     window.searchTimer.stop();window.button(READER_BACK,1);
     require(window.page==Booru::SEARCH,"Post tag chooser returns to editor");
 
