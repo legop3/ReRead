@@ -38,7 +38,7 @@ QString safeName(QString name) {
 
 class Booru : public Screen {
   friend class BooruTest;
-  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING, SETTINGS, SEARCH, LOOKUP };
+  enum Page { HOME, GALLERY, POST, CONFIRM, DOWNLOADING, SETTINGS, SEARCH, LOOKUP };
   Page page=HOME;
   QNetworkAccessManager net;
   QList<Host> hosts;
@@ -62,7 +62,6 @@ class Booru : public Screen {
   int tagPage=1;
   bool tagHasMore=true,tagLoading=false;
   int tagCategory=0;
-  QStringList categories={"All","General","Artists","Copyright","Characters","Species"};
   QList<int> categoryCodes={-1,0,1,3,4,5};
   int searchIndex=0;
   bool searchFromGallery=false, galleryFromExplore=false;
@@ -90,7 +89,7 @@ class Booru : public Screen {
   const Host &host() const {return hosts[hostIndex];}
   QStringList bookmarks() const {return bookmarksByHost.value(host().url);}
   QStringList sections() const {
-    QStringList items={"Explore / build search","Recent posts","My favorites"};
+    QStringList items={"Search editor","Recent posts","My favorites"};
     for(const auto &q:bookmarks())items<<"★ "+q.left(80);
     return items;
   }
@@ -212,7 +211,7 @@ class Booru : public Screen {
   }
   void fetchPopularTags(bool append=false){
     if(tagApi)return;
-    if(!append){popularTags.clear();popularTagCounts.clear();tagIndex=0;tagPage=1;tagHasMore=true;}
+    if(!append){popularTags.clear();popularTagCounts.clear();suggestionIndex=0;tagPage=1;tagHasMore=true;}
     tagLoading=true;status=append?QString():"Loading tags...";update();
     QUrl url(host().url+"/tags.json");QUrlQuery q;
     q.addQueryItem("search[order]","count");
