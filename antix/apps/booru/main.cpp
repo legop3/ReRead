@@ -56,9 +56,10 @@ class Booru : public Screen {
   QNetworkReply *api=nullptr, *tagApi=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
   QString status, search, baseSearch, downloadName;
-  QString initialSearch;
   QStringList popularTags;
   QHash<QString,int> popularTagCounts;
+  int tagPage=1;
+  bool tagHasMore=true,tagLoading=false;
   // 0 popular, 1 post, 2 current query terms
   int tagSource=0, tagCategory=0;
   QStringList categories={"All","General","Artists","Copyright","Characters","Species"};
@@ -157,36 +158,40 @@ class Booru : public Screen {
     } else tagFilters.insert(tag,next);
     update();
   }
-  void fetchPopularTags(){
-    stop(tagApi);popularTags.clear();popularTagCounts.clear();tagIndex=0;status="Loading popular tags...";update();
+  void fetchPopularTags(bool append=false){
+    if(tagApi)return;
+    if(!append){popularTags.clear();popularTagCounts.clear();tagIndex=0;tagPage=1;tagHasMore=true;}
+    tagLoading=true;status=append?QString():"Loading tags...";update();
     QUrl url(host().url+"/tags.json");QUrlQuery q;
     q.addQueryItem("search[order]","count");
     if(categoryCodes[tagCategory]>=0)q.addQueryItem("search[category]",QString::number(categoryCodes[tagCategory]));
-    q.addQueryItem("limit","60");url.setQuery(q);
+    q.addQueryItem("limit","60");q.addQueryItem("page",QString::number(tagPage));url.setQuery(q);
     auto r=net.get(request(url,true));tagApi=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>256*1024)r->abort();});
-    connect(r,&QNetworkReply::finished,this,[this,r]{
-      if(tagApi!=r){r->deleteLater();return;}tagApi=nullptr;
+    connect(r,&QNetworkReply::finished,this,[this,r,append]{
+      if(tagApi!=r){r->deleteLater();return;}tagApi=nullptr;tagLoading=false;
       const int code=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
       const QByteArray b=r->readAll();
       const bool ok=r->error()==QNetworkReply::NoError && code>=200 && code<300 && b.size()<=256*1024;
       r->deleteLater();
       if(ok){
-        const auto doc=QJsonDocument::fromJson(b);
-        for(const auto &v:doc.array()){
+        const QJsonDocument doc=QJsonDocument::fromJson(b);
+        const auto items=doc.array();
+        tagHasMore=items.size()==60;
+        for(const auto &v:items){
           const QString name=str(v.toObject().value("name"));
-          if(!name.isEmpty() && popularTags.size()<60){
+          if(!name.isEmpty() && !popularTagCounts.contains(name)){
             popularTags<<name;popularTagCounts.insert(name,v.toObject().value("post_count").toInt());
           }
         }
-      }
-      status=!ok?"Unable to load popular tags (HTTP "+QString::number(code)+")":
-                   popularTags.isEmpty()?"No popular tags available":QString();
+      }else if(append){tagPage=qMax(1,tagPage-1);tagHasMore=true;}
+      status=!ok?"Unable to load tags (HTTP "+QString::number(code)+")":
+                   popularTags.isEmpty()?"No tags available":QString();
       update();
     });
   }
   void initializeSearch(const QString &preset) {
-    initialSearch=preset;tagFilters.clear();
+    tagFilters.clear();
     sortIndex=ratingIndex=mediaIndex=scoreIndex=0;
     QStringList remaining;
     for(const auto &token:preset.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)){
@@ -227,7 +232,7 @@ class Booru : public Screen {
     else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
     else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Refine search"},{READER_BACK,"Explore"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
-    else if(page==INFO) controls={{READER_UP,"Tags"},{READER_OK,"Include / Exclude / Off"},{READER_OPTIONS,"Show results"},{READER_BACK,"Filters"}};
+    else if(page==INFO) controls={{READER_UP,"Browse tags"},{READER_OK,"Toggle tag"},{READER_OPTIONS,"Show results"},{READER_BACK,"Explore"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
     else controls={{READER_BACK,"Gallery"}};
     update();
@@ -554,7 +559,13 @@ class Booru : public Screen {
   void navigate(int dx,int dy){
     if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
     else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,9);}
-    else if(page==INFO){tagIndex=qBound(0,tagIndex+dx+dy,qMax(0,currentTags().size()-1));}
+    else if(page==INFO){
+      tagIndex=qBound(0,tagIndex+dx+dy,qMax(0,currentTags().size()-1));
+      if(tagSource==0 && !tagLoading && !tagApi && tagHasMore &&
+         tagIndex>=popularTags.size()-7 && !popularTags.isEmpty()){
+        ++tagPage;fetchPopularTags(true);
+      }
+    }
     else if(page==HOME){
       int max=sections().size()-1;homeIndex=qBound(0,homeIndex+dx+dy,max);
 
@@ -674,7 +685,8 @@ protected:
                (tagSource==0?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
                "\n\nSelect tags to include or exclude from the search.",22);
           label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
-                QString::number(tagFilters.size())+" filters active",19);
+                tagSource==0?"Page "+QString::number(tagPage)+" · "+QString::number(names.size())+" tags":
+                  QString::number(tagFilters.size())+" overrides",19);
         }else if(status.isEmpty())text(p,layout.info,"No tags found",23);
       } else {
         if(post) {
@@ -747,6 +759,7 @@ protected:
       }else if(page==HOME){
         if(homeIndex==0){
           initializeSearch("");searchFromGallery=false;searchIndex=0;
+          posts.clear();selected=first=0;
           page=SEARCH;status.clear();chrome();return;
         }
         if(homeIndex==1)initializeSearch("");
