@@ -139,6 +139,7 @@ public:
     window.button(READER_OPTIONS,1);
     require(window.page==Booru::GALLERY,
             "Edited search returns to refreshed results, not a stale post");
+    window.stop(window.api);
 
     window.posts.clear();
     for(int i=0;i<18;++i){Post item;item.id=100+i;window.posts.append(item);}
@@ -197,6 +198,7 @@ public:
     require(window.page==Booru::GALLERY,
             "Changed post search returns to results, not the old post");
     window.stop(window.api);
+    window.stop(window.api);
 
     // Home, results and pickers all open the same editor, not a second menu.
     for(const auto place:{Booru::HOME,Booru::GALLERY,Booru::LOOKUP}){
@@ -209,6 +211,7 @@ public:
       window.button(READER_OPTIONS,1);
       require(window.page==Booru::GALLERY,
               "Options toggles search back to results");
+      window.stop(window.api);
     }
     // Back is simple: post -> results -> Home; editor Back closes to its origin.
     window.posts.clear();window.posts.append(post);window.selected=0;
