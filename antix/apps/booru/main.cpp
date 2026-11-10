@@ -466,9 +466,10 @@ class Booru : public Screen {
       if(saving)saving->cancelWriting();
       saving.reset();
     }
-    searchFromGallery=(page==GALLERY||page==POST||page==DOWNLOADING&&
-                      (downloadReturnPage==GALLERY||downloadReturnPage==POST))||
-                     searchFromGallery;
+    if(page==GALLERY||page==POST||page==DOWNLOADING)
+      searchFromGallery=true;
+    else if(page==HOME||page==SETTINGS)
+      searchFromGallery=false;
     page=SEARCH;
     searchIndex=qBound(0,searchIndex,editorRows().size()-1);
     status.clear();
@@ -814,6 +815,7 @@ class Booru : public Screen {
       if(saving&&!ok)saving->cancelWriting();
       saving.reset();r->deleteLater();
       status=ok?"Saved to Files / Pictures / Booru":"Download failed";page=downloadReturnPage;chrome();
+      requestThumbs();
     });
   }
   void back(){
