@@ -884,7 +884,7 @@ class Booru : public Screen {
     if(page==GALLERY){requestThumbs();maybeLoadMore();}
   }
   void navigate(int dx,int dy){
-    if(page==HOME)homeIndex=qBound(0,homeIndex+dy+dx,sections().size()-1);
+    if(page==HOME && dy)homeIndex=qBound(0,homeIndex+dy,sections().size()-1);
     else if(page==SEARCH){
       if(dy)searchIndex=qBound(0,searchIndex+dy,editorRows().size()-1);
       if(dx && searchIndex<queryTerms.size())changeTerm(searchIndex,dx);
@@ -1111,6 +1111,9 @@ protected:
     if(page==DOWNLOADING)return;
     if(key==READER_UP){navigate(0,-1);return;}
     if(key==READER_DOWN){navigate(0,1);return;}
+    // Editing a term is a one-shot action, not a repeating scroll operation.
+    if(page==SEARCH&&state==2&&(key==READER_LEFT||key==READER_RIGHT))
+      return;
     if(key==READER_LEFT){navigate(-1,0);return;}
     if(key==READER_RIGHT){navigate(1,0);return;}
     if(state!=1)return;
@@ -1120,7 +1123,7 @@ protected:
     if((page==GALLERY||page==POST)&&key==READER_PLAY){favorite();return;}
     if(key==READER_VIEW_TOGGLE&&(page==POST||page==GALLERY)){loadFull();return;}
     if(key==READER_VIEW_TOGGLE&&page==LOOKUP&&lookupMode==0){
-      lookupResultsFocus=!lookupResultsFocus;update();return;
+      lookupResultsFocus=!lookupResultsFocus;chrome();return;
     }
     if(key==READER_ZOOM_OUT&&page==LOOKUP&&lookupMode==0){
       changePrefix("DEL");return;
