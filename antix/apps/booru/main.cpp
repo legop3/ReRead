@@ -70,7 +70,7 @@ class Booru : public Screen {
   QStringList mediaTypes={"Any","Still images","JPEG","PNG","GIF","MP4"};
   QStringList scoreLevels={"Any","10+","50+","100+"};
   int sortIndex=0,ratingIndex=0,mediaIndex=0,scoreIndex=0,searchIndex=0,tagIndex=0;
-  bool tagsFromSearch=false, searchFromGallery=false;
+  bool tagsFromSearch=false, searchFromGallery=false, galleryFromExplore=false;
   QString prefix;
   QStringList suggestions;
   bool lookupResultsFocus=false;
@@ -277,16 +277,17 @@ class Booru : public Screen {
       status="Search exceeds the server's 40-tag limit";update();return;
     }
     lookupTimer.stop();stop(lookupApi);stop(tagApi);stop(api);loadingMore=false;apiRetryPending=false;
-    search=query;page=GALLERY;chrome();fetchPage();
+    search=query;searchFromGallery=false;galleryFromExplore=true;
+    page=GALLERY;chrome();fetchPage();
   }
   void chrome() {
     showHeader=false;
 
     if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Home"}};
-    else if(page==SEARCH) controls={{READER_UP,"Navigate"},{READER_OK,"Change"},{READER_OPTIONS,"Show results"},{READER_BACK,"Return"}};
+    else if(page==SEARCH) controls={{READER_UP,"Navigate"},{READER_OK,"Change"},{READER_OPTIONS,"Show results"},{READER_BACK,searchFromGallery?"Results":"Home"}};
     else if(page==LOOKUP) controls={{READER_UP,"Select"},{READER_OK,"Choose"},{READER_VIEW_TOGGLE,"Switch panel"},{READER_ZOOM_OUT,"Delete letter"},{READER_OPTIONS,"Show results"},{READER_BACK,"Explore"}};
     else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
-    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Refine search"},{READER_BACK,"Explore"}};
+    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Refine search"},{READER_BACK,galleryFromExplore?"Explore":"Home"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
     else if(page==INFO) controls={{READER_UP,"Browse tags"},{READER_OK,"Toggle tag"},{READER_OPTIONS,"Show results"},{READER_BACK,"Explore"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
@@ -607,7 +608,11 @@ class Booru : public Screen {
     else if(page==INFO){stop(tagApi);page=tagsFromSearch?SEARCH:POST;}
     else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
     else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
-    else if(page==GALLERY){stop(api);loadingMore=false;apiRetryPending=false;page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
+    else if(page==GALLERY){
+      stop(api);loadingMore=false;apiRetryPending=false;
+      if(galleryFromExplore){page=SEARCH;searchFromGallery=false;}
+      else {page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
+    }
     else {close();return;}
     status.clear();chrome();
   }
@@ -887,6 +892,7 @@ protected:
           if(host().username.isEmpty()){toast("Add account in web Apps / Booru settings");return;}
           initializeSearch("fav:"+host().username);
         }else initializeSearch(bookmarks().value(homeIndex-3));
+        galleryFromExplore=false;
         pageNumber=1;page=GALLERY;chrome();fetchPage();
       }else if(page==GALLERY&&!posts.isEmpty()){
         page=POST;chrome();if(autoOpenImages)loadFull();maybeLoadMore();
