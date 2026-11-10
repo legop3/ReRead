@@ -41,6 +41,7 @@ class Booru : public Screen {
   friend class BooruTest;
   enum Page { HOME, GALLERY, POST, CONFIRM, DOWNLOADING, SETTINGS, SEARCH, LOOKUP };
   Page page=HOME;
+  Page downloadReturnPage=POST;
   QNetworkAccessManager net;
   QList<Host> hosts;
   QHash<QString,QStringList> bookmarksByHost;
@@ -420,29 +421,58 @@ class Booru : public Screen {
   }
   void chrome(){
     showHeader=false;
-    if(page==HOME)controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
-    else if(page==SETTINGS)controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Home"}};
-    else if(page==SEARCH){
-      controls={{READER_UP,"Select"},{READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
-                {READER_OPTIONS,"Results"},{READER_BACK,searchFromGallery?"Gallery":"Home"}};
+    controls.clear();
+    if(page==HOME){
+      controls={{READER_OK,"Open"},{READER_OPTIONS,"Edit search"},{READER_BACK,"Exit"}};
+    }else if(page==SETTINGS){
+      controls={{READER_UP,"Select"},{READER_OK,"Change"},
+                {READER_OPTIONS,"Edit search"},{READER_BACK,"Home"}};
+    }else if(page==SEARCH){
+      controls={{READER_UP,"Select"},
+                {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
+                {READER_OPTIONS,"Edit search"},{READER_BACK,searchFromGallery?"Gallery":"Home"}};
       if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
         controls.prepend({READER_LEFT,"Previous / Include"});
         controls.prepend({READER_RIGHT,"Next / Exclude"});
       }
     }else if(page==LOOKUP){
-      controls={{READER_UP,"Choose tag"},{READER_OK,"Add tag"},{READER_BACK,"Search editor"}};
+      controls={{READER_UP,"Choose tag"},{READER_OK,"Add tag"},
+                {READER_OPTIONS,"Edit search"},{READER_BACK,"Search editor"}};
       if(lookupMode==0){
         controls.append({READER_VIEW_TOGGLE,"Keyboard / matches"});
         controls.append({READER_ZOOM_OUT,"Delete character"});
       }
+    }else if(page==GALLERY||page==POST){
+      controls={{READER_UP,"Browse"},
+                {READER_OK,page==POST?"Open image":"Preview post"},
+                {READER_PLAY,"Favorite"},
+                {READER_SHOOT,"Download"},
+                {READER_OPTIONS,"Edit search"},
+                {READER_BACK,page==POST?"Gallery":"Search editor"}};
+    }else if(page==DOWNLOADING){
+      controls={{READER_OPTIONS,"Edit search"},{READER_BACK,"Cancel download"}};
+    }else{
+      controls={{READER_OPTIONS,"Edit search"},{READER_BACK,"Return"}};
     }
-    else if(page==GALLERY)controls={{READER_UP,"Browse"},{READER_OK,"Open post"},
-          {READER_OPTIONS,"Edit search"},{READER_BACK,"Search editor"}};
-    else if(page==POST)controls={{READER_VIEW_TOGGLE,"View image"},{READER_OK,"Favorite"},
-          {READER_PLAY,"Edit search"},{READER_OPTIONS,"Save image"},{READER_BACK,"Gallery"}};
-    else if(page==DOWNLOADING)controls={{READER_BACK,"Cancel"}};
-    else controls={{READER_BACK,"Return"}};
     update();
+  }
+  void openSearchEditor(){
+    if(page==GALLERY||page==POST)rememberSelectedPostTags();
+    if(page==LOOKUP){
+      lookupTimer.stop();stop(lookupApi);stop(tagApi);
+    }
+    if(page==DOWNLOADING){
+      stop(transfer);
+      if(saving)saving->cancelWriting();
+      saving.reset();
+    }
+    searchFromGallery=(page==GALLERY||page==POST||page==DOWNLOADING&&
+                      (downloadReturnPage==GALLERY||downloadReturnPage==POST))||
+                     searchFromGallery;
+    page=SEARCH;
+    searchIndex=qBound(0,searchIndex,editorRows().size()-1);
+    status.clear();
+    chrome();
   }
   void imageIn(QPainter &p,QRect target,const QImage &img,bool crop=false) const {
     if(img.isNull())return;
@@ -758,6 +788,7 @@ class Booru : public Screen {
   }
   void download(){
     Post *p=current();if(!p)return;
+    downloadReturnPage=page;
     QUrl u=imageUrl(p->original);
     if(!u.isValid()){status="No downloadable file";update();return;}
     QDir folder(filesDir()+"/Pictures/Booru");if(!folder.exists()&&!folder.mkpath(".")){status="Cannot create download folder";update();return;}
@@ -782,7 +813,7 @@ class Booru : public Screen {
               received<=64LL*1024*1024&&saving->write(b)==b.size()&&saving->commit();
       if(saving&&!ok)saving->cancelWriting();
       saving.reset();r->deleteLater();
-      status=ok?"Saved to Files / Pictures / Booru":"Download failed";page=POST;chrome();
+      status=ok?"Saved to Files / Pictures / Booru":"Download failed";page=downloadReturnPage;chrome();
     });
   }
   void back(){
@@ -791,7 +822,7 @@ class Booru : public Screen {
       lookupTimer.stop();stop(lookupApi);stop(tagApi);page=SEARCH;
     }else if(page==SEARCH)page=searchFromGallery?GALLERY:HOME;
     else if(page==DOWNLOADING){
-      stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;
+      stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=downloadReturnPage;
     }else if(page==POST||page==CONFIRM){
       stop(imageJob);
       if(selected<first)first=(selected/3)*3;
@@ -1027,28 +1058,24 @@ protected:
     if(state!=1&&state!=2)return;
     if(key==READER_FAVORITES&&state==1){close();return;}
     if(key==READER_BACK&&state==1){back();return;}
+    // Options has exactly one meaning everywhere: open the search editor.
+    if(key==READER_OPTIONS&&state==1){openSearchEditor();return;}
     if(page==DOWNLOADING)return;
     if(key==READER_UP){navigate(0,-1);return;}
     if(key==READER_DOWN){navigate(0,1);return;}
     if(key==READER_LEFT){navigate(-1,0);return;}
     if(key==READER_RIGHT){navigate(1,0);return;}
     if(state!=1)return;
+    // The same primary actions work in grid and preview; no screen-specific
+    // reassignment of OK, Shoot or Play.
+    if((page==GALLERY||page==POST)&&key==READER_SHOOT){download();return;}
+    if((page==GALLERY||page==POST)&&key==READER_PLAY){favorite();return;}
     if(key==READER_VIEW_TOGGLE&&page==POST){loadFull();return;}
     if(key==READER_VIEW_TOGGLE&&page==LOOKUP&&lookupMode==0){
       lookupResultsFocus=!lookupResultsFocus;update();return;
     }
-    if(key==READER_ZOOM_OUT&&page==LOOKUP&&lookupMode==0){changePrefix("DEL");return;}
-    if(key==READER_OPTIONS){
-      if(page==HOME){page=SETTINGS;settingIndex=0;chrome();}
-      else if(page==GALLERY){rememberSelectedPostTags();searchFromGallery=true;page=SEARCH;searchIndex=0;chrome();}
-      else if(page==SEARCH||page==LOOKUP)applySearch();
-      else if(page==POST)download();
-      return;
-    }
-    if(key==READER_PLAY&&page==POST){
-      rememberSelectedPostTags();
-      page=SEARCH;searchFromGallery=true;searchIndex=queryTerms.size()+2;
-      chrome();return;
+    if(key==READER_ZOOM_OUT&&page==LOOKUP&&lookupMode==0){
+      changePrefix("DEL");return;
     }
     if(key!=READER_OK)return;
     if(page==SETTINGS){
@@ -1062,9 +1089,7 @@ protected:
       }else{autoOpenImages=!autoOpenImages;savePreferences();}
       update();
     }else if(page==SEARCH){
-      if(searchIndex<queryTerms.size()){
-        removeTerm(searchIndex);return;
-      }
+      if(searchIndex<queryTerms.size()){removeTerm(searchIndex);return;}
       const int action=searchIndex-queryTerms.size();
       if(action==0)openTagFinder();
       else if(action==1)openTagBrowser(0);
@@ -1102,14 +1127,16 @@ protected:
       else if(homeIndex==2){
         if(host().username.isEmpty()){toast("Add your username in web settings");return;}
         initializeSearch("fav:"+host().username);
-      }else initializeSearch(bookmarks().value(homeIndex-3));
+      }else if(homeIndex>=3)initializeSearch(bookmarks().value(homeIndex-3));
       ++searchRevision;searchTimer.stop();stop(api);
       hasResults=false;posts.clear();selected=first=0;
       searchFromGallery=false;galleryFromExplore=true;
       page=SEARCH;chrome();searchTimer.start(0);
     }else if(page==GALLERY&&!posts.isEmpty()){
       page=POST;chrome();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();
-    }else if(page==POST)favorite();
+    }else if(page==POST){
+      loadFull();
+    }
   }
 
 public:
