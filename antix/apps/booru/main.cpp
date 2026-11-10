@@ -861,8 +861,8 @@ class Booru : public Screen {
     });
   }
   void back(){
-    // A single hierarchy prevents Back from oscillating between two screens:
-    // Home -> Search -> Results -> Post. Pickers return to Search.
+    // Back closes the search editor to Results, regardless of how it was opened.
+    // Results returns Home so the editor and list cannot trap navigation in a loop.
     if(page==HOME){close();return;}
     if(page==LOOKUP){
       lookupTimer.stop();stop(lookupApi);stop(tagApi);
