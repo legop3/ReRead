@@ -295,7 +295,7 @@ class Booru : public Screen {
     posts.clear();selected=0;first=0;
     status="Updating results...";
     searchTimer.start(500);
-    update();
+    chrome();
   }
   void fetchPopularTags(bool append=false){
     if(tagApi)return;
@@ -864,8 +864,8 @@ class Booru : public Screen {
     }else if(page==LOOKUP){
       if(lookupMode==0 && !lookupResultsFocus)
         keyIndex=qBound(0,keyIndex+dx+dy*6,keyboardLetters.size()+1);
-      else {
-        suggestionIndex=qBound(0,suggestionIndex+dx+dy,qMax(0,suggestions.size()-1));
+      else if(dy){
+        suggestionIndex=qBound(0,suggestionIndex+dy,qMax(0,suggestions.size()-1));
         if(lookupMode==1&&!tagApi&&tagHasMore &&
            !suggestions.isEmpty()&&suggestionIndex>=suggestions.size()-7){
           ++tagPage;fetchPopularTags(true);
@@ -1143,7 +1143,7 @@ protected:
       hasResults=false;posts.clear();selected=first=0;
       page=SEARCH;chrome();searchTimer.start(0);
     }else if(page==GALLERY&&!posts.isEmpty()){
-      page=POST;chrome();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();
+      page=POST;chrome();requestThumbs();maybeLoadMore();
     }else if(page==POST){
       loadFull();
     }
