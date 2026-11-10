@@ -1,65 +1,50 @@
-# booru for ReRead
+# Booru for ReRead
 
-Independent i386 Qt5 X11 app for e926/e621-compatible API hosts. Its UI uses ReRead's black/white palette, native selection colors, standard list and button-icon controls, without a top header or a custom top strip. Uses ordinary X11 windows without a browser engine or desktop environment.
+An independent i386 Qt5/X11 browser for e621/e926-compatible APIs. Requires ReRead 0.21+ and uses the shared UI 5 palette, list/detail layouts, physical controls and hold-to-show Guide. There is no permanent title or help bar. Actual images open in the installed default Images app through GIO, so zoom/pan/rotation are not reinvented in Booru.
 
-## Build
+## Build locally
 
-From the ReRead checkout with the existing `reread-builder` image:
+From the ReRead checkout:
 
 ```sh
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Package: `out/antix/reread-app-booru_0.6.0_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Published packages are available from the ReRead APT repository.
+Output: `out/antix/reread-app-booru_0.7.0_i386.deb`. Install through the Reader's web Apps page or Software. The app build does not rebuild or modify core ReRead.
+
+## Browse without a keyboard
+
+The home screen has **Explore / build search**, **Recent posts**, **My favorites** (with an account), and searches you save on the Reader.
+
+**Explore** is the starting point for finding content. It is a shared ReRead collection/detail layout, with search actions on the left and the current query on the right. It supports:
+
+- Browsing popular tags, with automatic pagination and category selection (all, general, artist, copyright, character, species).
+- Adding tags from a selected post or editing all tags already in the search.
+- Cycling any tag through **Include → Exclude → Off** with OK. The tag detail pane shows the effective state, including tags inherited from a query.
+- Sorting by newest, oldest, score, favorite count, hot, random, or last updated.
+- Filtering by rating, file type and minimum score.
+- Saving the completed search to Home, without typing (maximum 12 per server).
+
+**Changes are staged, not silently sent to the server.** Explore explicitly shows **CHANGES NOT APPLIED** when the on-screen search differs from the results. Choose **SHOW RESULTS**, or press Options from Explore or a tag browser, to execute the full query. The grid reloads with the new results. This allows selecting several tags together without generating one HTTP request per button press.
+
+From results, press Options to refine the current search. Back cancels changes and returns to results. Inside a post, press Play to inspect and select its tags; Options applies the resulting search. Back from the tag browser keeps the changes available in Explore or returns to the post.
+
+The gallery displays six thumbnails per screen, retaining selection while results automatically append in batches of 30. OK opens a post card; View opens the image through the default MIME handler. On the card, OK favorites (with configured credentials), Options downloads the original and Back returns to the same gallery position. Left/Right chooses adjacent cards. You may enable automatic image opening through Home → Options.
+
+Hold Guide for contextual controls; release to hide. Favorites closes Booru. Power, volume, Hold and suspend remain owned by ReRead.
 
 ## Configuration
 
-Use **web Apps → Booru → Settings** to edit servers, account names, API keys and
-saved search text. The app reads `/etc/reread/apps/booru.json` at startup; reopen
-it after saving. The packaged draft-7 JSON Schema drives the platform's offline
-form editor. It accepts at most eight HTTPS hosts and twenty searches per host.
-Existing `Files/Booru/config.json` settings migrate once on upgrade; the original
-file is retained as a backup and is no longer read by the app.
+Credentials, host URLs and text-only configuration remain in the platform's generic **web Apps → Booru → Settings**, backed by `/etc/reread/apps/booru.json` and the packaged JSON Schema. No special Booru web UI or new server is required. The old manually configured search presets are not used by this browsing interface; build searches in Explore and save them on the Reader instead. There is no requirement to migrate the old search configuration.
 
-Use **Options on Booru's home screen** for settings that work with Reader buttons:
-server selection and **Open images automatically** (off by default). That choice
-persists in the app's private `preferences.json`, separate from web text entry.
+Per-device choices and Reader-created searches live in `/var/lib/reader/apps/reread-booru/preferences.json`. Downloads go to the shared `Pictures/Booru` folder. Temporary sample files are kept in a bounded, separate image cache.
 
-Create an API key in the site's account settings; use the username and **API key**, not a password. If accessing e621/e926, register a descriptive user agent for the application. Authentication is sent through HTTPS Basic auth to the configured API hostname only; downloads and thumbnails receive no credentials. HTTPS redirects are not followed, including for authenticated API responses.
+## Network behavior and limits
 
-The app supports e621-style `/posts.json`, `/favorites.json`, and `/favorites/{post_id}.json` on configured hosts; arbitrary booru URLs with other APIs are not supported yet.
+An asynchronous Qt network client retrieves posts and tags. Preview downloads are paced (one start every 650 ms, up to two in flight), with bounded cache and retry/backoff for temporary 429/503, timeouts and related transient errors; API post requests also back off. Background/inactive thumbnail loading is cancelled and resumed when visible. These safeguards do not prove rate limiting was the cause of earlier speed fluctuations. Inspect actual HTTP response codes to distinguish server throttling from slow connections and image decoding.
 
-## Controls
+There is no built-in general keyboard input or image decoder/player beyond thumbnail browsing; the ReRead default Images app handles full-image interaction. Some booru sites do not implement e621's API and are unsupported.
 
-- Home: D-pad selects Recent, My favorites, or a configured saved search; OK opens; Options opens server selection and automatic-opening preferences; Back exits.
-- Gallery: D-pad moves through 3×2 cards, OK opens the post card, the next 30 posts append automatically near the end, **Options** opens Search & Filters, and Back returns to Home.
-- Search & Filters (Reader buttons only): Select **Popular tags** to browse tags returned by the site's `/tags.json`, or **Tags from selected post** to browse a post's actual tags. OK cycles each tag through **Include → Exclude → Off**. Set sort (newest, oldest, score, favorites, hot, random, updated), rating, media type and minimum score, then choose Apply or press Options. Choose **Bookmark search** to save or remove the current query from Home without typing. Bookmarks are per server, persist across app restarts and are limited to twelve per host. Back cancels without reloading. Filters combine with the initial saved search and can be changed repeatedly.
-- Post details (Play on the post card): browse that post's tags with Up/Down, OK adds/excludes/removes a tag and Options searches with the updated filters. Back returns to the post.
-- The app does **not** require typing for these filters; use web Apps → Booru → Settings only to enter new arbitrary tag strings, saved searches, host URLs and account credentials.
-- Opening a gallery post shows its post card. Press View to download its image
-  sample into the app cache and open the system's default image viewer. Zoom, pan and rotation belong to that viewer.
-- Back from the viewer returns to Booru's post card: View reopens the image, OK
-  toggles the online favorite, Play shows details, Options saves the original,
-  and Back returns to the same gallery selection. Left/Right selects adjacent post cards. Enable automatic opening in the Reader
-  settings if you prefer to launch the viewer on entering/changing a post.
-- Favorites button returns to ReRead Home immediately. Power, volume, Hold, and suspend remain with the platform.
+## Tests
 
-Thumbnails are fetched at most one every 650 ms with up to two concurrent downloads, rather than in unchecked bursts. Transient HTTP 429/503 and timeout failures use bounded, delayed retries (including `Retry-After`), and the decoded thumbnail cache holds at most 60 images. Thumbnail requests are cancelled when Booru becomes inactive/dimmed and resume on return; ongoing explicit downloads are not interrupted. Post-search API requests also back off on 429/503. This helps prevent spikes but cannot prove the cause of every slowdown without checking actual HTTP responses.
-
-Thumbnails stay in bounded RAM. Full viewing uses ordinary GIO/MIME dispatch and
-local files under `$XDG_CACHE_HOME/reread-booru/images` (normally
-`~/.cache/reread-booru/images`). The 64 MiB LRU cache survives app exit so another
-process can read it; it is separate from explicitly saved originals in shared
-storage. Samples are limited to 9 MiB; explicit original downloads to 64 MiB;
-thumbnail requests to 512 KiB. Each cached post has its own directory so a viewer
-cannot navigate into unrelated cached posts. Non-image samples are rejected;
-video playback remains a later step. Favorites require an account.
-
-## Limitations / testing
-
-The MIME-opening test uses disposable cache/configuration, a local image and an
-isolated desktop handler; it sends no requests or account changes to a live site. Some API servers may return incompatible JSON or rate limit requests. Avoid storing keys on an untrusted device: the web/SSH management environment and all apps run with trusted local privileges.
-
-UI 5 supplies the shared physical-button hints: hold Guide to show them over
-the current screen, release to hide. No footer space is reserved. The shared
-SVGs match the Reader buttons; apps do not provide private glyphs or Guide handlers.
+`test-opening.cpp` covers search composition, tag inclusion/exclusion, the Explore navigation path, bookmark persistence, image MIME dispatch, and cache behavior using local fixtures. These are source tests, not proof of real hardware or live-server behavior.
