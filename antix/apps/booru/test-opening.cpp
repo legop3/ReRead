@@ -17,7 +17,29 @@ public:
  static void run(const QString &record) {
   QString file;
   {
-   Booru window;Post post;post.id=42;post.sample="https://example.invalid/image.svg";window.posts.append(post);window.selected=0;
+   Booru window;Post post;post.id=42;post.sample="https://example.invalid/image.svg";post.tags="cat dog";window.posts.append(post);window.selected=0;
+   window.initializeSearch("cat rating:s order:score");
+   require(window.sortIndex==2 && window.ratingIndex==1,"Saved search metatags are editable");
+   require(window.builtSearch().contains("cat") && window.builtSearch().contains("order:score"),"Preserve saved search");
+   window.sortIndex=3;window.ratingIndex=2;window.tagFilters.insert("dog",1);
+   require(window.builtSearch().contains("order:favcount") &&
+           window.builtSearch().contains("rating:q") &&
+           window.builtSearch().contains("dog"),"Compose combined tag and sorting filters");
+   window.tagFilters.insert("cat",-1);
+   require(window.builtSearch().contains("-cat") && !window.builtSearch().contains(" cat "),
+           "Negative tags replace positive base tags");
+   window.initializeSearch("");
+   window.page=Booru::POST;window.button(READER_PLAY,1);
+   require(window.page==Booru::INFO && window.currentTags().contains("cat"),"Post offers tag discovery");
+   window.button(READER_OK,1);
+   require(window.tagFilters.value("cat")==1,"OK includes the selected tag");
+   window.button(READER_OK,1);
+   require(window.tagFilters.value("cat")==-1,"OK excludes the selected tag");
+   window.button(READER_OK,1);
+   require(!window.tagFilters.contains("cat"),"OK clears the tag");
+   window.button(READER_BACK,1);
+   require(window.page==Booru::POST,"Tag picker returns to post");
+
    file=window.cachePath(QUrl(post.sample),post.id);
    require(window.cacheImage(file,"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\"><rect width=\"20\" height=\"10\" fill=\"red\"/></svg>"),"Store image sample");
    QFile old(window.cacheRoot()+"/old-image");require(old.open(QIODevice::WriteOnly),"Create old cache item");
