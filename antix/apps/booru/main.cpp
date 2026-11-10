@@ -55,6 +55,7 @@ class Booru : public Screen {
   QNetworkReply *api=nullptr, *tagApi=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
   QString status, search, baseSearch, downloadName;
+  QString initialSearch;
   QStringList popularTags;
   bool tagCatalogMode=false;
   QMap<QString,int> tagFilters;
@@ -126,9 +127,35 @@ class Booru : public Screen {
       update();
     });
   }
+  void initializeSearch(const QString &preset) {
+    initialSearch=preset;tagFilters.clear();
+    sortIndex=ratingIndex=mediaIndex=scoreIndex=0;
+    QStringList remaining;
+    for(const auto &token:preset.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)){
+      const int order=sortTerms.indexOf(token);
+      if(order>0)sortIndex=order;
+      else if(token=="rating:s"||token=="rating:safe")ratingIndex=1;
+      else if(token=="rating:q"||token=="rating:questionable")ratingIndex=2;
+      else if(token=="rating:e"||token=="rating:explicit")ratingIndex=3;
+      else if(token=="type:jpg")mediaIndex=2;
+      else if(token=="type:png")mediaIndex=3;
+      else if(token=="type:gif")mediaIndex=4;
+      else if(token=="type:mp4")mediaIndex=5;
+      else if(token=="score:>=10")scoreIndex=1;
+      else if(token=="score:>=50")scoreIndex=2;
+      else if(token=="score:>=100")scoreIndex=3;
+      else remaining<<token;
+    }
+    baseSearch=remaining.join(" ");
+    search=builtSearch();
+  }
   void applySearch() {
+    const QString query=builtSearch();
+    if(query.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts).size()>40){
+      status="Search exceeds the server's 40-tag limit";update();return;
+    }
     stop(tagApi);stop(api);loadingMore=false;
-    search=builtSearch();page=GALLERY;chrome();fetchPage();
+    search=query;page=GALLERY;chrome();fetchPage();
   }
   void chrome() {
     showHeader=false;
@@ -155,7 +182,7 @@ class Booru : public Screen {
   }
   QNetworkRequest request(QUrl u,bool authenticated) {
     QNetworkRequest req(u);
-    req.setRawHeader("User-Agent","ReRead-Booru/0.1 (+https://github.com/legop3/ReRead; "+host().username.toUtf8()+")");
+    req.setRawHeader("User-Agent","ReRead-Booru/0.6 (+https://github.com/legop3/ReRead; "+host().username.toUtf8()+")");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
     req.setRawHeader("Accept","application/json");
     if(authenticated&&!host().username.isEmpty()&&!host().key.isEmpty()&&u.host()==QUrl(host().url).host())
@@ -572,7 +599,7 @@ protected:
         else if(searchIndex==3){ratingIndex=(ratingIndex+1)%ratings.size();update();}
         else if(searchIndex==4){mediaIndex=(mediaIndex+1)%mediaTypes.size();update();}
         else if(searchIndex==5){scoreIndex=(scoreIndex+1)%scoreLevels.size();update();}
-        else if(searchIndex==6){tagFilters.clear();sortIndex=ratingIndex=mediaIndex=scoreIndex=0;update();}
+        else if(searchIndex==6){initializeSearch(initialSearch);update();}
         else applySearch();
       } else if(page==INFO){
         const auto tags=currentTags();
@@ -588,7 +615,7 @@ protected:
           if(host().username.isEmpty()){status="Set account in web Apps / Booru settings";update();return;}
           search="fav:"+host().username;
         } else search=homeIndex==0?QString():host().searches.value(homeIndex-2);
-        baseSearch=search;tagFilters.clear();sortIndex=ratingIndex=mediaIndex=scoreIndex=0;
+        initializeSearch(search);
         pageNumber=1;page=GALLERY;chrome();fetchPage();
       }else if(page==GALLERY&&!posts.isEmpty()){page=POST;chrome();if(autoOpenImages)loadFull();maybeLoadMore();}
       else if(page==POST)favorite();
