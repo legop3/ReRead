@@ -447,7 +447,11 @@ class Booru : public Screen {
     editorChanged=false;
     status.clear();
     chrome();
-    if(!api&&!searchTimer.isActive()&&!hasResults)fetchPage();
+    if(page==POST){
+      // The search is unchanged: preserve the post and its browsing position.
+      requestThumbs();
+      maybeLoadMore();
+    }else if(!api&&!searchTimer.isActive()&&!hasResults)fetchPage();
     else requestThumbs();
   }
   QString editorReturnLabel() const {
