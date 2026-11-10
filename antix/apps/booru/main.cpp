@@ -412,7 +412,6 @@ protected:
     else if(page==VIEW&&key==READER_ZOOM_OUT&&state==1){zoom=qMax(0,zoom-1);clampPan();update();}
     else if(key==READER_OPTIONS&&state==1){
       if(page==HOME){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;status.clear();update();}
-      else if(page==GALLERY){if(more&&!api){++pageNumber;fetchPage(true);}}
       else if(page==VIEW)download();
     }else if(key==READER_PLAY&&state==1&&page==VIEW){page=INFO;chrome();}
     else if(key==READER_OK&&state==1) {
