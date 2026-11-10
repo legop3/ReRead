@@ -164,17 +164,25 @@ public:
     QImage placeholder(20,10,QImage::Format_ARGB32);
     placeholder.fill(Qt::white);
     window.thumbnails.insert(post.id,placeholder);
-    // Every screen uses the same Options action, including modal download.
-    for(const auto place:{Booru::HOME,Booru::SEARCH,Booru::LOOKUP,
+    // Options is a two-way toggle, never a one-way shortcut.
+    for(const auto place:{Booru::HOME,Booru::LOOKUP,
                           Booru::GALLERY,Booru::POST,Booru::DOWNLOADING}){
       window.page=place;window.chrome();
       require(hint(window,READER_OPTIONS)=="Edit search",
-              "Guide always describes Options as Edit search");
+              "Guide labels Options Edit search outside the editor");
       window.button(READER_OPTIONS,1);
       require(window.page==Booru::SEARCH&&!window.transfer&&!window.saving,
-              "Options opens one editor and never downloads or favorites");
+              "Options opens one editor without downloading or favoriting");
+      require(hint(window,READER_OPTIONS)=="View results",
+              "Guide labels Options View results inside editor");
       window.button(READER_OPTIONS,2);
-      require(window.page==Booru::SEARCH,"Repeated Options does not re-enter");
+      require(window.page==Booru::SEARCH,"Held Options cannot trigger toggle twice");
+      window.button(READER_OPTIONS,1);
+      require(window.page==Booru::GALLERY,
+              "Second Options press closes editor and returns to results");
+      window.button(READER_OPTIONS,1);
+      require(window.page==Booru::SEARCH,
+              "Options opens the editor again from results");
     }
     // Back from the editor always opens results; results Back returns Home.
     window.page=Booru::POST;window.button(READER_BACK,1);
@@ -237,7 +245,7 @@ public:
     window.searchTimer.stop();
     window.chrome();
     require(hint(window,READER_BACK)=="Results" &&
-            hint(window,READER_OPTIONS)=="Edit search",
+            hint(window,READER_OPTIONS)=="View results",
             "Editor Guide matches its actual navigation");
     window.page=Booru::LOOKUP;window.lookupMode=0;window.lookupResultsFocus=false;
     window.chrome();
