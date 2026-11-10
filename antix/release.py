@@ -153,18 +153,22 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: desktop-file-utils, shared-mime-info, libglib2.0-bin, xdg-utils, xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-jsonschema, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: desktop-file-utils, shared-mime-info, libglib2.0-bin, xdg-utils, xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-jsonschema, cron, logrotate, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Recommends: reread-app-files, reread-app-images, reread-app-text, reread-app-audio
 Breaks: reread-app-camera (<< 0.8.0), reread-app-files (<< 0.6.0), reread-app-software (<< 0.4.0), reread-app-images (<< 0.2.0), reread-app-text (<< 0.2.0), reread-app-audio (<< 0.2.0), reread-app-archive (<< 0.9.0), reread-app-booru (<< 0.4.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
 ''')
-    write('DEBIAN/conffiles', '/etc/xdg/reread-mimeapps.list\n/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n/etc/reader/files.conf\n/etc/dpkg/dpkg.cfg.d/80-reread-space\n/etc/apt/apt.conf.d/80-reread-indexes\n')
+    write('DEBIAN/conffiles', '/etc/xdg/reread-mimeapps.list\n/etc/apt/sources.list.d/reread.sources\n/etc/wpa_supplicant/reader.conf\n/etc/reader/udhcpd.conf\n/etc/chrony/reader.conf\n/etc/reader/display.json\n/etc/reader/files.conf\n/etc/dpkg/dpkg.cfg.d/80-reread-space\n/etc/apt/apt.conf.d/80-reread-indexes\n/etc/logrotate.d/reread\n/etc/cron.d/reread-logrotate\n/etc/initramfs-tools/conf.d/reread\n')
     copy(base / 'antix/x11/reread-mimeapps.list', 'etc/xdg/reread-mimeapps.list')
     copy(base / 'antix/files-head.html', 'usr/share/reader/files-head.html')
     copy(base / 'antix/storage/80-reread-space', 'etc/dpkg/dpkg.cfg.d/80-reread-space')
     copy(base / 'antix/storage/80-reread-indexes', 'etc/apt/apt.conf.d/80-reread-indexes')
+    copy(base / 'antix/storage/reread-logrotate', 'etc/logrotate.d/reread')
+    copy(base / 'antix/storage/reread-cron', 'etc/cron.d/reread-logrotate')
+    copy(base / 'antix/storage/initramfs.conf', 'etc/initramfs-tools/conf.d/reread')
+    copy(base / 'antix/storage/initramfs-modules', 'usr/share/initramfs-tools/modules.d/reread')
     copy(base / 'antix/app-settings.js', 'usr/share/reader/app-settings.js')
     copy(base / 'antix/files.conf', 'etc/reader/files.conf')
     copy(base / 'antix/STORAGE.md', 'usr/share/doc/reread/storage.md')

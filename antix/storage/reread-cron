@@ -1,0 +1,2 @@
+# Use the distro scheduler; no ReRead cleanup daemon.
+17 * * * * root /usr/sbin/logrotate /etc/logrotate.d/reread

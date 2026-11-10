@@ -10,12 +10,21 @@ COMPACT_PACKAGES = {
     'firmware-iwlwifi', 'firmware-sof-signed', 'grub-common', 'grub2-common',
     'grub-pc', 'grub-pc-bin', 'grub-efi-amd64-bin', 'grub-efi-amd64-unsigned',
     'grub-efi-ia32-bin', 'grub-efi-ia32-unsigned',
+    # The runtime uses packaged drivers, not on-device kernel/module builds.
+    'broadcom-sta-dkms', 'dkms', 'dpkg-dev', 'make', 'patch', 'binutils',
+    'binutils-common', 'binutils-i686-linux-gnu', 'libbinutils',
+    'libctf-nobfd0', 'libctf0', 'libgprofng0', 'libsframe1', 'libisl23', 'libmpc3',
+    'cpp',
 }
 
 
 def policy(root):
     for source, target in [('80-reread-space', 'etc/dpkg/dpkg.cfg.d/80-reread-space'),
-                           ('80-reread-indexes', 'etc/apt/apt.conf.d/80-reread-indexes')]:
+                           ('80-reread-indexes', 'etc/apt/apt.conf.d/80-reread-indexes'),
+                           ('reread-logrotate', 'etc/logrotate.d/reread'),
+                           ('reread-cron', 'etc/cron.d/reread-logrotate'),
+                           ('initramfs.conf', 'etc/initramfs-tools/conf.d/reread'),
+                           ('initramfs-modules', 'usr/share/initramfs-tools/modules.d/reread')]:
         dest = root / target
         if not dest.exists():
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -29,7 +38,9 @@ def compact(root):
                             text=True, capture_output=True, check=True)
     installed = {line.split()[0] for line in result.stdout.splitlines()
                  if line.endswith(' installed')}
-    packages = sorted(COMPACT_PACKAGES & installed)
+    # Debian versions the preprocessor packages; keep gcc-base/libgcc runtime ABI packages.
+    packages = sorted((COMPACT_PACKAGES & installed) |
+                      {name for name in installed if name.startswith('cpp-')})
     if packages:
         subprocess.run(['chroot', str(root), 'apt-get', '-y', 'purge', *packages],
                        check=True, env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
@@ -50,6 +61,7 @@ def compact(root):
     for path in (root / 'var/lib/apt/lists').glob('*Translation-*'):
         if path.is_file():
             path.unlink()
+    subprocess.run(['chroot', str(root), 'apt-get', 'clean'], check=True)
 
 
 def runtime(root):
@@ -79,17 +91,8 @@ def runtime(root):
     # No autoremove: keep the distro's remaining runtime and adapter support.
     chroot('apt-get', '-y', '--no-upgrade', 'purge', *sorted(unwanted & installed))
     chroot('locale-gen')
-    chroot('apt-get', 'clean')
+    # compact() also clears downloaded packages and duplicate caches, retaining indexes.
     compact(root)
-    # Retain apt's package indexes so apps can resolve new dependencies.
-    for directory in ['var/cache/apt/archives']:
-        path = root/directory
-        shutil.rmtree(path)
-        (path/'partial').mkdir(parents=True)
-    # The live ISO's generated package caches aren't needed on an installed OS.
-    for name in ['pkgcache.bin', 'srcpkgcache.bin']:
-        (root/'var/cache/apt'/name).unlink(missing_ok=True)
-
 
 if __name__ == '__main__':
     import argparse

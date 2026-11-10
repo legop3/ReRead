@@ -1,0 +1,12 @@
+# Internal SSD, local display and recovery keyboard.
+pata_sch
+ata_piix
+sd_mod
+ext3
+gma500_gfx
+i8042
+atkbd
+ehci_pci
+uhci_hcd
+usbhid
+hid_generic

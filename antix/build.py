@@ -77,9 +77,7 @@ for name in ('camera', 'software', 'files', 'images', 'text', 'audio'):
 # The cached base retains headers for later release builds; the runtime does not.
 trim_runtime(root)
 write('/etc/default/console-setup','ACTIVE_CONSOLES="/dev/tty[1-6]"\nCHARMAP="UTF-8"\nFONT="/usr/share/reader/font-large.psf"\n')
-# Include the tested Reader storage path and the same early large console font.
-write('/etc/initramfs-tools/modules','pata_sch\nata_piix\nsd_mod\next3\n')
-write('/etc/initramfs-tools/conf.d/reader','MODULES=most\nCOMPRESS=gzip\n')
+# Keep the early console font in the installed initramfs.
 write('/etc/initramfs-tools/hooks/reader-font', '''#!/bin/sh
 PREREQ=""
 case "$1" in prereqs) echo "$PREREQ"; exit 0 ;; esac

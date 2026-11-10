@@ -34,8 +34,8 @@ ldconfig
 live=no
 [ ! -p /etc/sv/reader/supervise/control ] || live=yes
 # Use one runit supervisor per daemon, retiring instances started by distro
-# maintainer scripts. Neither service needs a desktop session to operate.
-for service in elogind reader-hotkeys; do
+# maintainer scripts. These services do not need a desktop session.
+for service in elogind reader-hotkeys cron; do
     link=/etc/runit/runsvdir/default/$service
     if [ ! -L "$link" ]; then
         distro=$service

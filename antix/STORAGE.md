@@ -70,3 +70,31 @@ The web file manager uses Copyparty's own text editor: open a text file and choo
 Edit, then Save. Edits replace the existing shared file; they do not create a
 separate application copy. `no-script` restricts scripts in downloaded HTML while
 keeping the upstream editor available (`no-html` also disables that editor).
+
+## Runtime housekeeping
+
+Fresh image builds remove the live ISO's DKMS/Broadcom module-building source,
+C preprocessor and binutils/build tools after building the platform. The SDK and
+module build tools remain in the development builder. The installed Reader uses
+normal Debian packages and prebuilt kernel modules. Broad USB Wi-Fi firmware,
+Qt's declared Mesa/LLVM dependencies, manuals, user files and bounded app caches
+are retained. Running `antix/trim.py` explicitly applies this compact-runtime
+cleanup to an installed Reader; ordinary upgrades do not purge user-installed
+development tools automatically.
+
+APT's post-dpkg hook discards cached `.deb` downloads after installation. Package
+indexes remain available for dependency resolution. Uploaded ReRead packages
+continue to be removed by the package worker after use.
+
+The distro cron service runs `logrotate` hourly for `/var/log/reader/*.log`,
+rotating files above 512 KiB with two compressed archives. `copytruncate` keeps
+existing daemon file descriptors usable. This is periodic rotation, not a hard
+per-file quota. Configurations are `/etc/cron.d/reread-logrotate` and
+`/etc/logrotate.d/reread`, both ordinary Debian conffiles. No ReRead cleanup daemon
+or UI polling is needed.
+
+The installed system uses initramfs-tools' list mode with the internal SSD,
+filesystem, display and recovery keyboard modules. This leaves space on the
+small FAT boot partition for the current initramfs and its replacement during
+updates. The full distro module tree and firmware remain available after the
+root filesystem mounts. The USB installer has its own initramfs.

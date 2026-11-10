@@ -5,3 +5,6 @@ Acquire::Languages "none";
 // Binary package caches are regenerated from those indexes; avoid SSD duplicates.
 Dir::Cache::pkgcache "";
 Dir::Cache::srcpkgcache "";
+// Keep package indexes, but discard installers after dpkg finishes using them.
+// apt-get retains these by default, unlike the interactive apt command.
+DPkg::Post-Invoke { "rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb || true"; };
