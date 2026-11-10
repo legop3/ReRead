@@ -463,78 +463,90 @@ class Booru : public Screen {
     fetchPage(true);
   }
   void requestThumbs(){
-    if(page!=GALLERY||thumbnailsPaused||api||tagApi||imageJob||transfer)return;
-    // e621 limits aggregate requests; pace CDN previews rather than opening bursts.
-    // Keep two in flight at most and retry transient failures without a tight loop.
-    const qint64 now=QDateTime::currentMSecsSinceEpoch();
+    if((page!=GALLERY && page!=POST) || thumbnailsPaused || api ||
+       tagApi || transfer || posts.isEmpty())return;
+    // Gallery requests its six visible tiles. Post mode requests the current
+    // thumbnail FIRST and then nearby cards, regardless of gallery scroll offset.
+    QList<int> wanted;
+    if(page==POST){
+      wanted<<selected;
+      for(int distance=1;distance<=3;++distance){
+        if(selected+distance<posts.size())wanted<<selected+distance;
+        if(selected-distance>=0)wanted<<selected-distance;
+      }
+    }else{
+      for(int i=first;i<qMin(first+6,posts.size());++i)wanted<<i;
+    }
     if(thumbJobs.size()>=2)return;
-    const int interval=650;
-    if(lastThumbnailStart>0 && now-lastThumbnailStart<interval){
+    const qint64 now=QDateTime::currentMSecsSinceEpoch();
+    const int interval=550;
+    if(lastThumbnailStart && now-lastThumbnailStart<interval){
       if(!thumbTimer.isActive())thumbTimer.start(int(lastThumbnailStart+interval-now));
       return;
     }
     qint64 soonest=0;
-    for(int i=first;i<qMin(first+6,posts.size());++i){
-      const Post &p=posts[i];
-      if(thumbnails.contains(p.id)||pendingThumbnails.contains(p.id)||
-         failedThumbnails.contains(p.id))continue;
-      const QUrl u=imageUrl(p.preview);
-      if(!u.isValid()){failedThumbnails.insert(p.id);continue;}
-      if(thumbRetryAt.value(p.id)>now){
-        const qint64 wait=thumbRetryAt.value(p.id)-now;
+    for(const int i:wanted){
+      const Post &post=posts[i];
+      const int id=post.id;
+      if(thumbnails.contains(id)||pendingThumbnails.contains(id)||
+         failedThumbnails.contains(id))continue;
+      QUrl u=imageUrl(post.preview.isEmpty()?post.sample:post.preview);
+      if(!u.isValid()){failedThumbnails.insert(id);continue;}
+      if(thumbRetryAt.value(id)>now){
+        const qint64 wait=thumbRetryAt.value(id)-now;
         if(!soonest||wait<soonest)soonest=wait;
         continue;
       }
-      const int id=p.id;lastThumbnailStart=now;
-      auto r=net.get(request(u,false));thumbJobs<<r;pendingThumbnails.insert(id);
-      connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){
-        if(n>512*1024)r->abort();
+      QNetworkRequest req=request(u,false);
+      req.setTransferTimeout(15000);
+      auto reply=net.get(req);
+      lastThumbnailStart=now;thumbJobs<<reply;pendingThumbnails.insert(id);
+      connect(reply,&QNetworkReply::downloadProgress,this,[reply](qint64 n,qint64){
+        if(n>512*1024)reply->abort();
       });
-      connect(r,&QNetworkReply::finished,this,[this,r,id]{
-        thumbJobs.removeAll(r);pendingThumbnails.remove(id);
-        const int code=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        QByteArray b=r->readAll();
-        const bool ok=r->error()==QNetworkReply::NoError&&code>=200&&code<300&&b.size()<=512*1024;
+      connect(reply,&QNetworkReply::finished,this,[this,reply,id]{
+        thumbJobs.removeAll(reply);pendingThumbnails.remove(id);
+        const int code=reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        QByteArray payload=reply->readAll();
+        const bool ok=reply->error()==QNetworkReply::NoError&&
+                      code>=200&&code<300&&payload.size()<=512*1024;
         if(ok){
-          QBuffer buffer(&b);buffer.open(QIODevice::ReadOnly);
+          QBuffer buffer(&payload);buffer.open(QIODevice::ReadOnly);
           QImageReader reader(&buffer);reader.setAutoTransform(true);
           const QSize native=reader.size();
           if(native.isValid())reader.setScaledSize(native.scaled(320,260,Qt::KeepAspectRatio));
           const QImage im=reader.read();
           if(!im.isNull()){
             thumbnails.insert(id,im);thumbAttempts.remove(id);thumbRetryAt.remove(id);
-            // Bound decoded image memory on this 512 MiB device.
             while(thumbnails.size()>60){
-              // Retain the six images currently on screen; evict the farthest.
-              int farthest=-1, distance=-1;
+              int farthest=-1,distance=-1;
               for(auto it=thumbnails.cbegin();it!=thumbnails.cend();++it){
                 int index=-1;
-                for(int i=0;i<posts.size();++i)if(posts[i].id==it.key()){index=i;break;}
+                for(int j=0;j<posts.size();++j)if(posts[j].id==it.key()){index=j;break;}
                 const int d=index<0?999999:qAbs(index-selected);
                 if(d>distance){farthest=it.key();distance=d;}
               }
               if(farthest<0)break;
               thumbnails.remove(farthest);
             }
-          } else failedThumbnails.insert(id);
-        } else if((code==429||code==503||code==502||code==504||
-                   r->error()==QNetworkReply::TimeoutError) && thumbAttempts.value(id)<3){
-          const int count=thumbAttempts.value(id)+1;thumbAttempts.insert(id,count);
-          int seconds=qMin(30,2*(1<<count));
-          bool headerOk=false;
-          const int retry=r->rawHeader("Retry-After").toInt(&headerOk);
-          if(headerOk)seconds=qBound(1,retry,60);
+          }else failedThumbnails.insert(id);
+        }else if(code==429||code==503||code==502||code==504||
+                 reply->error()==QNetworkReply::TimeoutError){
+          const int count=qMin(6,thumbAttempts.value(id)+1);
+          thumbAttempts.insert(id,count);
+          int seconds=qMin(60,2*(1<<qMin(4,count)));
+          bool valid=false;const int retry=reply->rawHeader("Retry-After").toInt(&valid);
+          if(valid)seconds=qBound(1,retry,120);
           thumbRetryAt.insert(id,QDateTime::currentMSecsSinceEpoch()+seconds*1000LL);
-        } else {
-          failedThumbnails.insert(id);
-        }
-        r->deleteLater();
-        if(page==GALLERY){requestThumbs();update();}
+          // Rate limits are never permanent failures: retry after cooldown.
+        }else failedThumbnails.insert(id);
+        reply->deleteLater();
+        if(page==GALLERY||page==POST){requestThumbs();update();}
       });
       if(!thumbTimer.isActive())thumbTimer.start(interval);
       return;
     }
-    if(soonest&&!thumbTimer.isActive())thumbTimer.start(qBound(1,int(soonest),60000));
+    if(soonest&&!thumbTimer.isActive())thumbTimer.start(qBound(1,int(soonest),120000));
   }
   Post *current(){return selected>=0&&selected<posts.size()?&posts[selected]:nullptr;}
   QString cacheRoot() const {
@@ -595,8 +607,9 @@ class Booru : public Screen {
       if(imageJob!=r){r->deleteLater();return;}imageJob=nullptr;
       auto bytes=r->readAll();bool ok=r->error()==QNetworkReply::NoError;
       auto message=r->errorString();r->deleteLater();
-      if(!ok){status=message;update();return;}
+      if(!ok){status=message;requestThumbs();update();return;}
       if(cacheImage(file,bytes))openCached(file);
+      requestThumbs();
     });
   }
   void favorite(){
