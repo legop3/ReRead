@@ -88,22 +88,6 @@ Terminal=false
     write("etc/reread/apps/booru.json", (SOURCE/"config.example.json").read_text())
     write("usr/share/reread/apps/booru/settings.schema.json", (SOURCE/"settings.schema.json").read_text())
     write("DEBIAN/conffiles", "/etc/reread/apps/booru.json\n")
-    # One-time migration keeps existing accounts/searches, and retains the user's source file.
-    write("DEBIAN/postinst", """#!/bin/sh
-set -eu
-if [ "$1" = configure ]; then
-    marker=/var/lib/reader/apps/reread-booru/config-migrated
-    if [ ! -e "$marker" ]; then
-        if [ -f /var/lib/reader/files/Booru/config.json ] &&\
-           cmp -s /etc/reread/apps/booru.json /usr/share/doc/reread-app-booru/config.example.json; then
-            cp /var/lib/reader/files/Booru/config.json /etc/reread/apps/booru.json
-        fi
-        mkdir -p /var/lib/reader/apps/reread-booru
-        touch "$marker"
-    fi
-fi
-""")
-    (stage/"DEBIAN/postinst").chmod(0o755)
     icon=stage/"usr/share/icons/hicolor/scalable/apps/reread-booru.svg"
     icon.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy(SOURCE/"reread-booru.svg",icon)
