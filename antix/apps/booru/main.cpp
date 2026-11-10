@@ -877,6 +877,7 @@ class Booru : public Screen {
       if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
       page=GALLERY;
     }else if(page==GALLERY){
+      rememberSelectedPostTags();
       page=SEARCH;
     }
     chrome();
