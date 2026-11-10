@@ -649,7 +649,7 @@ class Booru : public Screen {
     if(page==SETTINGS){page=HOME;}
     else if(page==SEARCH){page=searchFromGallery?GALLERY:HOME;}
     else if(page==LOOKUP){lookupTimer.stop();stop(lookupApi);page=SEARCH;}
-    else if(page==INFO){stop(tagApi);page=tagsFromSearch?SEARCH:POST;}
+    else if(page==INFO){stop(tagApi);page=tagsFromSearch?SEARCH:postTagsChanged?GALLERY:POST;}
     else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
     else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
     else if(page==GALLERY){
@@ -685,7 +685,7 @@ class Booru : public Screen {
       maybeLoadMore();
     }else if(page==POST){
       if(dx){const int next=qBound(0,selected+dx,posts.size()-1);
-        if(next!=selected){selected=next;stop(imageJob);status.clear();if(autoOpenImages)loadFull();maybeLoadMore();}}
+        if(next!=selected){selected=next;stop(imageJob);status.clear();requestThumbs();if(autoOpenImages)loadFull();maybeLoadMore();}}
 
     }
     update();
@@ -909,10 +909,10 @@ protected:
           if(posts.isEmpty())toast("Open a post first to browse its tags");
           else {tagsFromSearch=true;openTagBrowser(1);}
         }else if(searchIndex==4){tagsFromSearch=true;openTagBrowser(2);}
-        else if(searchIndex==5){sortIndex=(sortIndex+1)%sorts.size();update();}
-        else if(searchIndex==6){ratingIndex=(ratingIndex+1)%ratings.size();update();}
-        else if(searchIndex==7){mediaIndex=(mediaIndex+1)%mediaTypes.size();update();}
-        else if(searchIndex==8){scoreIndex=(scoreIndex+1)%scoreLevels.size();update();}
+        else if(searchIndex==5){sortIndex=(sortIndex+1)%sorts.size();activeSearchChanged();}
+        else if(searchIndex==6){ratingIndex=(ratingIndex+1)%ratings.size();activeSearchChanged();}
+        else if(searchIndex==7){mediaIndex=(mediaIndex+1)%mediaTypes.size();activeSearchChanged();}
+        else if(searchIndex==8){scoreIndex=(scoreIndex+1)%scoreLevels.size();activeSearchChanged();}
         else if(searchIndex==9)toggleBookmark();
         else applySearch();
       }else if(page==LOOKUP){
@@ -929,7 +929,8 @@ protected:
         if(homeIndex==0){
           initializeSearch("");searchFromGallery=false;searchIndex=0;
           posts.clear();selected=first=0;hasResults=false;
-          page=SEARCH;status.clear();chrome();return;
+          page=SEARCH;status.clear();chrome();
+          ++searchRevision;searchTimer.start(0);return;
         }
         if(homeIndex==1)initializeSearch("");
         else if(homeIndex==2){
@@ -949,6 +950,10 @@ public:
     setWindowTitle("Booru");
     thumbTimer.setSingleShot(true);
     connect(&thumbTimer,&QTimer::timeout,this,[this]{requestThumbs();});
+    searchTimer.setSingleShot(true);
+    connect(&searchTimer,&QTimer::timeout,this,[this]{
+      if(!api && page!=HOME && page!=SETTINGS)fetchPage();
+    });
     lookupTimer.setSingleShot(true);
     connect(&lookupTimer,&QTimer::timeout,this,[this]{if(page==LOOKUP)fetchSuggestions();});
     const auto prefs=readJson(preferencesPath());
@@ -973,7 +978,7 @@ public:
     } else requestThumbs();
   }
   ~Booru() override {
-    thumbTimer.stop();lookupTimer.stop();stop(lookupApi);stop(tagApi);stop(api);stop(imageJob);stop(transfer);
+    thumbTimer.stop();lookupTimer.stop();searchTimer.stop();stop(lookupApi);stop(tagApi);stop(api);stop(imageJob);stop(transfer);
     for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
     if(saving)saving->cancelWriting();
   }
