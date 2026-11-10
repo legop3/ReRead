@@ -668,14 +668,20 @@ class Booru : public Screen {
     else if(page==LOOKUP){lookupTimer.stop();stop(lookupApi);page=SEARCH;}
     else if(page==INFO){stop(tagApi);page=tagsFromSearch?SEARCH:postTagsChanged?GALLERY:POST;}
     else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
-    else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
+    else if(page==POST||page==CONFIRM){
+      stop(imageJob);
+      if(selected<first)first=(selected/3)*3;
+      if(selected>=first+6)first=qMax(0,(selected/3-1)*3);
+      page=GALLERY;requestThumbs();
+    }
     else if(page==GALLERY){
       stop(api);loadingMore=false;apiRetryPending=false;
       if(galleryFromExplore){page=SEARCH;searchFromGallery=false;}
       else {page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
     }
     else {close();return;}
-    status.clear();chrome();
+    if(page!=GALLERY || !hasResults)status.clear();
+    chrome();
     if(page==GALLERY){requestThumbs();maybeLoadMore();}
   }
   void navigate(int dx,int dy){
