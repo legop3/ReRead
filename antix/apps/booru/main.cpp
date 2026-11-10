@@ -59,7 +59,10 @@ class Booru : public Screen {
   QString initialSearch;
   QStringList popularTags;
   QHash<QString,int> popularTagCounts;
-  bool tagCatalogMode=false;
+  // 0 popular, 1 post, 2 current query terms
+  int tagSource=0, tagCategory=0;
+  QStringList categories={"All","General","Artists","Copyright","Characters","Species"};
+  QList<int> categoryCodes={-1,0,1,3,4,5};
   QMap<QString,int> tagFilters;
   QStringList sorts={"Newest","Oldest","Top score","Most favorited","Hot","Random","Recently updated"};
   QStringList sortTerms={"","order:id","order:score","order:favcount","order:hot","order:random","order:updated"};
@@ -79,10 +82,9 @@ class Booru : public Screen {
   const Host &host() const {return hosts[hostIndex];}
   QStringList bookmarks() const {return bookmarksByHost.value(host().url);}
   QStringList sections() const {
-    QStringList s={"Recent","My favorites"};
-    for(const auto &x:host().searches)s<<x;
-    for(const auto &x:bookmarks())s<<"★ "+x.left(80);
-    return s;
+    QStringList items={"Explore / build search","Recent posts","My favorites"};
+    for(const auto &q:bookmarks())items<<"★ "+q.left(80);
+    return items;
   }
   void savePreferences(){
     auto data=readJson(preferencesPath());
@@ -106,7 +108,17 @@ class Booru : public Screen {
     savePreferences();update();
   }
   QStringList currentTags() const {
-    if(tagCatalogMode)return popularTags;
+    if(tagSource==0)return popularTags;
+    if(tagSource==2){
+      QStringList names;
+      for(const auto &token:baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)){
+        const QString name=token.startsWith("-")?token.mid(1):token;
+        if(!name.contains(":")&&!names.contains(name))names<<name;
+      }
+      for(auto it=tagFilters.cbegin();it!=tagFilters.cend();++it)
+        if(!names.contains(it.key()))names<<it.key();
+      names.sort(Qt::CaseInsensitive);return names;
+    }
     if(selected<0||selected>=posts.size())return {};
     auto result=posts[selected].tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
     result.removeDuplicates();result.sort(Qt::CaseInsensitive);return result;
@@ -130,10 +142,27 @@ class Booru : public Screen {
     if(scoreIndex)parts<<"score:>="+QStringList{"","10","50","100"}[scoreIndex];
     return parts.join(" ");
   }
+  QString tagState(const QString &tag) const {
+    if(tagFilters.contains(tag))return tagFilters.value(tag)==1?"Include":tagFilters.value(tag)==-1?"Exclude":"Off";
+    const QStringList terms=baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+    return terms.contains(tag)?"Include":terms.contains("-"+tag)?"Exclude":"Off";
+  }
+  void cycleTag(const QString &tag){
+    const QString was=tagState(tag);
+    const int next=was=="Off"?1:was=="Include"?-1:0;
+    if(next==0){
+      const QStringList terms=baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+      if(terms.contains(tag)||terms.contains("-"+tag))tagFilters.insert(tag,0);
+      else tagFilters.remove(tag);
+    } else tagFilters.insert(tag,next);
+    update();
+  }
   void fetchPopularTags(){
     stop(tagApi);popularTags.clear();popularTagCounts.clear();tagIndex=0;status="Loading popular tags...";update();
     QUrl url(host().url+"/tags.json");QUrlQuery q;
-    q.addQueryItem("search[order]","count");q.addQueryItem("limit","60");url.setQuery(q);
+    q.addQueryItem("search[order]","count");
+    if(categoryCodes[tagCategory]>=0)q.addQueryItem("search[category]",QString::number(categoryCodes[tagCategory]));
+    q.addQueryItem("limit","60");url.setQuery(q);
     auto r=net.get(request(url,true));tagApi=r;
     connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>256*1024)r->abort();});
     connect(r,&QNetworkReply::finished,this,[this,r]{
@@ -178,6 +207,10 @@ class Booru : public Screen {
     baseSearch=remaining.join(" ");
     search=builtSearch();
   }
+  void openTagBrowser(int source){
+    tagSource=source;tagIndex=0;page=INFO;status.clear();chrome();
+    if(source==0)fetchPopularTags();
+  }
   void applySearch() {
     const QString query=builtSearch();
     if(query.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts).size()>40){
@@ -189,12 +222,12 @@ class Booru : public Screen {
   void chrome() {
     showHeader=false;
 
-    if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Searches"}};
-    else if(page==SEARCH) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_OPTIONS,"Apply"},{READER_BACK,"Results"}};
-    else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Home"}};
-    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Search"},{READER_BACK,"Searches"}};
+    if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Home"}};
+    else if(page==SEARCH) controls={{READER_UP,"Navigate"},{READER_OK,"Change"},{READER_OPTIONS,"Show results"},{READER_BACK,"Return"}};
+    else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
+    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Refine search"},{READER_BACK,"Explore"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
-    else if(page==INFO) controls={{READER_UP,"Tags"},{READER_OK,"Include / Exclude"},{READER_OPTIONS,"Search"},{READER_BACK,"Return"}};
+    else if(page==INFO) controls={{READER_UP,"Tags"},{READER_OK,"Include / Exclude / Off"},{READER_OPTIONS,"Show results"},{READER_BACK,"Filters"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
     else controls={{READER_BACK,"Gallery"}};
     update();
