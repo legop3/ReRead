@@ -595,6 +595,14 @@ class Booru : public Screen {
     }
   }
   Post *current(){return selected>=0&&selected<posts.size()?&posts[selected]:nullptr;}
+  void rememberSelectedPostTags(){
+    postTagSnapshot.clear();
+    if(const Post *p=current()){
+      postTagSnapshot=p->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+      postTagSnapshot.removeDuplicates();
+      postTagSnapshot.sort(Qt::CaseInsensitive);
+    }
+  }
   QString cacheRoot() const {
     return QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation)+"/reread-booru/images";
   }
@@ -915,18 +923,13 @@ protected:
     if(key==READER_ZOOM_OUT&&page==LOOKUP&&lookupMode==0){changePrefix("DEL");return;}
     if(key==READER_OPTIONS){
       if(page==HOME){page=SETTINGS;settingIndex=0;chrome();}
-      else if(page==GALLERY){searchFromGallery=true;page=SEARCH;searchIndex=0;chrome();}
+      else if(page==GALLERY){rememberSelectedPostTags();searchFromGallery=true;page=SEARCH;searchIndex=0;chrome();}
       else if(page==SEARCH||page==LOOKUP)applySearch();
       else if(page==POST)download();
       return;
     }
     if(key==READER_PLAY&&page==POST){
-      postTagSnapshot.clear();
-      if(const Post *post=current()){
-        postTagSnapshot=post->tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-        postTagSnapshot.removeDuplicates();
-        postTagSnapshot.sort(Qt::CaseInsensitive);
-      }
+      rememberSelectedPostTags();
       page=SEARCH;searchFromGallery=true;searchIndex=queryTerms.size()+2;
       chrome();return;
     }
@@ -954,9 +957,11 @@ protected:
       }else if(action==3){
         if(host().username.isEmpty())toast("Configure a username first");
         else {
+          const int actionIndex=searchIndex-queryTerms.size();
           const QString value="fav:"+host().username;
           if(queryTerms.contains(value))queryTerms.removeAll(value);
           else queryTerms<<value;
+          searchIndex=qBound(0,queryTerms.size()+actionIndex,editorRows().size()-1);
           activeSearchChanged();
         }
       }else if(action==4)setTerm("order",{"","order:score","order:favcount","order:hot","order:id","order:random","order:updated"});
@@ -973,6 +978,7 @@ protected:
         }
       }else changePrefix(lookupKey(keyIndex));
     }else if(page==HOME){
+      postTagSnapshot.clear();
       if(homeIndex==1)initializeSearch("");
       else if(homeIndex==2){
         if(host().username.isEmpty()){toast("Add your username in web settings");return;}
