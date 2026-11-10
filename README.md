@@ -12,7 +12,7 @@ You need an Intel Reader, a **1 GB or larger USB stick**, and a **powered USB hu
 
 1. Download `reread-installer-usb.img` to your computer.
 2. Write it to your USB stick with [balenaEtcher](https://etcher.balena.io/) (**Flash from file → Select target → Flash**), or another disk-image writer. This erases the USB stick. No formatting or file copying is needed.
-3. Connect the stick to the Reader through the powered hub and select USB boot in its BIOS boot menu, using a USB keyboard if needed.
+3. Connect the stick to the Reader through the powered hub with a keyboard plugged in, press F11 as it POSTs, select your USB drive from the boot menu.
 4. Installation runs automatically and reboots. Keep the stick connected until **INSTALLATION COMPLETE**, then remove it during the reboot countdown.
 
 No source checkout, Docker, stock disk dump or registered USB drive is required. The published 0.17.0 installer includes **Camera**, **Software** and **Files**.
