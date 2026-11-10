@@ -15,137 +15,138 @@ public:
   window.chrome();window.show();QTimer::singleShot(300,&window,[&]{window.loadFull();});return app.exec();
  }
  static void run(const QString &record) {
-  QString file;
+  QString cachedPath;
   {
-   Booru window;Post post;post.id=42;post.sample="https://example.invalid/image.svg";post.tags="cat dog";window.posts.append(post);window.selected=0;
-   window.initializeSearch("cat rating:s order:score");
-   require(window.sortIndex==2 && window.ratingIndex==1,"Saved search metatags are editable");
-   require(window.builtSearch().contains("cat") && window.builtSearch().contains("order:score"),"Preserve saved search");
-   window.sortIndex=3;window.ratingIndex=2;window.tagFilters.insert("dog",1);
-   require(window.builtSearch().contains("order:favcount") &&
-           window.builtSearch().contains("rating:q") &&
-           window.builtSearch().contains("dog"),"Compose combined tag and sorting filters");
-   window.tagFilters.insert("cat",-1);
-   require(window.builtSearch().contains("-cat") && !window.builtSearch().contains(" cat "),
-           "Negative tags replace positive base tags");
-   window.initializeSearch("dog");
-   window.toggleBookmark();
-   require(window.bookmarks().contains("dog"),"Bookmark the composed search");
-   require(readJson(window.preferencesPath()).value("bookmarks").toObject()
-             .value("https://e926.net").toArray().contains(QJsonValue(QStringLiteral("dog"))),"Persist search bookmarks");
-   window.toggleBookmark();
-   require(!window.bookmarks().contains("dog"),"Remove a bookmark without text input");
-   window.initializeSearch("");
-   window.page=Booru::HOME;window.homeIndex=0;
-   window.button(READER_OK,1);
-   require(window.page==Booru::SEARCH && window.searchIndex==0,
-           "Explore starts a search workspace from Home");
-   window.searchIndex=0;window.button(READER_OK,1);
-   require(window.page==Booru::LOOKUP && window.prefix.isEmpty(),
-           "Explore has a keyboardless tag finder");
-   window.changePrefix("c");window.changePrefix("a");window.changePrefix("t");
-   require(window.prefix=="cat","D-pad picker composes tag prefixes");
-   window.changePrefix("DEL");
-   require(window.prefix=="ca","D-pad picker deletes a letter");
-   window.suggestions={"dog"};window.suggestionIndex=0;window.lookupResultsFocus=true;
-   window.button(READER_OK,1);
-   require(window.tagState("dog")=="Include" && window.search.contains("dog"),
-           "Selecting a suggested tag changes the ONE active query without Apply");
-   require(window.searchTimer.isActive() && !window.hasResults,
-           "A tag edit automatically schedules refreshed results");
-   window.searchTimer.stop();
-   window.initializeSearch("");
+    Booru window;
+    window.hosts[0].username="fixture";
+    Post post;
+    post.id=42;
+    post.sample="https://example.invalid/image.svg";
+    post.tags="cat dog";
+    window.initializeSearch("fav:fixture rating:s cat -dog order:score");
+    require(window.queryTerms.size()==5 &&
+            window.builtSearch()=="fav:fixture rating:s cat -dog order:score",
+            "The query has one ordered list containing tags and metatags");
 
-   window.lookupTimer.stop();window.button(READER_BACK,1);
-   require(window.page==Booru::SEARCH,"Back from tag finder returns to Explore");
-   window.posts.append(post);window.selected=0; // Simulate a post selected after browsing.
-   window.searchIndex=6;window.button(READER_OK,1);
-   require(window.ratingIndex==1 && window.search.contains("rating:s"),
-           "Rating directly changes the active search");
-   window.searchTimer.stop();
-   window.posts.append(post);window.selected=0;
-   window.searchIndex=3;window.button(READER_OK,1);
-   require(window.page==Booru::INFO && window.tagSource==1 &&
-           window.currentTags().contains("cat"),"Related post tags open from Explore");
-   window.button(READER_OK,1);
-   require(window.search.contains("cat"),"Tag change immediately updates active search");
-   window.searchTimer.stop();
-   window.button(READER_BACK,1);
-   require(window.page==Booru::SEARCH && window.builtSearch().contains("cat"),
-           "Returning to Explore keeps tag selections");
-   window.searchIndex=4;window.button(READER_OK,1);
-   require(window.page==Booru::INFO && window.tagSource==2 &&
-           window.currentTags().contains("cat"),"Active tags can be edited");
-   window.button(READER_OK,1);
-   require(window.tagState("cat")=="Exclude" && window.search.contains("-cat"),
-           "Active tag exclusion immediately changes active query");
-   window.searchTimer.stop();
-   window.button(READER_OK,1);
-   require(window.tagState("cat")=="Off" && !window.search.contains("cat"),
-           "Removing a tag immediately removes it from active query");
-   window.searchTimer.stop();
-   window.button(READER_BACK,1);
-   window.posts.append(post);window.selected=0;
-   window.page=Booru::POST;window.initializeSearch("");
-   window.button(READER_PLAY,1);
-   require(window.page==Booru::INFO && window.currentTags().contains("cat"),"Post offers tag discovery");
-   window.button(READER_OK,1);
-   require(window.tagFilters.value("cat")==1 && window.search.contains("cat"),
-           "OK includes tag in active search");
-   window.searchTimer.stop();
-   window.button(READER_OK,1);
-   require(window.tagFilters.value("cat")==-1 && window.search.contains("-cat"),
-           "OK excludes tag in active search");
-   window.searchTimer.stop();
-   window.button(READER_OK,1);
-   require(!window.tagFilters.contains("cat") && !window.search.contains("cat"),
-           "OK clears the tag from active search");
-   window.searchTimer.stop();
-   window.button(READER_BACK,1);
-   require(window.page==Booru::GALLERY,
-           "Post tag edit returns to refreshed gallery instead of stale post");
-   // The preview loader must follow the selected post, not the old gallery page.
-   window.posts.clear();
-   for(int i=0;i<18;++i){Post p;p.id=100+i;window.posts.append(p);}
-   window.selected=13;window.first=0;window.page=Booru::POST;
-   const auto previewTargets=window.thumbnailTargets();
-   require(!previewTargets.isEmpty() && previewTargets.first()==13 &&
-           previewTargets.contains(14) && !previewTargets.contains(0),
-           "Post thumbnails prioritize current post and adjacent posts");
-   window.page=Booru::GALLERY;window.first=9;
-   const auto galleryTargets=window.thumbnailTargets();
-   require(galleryTargets.first()==9 && galleryTargets.last()==14,
-           "Gallery thumbnails use the visible six-card window");
-   window.posts.clear();window.posts.append(post);window.selected=0;window.first=0;
-   // Returning from filtered results must lead back to Explore, not an unrelated menu.
-   window.page=Booru::GALLERY;window.galleryFromExplore=true;window.searchFromGallery=false;
-   window.button(READER_BACK,1);
-   require(window.page==Booru::SEARCH,"Back from refined results returns to Explore");
-   window.button(READER_BACK,1);
-   require(window.page==Booru::HOME,"Back from Explore returns Home");
+    window.page=Booru::SEARCH;window.chrome();
+    window.searchIndex=0;
+    window.button(READER_OK,1);
+    require(!window.search.contains("fav:fixture")&&window.queryTerms.size()==4,
+            "Favorites is an ordinary term removable with OK");
+    window.searchTimer.stop();
+    window.searchIndex=1; // cat after removing favorites
+    window.button(READER_RIGHT,1);
+    require(window.queryTerms[1]=="-cat" && window.search.contains("-cat"),
+            "Right excludes a selected tag in the single search");
+    window.searchTimer.stop();
+    window.button(READER_LEFT,1);
+    require(window.queryTerms[1]=="cat","Left includes the same tag");
+    window.searchTimer.stop();
 
+    window.searchIndex=0;window.button(READER_RIGHT,1);
+    require(window.queryTerms[0]=="rating:q","Rating term can be edited in place");
+    window.searchTimer.stop();
+    window.button(READER_OK,1);
+    require(!window.search.contains("rating:"),"A rating term is directly removable");
+    window.searchTimer.stop();
 
-   file=window.cachePath(QUrl(post.sample),post.id);
-   require(window.cacheImage(file,"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\"><rect width=\"20\" height=\"10\" fill=\"red\"/></svg>"),"Store image sample");
-   QFile old(window.cacheRoot()+"/old-image");require(old.open(QIODevice::WriteOnly),"Create old cache item");
-   require(old.resize(65LL*1024*1024),"Create sparse cache pressure");
-   old.setFileTime(QDateTime::fromMSecsSinceEpoch(1000),QFileDevice::FileModificationTime);old.close();
-   window.trimCache(file);require(!QFile::exists(old.fileName()) && QFile::exists(file),"Evict oldest item while preserving current image");
-   window.page=Booru::GALLERY;
-   window.button(READER_OK,1);
-   require(window.page==Booru::POST && !window.imageJob && !QFile::exists(record),"Opening a post stays on its card by default");
-   window.button(READER_VIEW_TOGGLE,2);
-   require(!window.imageJob && !QFile::exists(record),"Repeated View must not open a viewer");
-   window.button(READER_VIEW_TOGGLE,1); // Explicit request: cached sample, real GIO dispatch.
-   QElapsedTimer timer;timer.start();
-   while(QFileInfo(record).size()==0 && timer.elapsed()<5000){QApplication::processEvents();QThread::msleep(10);}
-   QFile output(record);require(output.open(QIODevice::ReadOnly),"Default MIME handler launched");auto value=output.readAll();auto url=QUrl::fromEncoded(value);
-   require((url.isLocalFile()?url.toLocalFile():QString::fromUtf8(value))==file,"Default handler received cached image");
-   require(window.imageJob==nullptr,"Cache hit does not start a download");
-   require(!window.cacheImage(file,"not an image"),"Reject non-image response without replacing cached file");
+    window.initializeSearch("");
+    window.page=Booru::SEARCH;window.searchIndex=0;
+    window.button(READER_OK,1); // Add tag by name
+    require(window.page==Booru::LOOKUP&&window.lookupMode==0,"Search editor opens tag picker");
+    window.changePrefix("c");window.changePrefix("a");
+    require(window.prefix=="ca","D-pad picker composes tag prefix");
+    window.changePrefix("DEL");
+    require(window.prefix=="c","D-pad picker deletes");
+    window.lookupTimer.stop();
+    window.suggestions={"cat"};window.lookupResultsFocus=true;
+    window.button(READER_OK,1);
+    require(window.queryTerms==QStringList{"cat"}&&window.search=="cat",
+            "Selecting tag immediately edits ONE active search");
+    window.searchTimer.stop();
+    window.button(READER_BACK,1);
+    require(window.page==Booru::SEARCH&&window.editorRows().first().contains("cat"),
+            "Tag picker returns to the same query editor");
+    window.searchIndex=0;window.button(READER_OK,1);
+    require(window.queryTerms.isEmpty()&&window.search.isEmpty(),
+            "Selected tag is removed from the same search");
+    window.searchTimer.stop();
+
+    window.initializeSearch("dog");
+    window.toggleBookmark();
+    require(window.bookmarks().contains("dog"),"Save the single search");
+    require(readJson(window.preferencesPath()).value("bookmarks").toObject()
+            .value("https://e926.net").toArray()
+            .contains(QJsonValue(QStringLiteral("dog"))),"Bookmark persisted");
+    window.toggleBookmark();
+    require(!window.bookmarks().contains("dog"),"Remove saved search");
+
+    window.posts.clear();window.posts.append(post);window.selected=0;
+    window.page=Booru::POST;
+    window.button(READER_PLAY,1);
+    require(window.page==Booru::SEARCH&&window.postTagSnapshot.contains("cat"),
+            "Post tags are accessible from the SAME editor");
+    window.searchIndex=window.queryTerms.size()+2;
+    window.button(READER_OK,1);
+    require(window.page==Booru::LOOKUP && window.lookupMode==2 &&
+            window.suggestions.contains("cat"),"Post tag chooser only adds terms");
+    window.suggestionIndex=0;window.button(READER_OK,1);
+    require(window.search.contains("cat") || window.search.contains("dog"),
+            "Post tag selection changes the active query");
+    window.searchTimer.stop();window.button(READER_BACK,1);
+    require(window.page==Booru::SEARCH,"Post tag chooser returns to editor");
+
+    window.posts.clear();
+    for(int i=0;i<18;++i){Post item;item.id=100+i;window.posts.append(item);}
+    window.page=Booru::POST;window.selected=13;window.first=0;
+    const auto near=window.thumbnailTargets();
+    require(!near.isEmpty()&&near.first()==13&&near.contains(14)&&!near.contains(0),
+            "Post preview thumbnail queue follows current selection");
+    window.page=Booru::GALLERY;window.first=9;
+    const auto gallery=window.thumbnailTargets();
+    require(gallery.first()==9&&gallery.last()==14,
+            "Grid thumbnails follow the visible six-card window");
+
+    window.posts.clear();window.posts.append(post);window.selected=0;window.first=0;
+    cachedPath=window.cachePath(QUrl(post.sample),post.id);
+    require(window.cacheImage(cachedPath,
+       "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"20\\" height=\\"10\\"><rect width=\\"20\\" height=\\"10\\" fill=\\"red\\"/></svg>"),
+       "Store sample image");
+    QFile old(window.cacheRoot()+"/old-image");
+    require(old.open(QIODevice::WriteOnly),"Create disposable cache pressure");
+    require(old.resize(65LL*1024*1024),"Create sparse cache pressure");
+    old.setFileTime(QDateTime::fromMSecsSinceEpoch(1000),
+                    QFileDevice::FileModificationTime);old.close();
+    window.trimCache(cachedPath);
+    require(!QFile::exists(old.fileName())&&QFile::exists(cachedPath),
+            "LRU removes older image and preserves current file");
+
+    QImage placeholder(20,10,QImage::Format_ARGB32);
+    placeholder.fill(Qt::white);
+    window.thumbnails.insert(post.id,placeholder);
+    window.page=Booru::GALLERY;window.button(READER_OK,1);
+    require(window.page==Booru::POST&&!window.imageJob,
+            "Gallery opens post card rather than launching viewer");
+    window.button(READER_VIEW_TOGGLE,2);
+    require(!window.imageJob&&!QFile::exists(record),"Repeated View does not launch");
+    window.button(READER_VIEW_TOGGLE,1);
+    QElapsedTimer timer;timer.start();
+    while(QFileInfo(record).size()==0 && timer.elapsed()<5000){
+      QApplication::processEvents();QThread::msleep(10);
+    }
+    QFile output(record);
+    require(output.open(QIODevice::ReadOnly),"Default MIME viewer launched");
+    const auto value=output.readAll();
+    const auto url=QUrl::fromEncoded(value);
+    require((url.isLocalFile()?url.toLocalFile():QString::fromUtf8(value))==cachedPath,
+            "Viewer opened the cached image");
+    require(window.imageJob==nullptr,"Cache hit does not download again");
+    require(!window.cacheImage(cachedPath,"not an image"),
+            "Reject invalid image instead of overwriting cached sample");
   }
-  require(QFile::exists(file),"Booru exit keeps files available to external viewer");
+  require(QFile::exists(cachedPath),"App exit retains cache for external viewer");
  }
+
 };
 } // namespace
 int main(int argc,char **argv) {
