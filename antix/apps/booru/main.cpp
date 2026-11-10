@@ -39,7 +39,7 @@ QString safeName(QString name) {
 
 class Booru : public Screen {
   friend class BooruTest;
-  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING, SETTINGS };
+  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING, SETTINGS, SEARCH };
   Page page=HOME;
   QNetworkAccessManager net;
   QList<Host> hosts;
@@ -47,9 +47,22 @@ class Booru : public Screen {
   QMap<int,QImage> thumbnails;
   QSet<int> pendingThumbnails, failedThumbnails;
   QList<QNetworkReply*> thumbJobs;
+  QTimer thumbTimer;
+  QHash<int,int> thumbAttempts;
+  QHash<int,qint64> thumbRetryAt;
+  qint64 lastThumbnailStart=0;
+  bool thumbnailsPaused=false;
   QNetworkReply *api=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
-  QString status, search, downloadName;
+  QString status, search, baseSearch, downloadName;
+  QMap<QString,int> tagFilters;
+  QStringList sorts={"Newest","Oldest","Top score","Most favorited","Hot","Random","Recently updated"};
+  QStringList sortTerms={"","order:id","order:score","order:favcount","order:hot","order:random","order:updated"};
+  QStringList ratings={"Any","Safe","Questionable","Explicit"};
+  QStringList mediaTypes={"Any","Still images","JPEG","PNG","GIF","Video"};
+  QStringList scoreLevels={"Any","10+","50+","100+"};
+  int sortIndex=0,ratingIndex=0,mediaIndex=0,scoreIndex=0,searchIndex=0,tagIndex=0;
+  bool tagsFromSearch=false;
   int settingIndex=0, hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
   bool autoOpenImages=false, more=false, loadingMore=false, favoritePending=false;
@@ -62,14 +75,43 @@ class Booru : public Screen {
     for(const auto &x:host().searches)s<<x;
     return s;
   }
+  QStringList currentTags() const {
+    if(selected<0||selected>=posts.size())return {};
+    auto result=posts[selected].tags.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+    result.removeDuplicates();result.sort(Qt::CaseInsensitive);return result;
+  }
+  QString builtSearch() const {
+    QStringList parts;
+    for(const auto &token:baseSearch.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts)) {
+      if(token.startsWith("order:") || (ratingIndex&&token.startsWith("rating:")) ||
+         (mediaIndex&&token.startsWith("type:")) || (scoreIndex&&token.startsWith("score:")))
+        continue;
+      const QString bare=token.startsWith("-")?token.mid(1):token;
+      if(tagFilters.contains(bare))continue;
+      parts<<token;
+    }
+    for(auto it=tagFilters.cbegin();it!=tagFilters.cend();++it)
+      if(it.value())parts << (it.value()<0?"-":"")+it.key();
+    if(sortIndex)parts<<sortTerms[sortIndex];
+    if(ratingIndex)parts<<"rating:"+QStringList{"","s","q","e"}[ratingIndex];
+    if(mediaIndex==1)parts<<"-type:mp4"<<"-type:webm"<<"-type:swf";
+    else if(mediaIndex>1)parts<<"type:"+QStringList{"","","jpg","png","gif","mp4"}[mediaIndex];
+    if(scoreIndex)parts<<"score:>="+QStringList{"","10","50","100"}[scoreIndex];
+    return parts.join(" ");
+  }
+  void applySearch() {
+    stop(api);loadingMore=false;
+    search=builtSearch();page=GALLERY;chrome();fetchPage();
+  }
   void chrome() {
     showHeader=false;
 
     if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Searches"}};
+    else if(page==SEARCH) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_OPTIONS,"Apply"},{READER_BACK,"Results"}};
     else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Home"}};
-    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_BACK,"Searches"}};
+    else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Search"},{READER_BACK,"Searches"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
-    else if(page==INFO) controls={{READER_BACK,"Post"}};
+    else if(page==INFO) controls={{READER_UP,"Tags"},{READER_OK,"Include / Exclude"},{READER_OPTIONS,"Search"},{READER_BACK,"Return"}};
     else if(page==DOWNLOADING) controls={{READER_BACK,"Cancel"}};
     else controls={{READER_BACK,"Gallery"}};
     update();
@@ -124,7 +166,8 @@ class Booru : public Screen {
     loadingMore=append;
     if(!append){
       for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
-      thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();thumbnails.clear();
+      thumbTimer.stop();thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();thumbnails.clear();
+      thumbAttempts.clear();thumbRetryAt.clear();
       posts.clear();selected=0;first=0;
       pageNumber=1;more=false;
     }
@@ -180,28 +223,70 @@ class Booru : public Screen {
     fetchPage(true);
   }
   void requestThumbs(){
-    if(page!=GALLERY)return;
+    if(page!=GALLERY||thumbnailsPaused)return;
+    // e621 limits aggregate requests; pace CDN previews rather than opening bursts.
+    // Keep two in flight at most and retry transient failures without a tight loop.
+    const qint64 now=QDateTime::currentMSecsSinceEpoch();
+    if(thumbJobs.size()>=2)return;
+    const int interval=650;
+    if(lastThumbnailStart>0 && now-lastThumbnailStart<interval){
+      if(!thumbTimer.isActive())thumbTimer.start(int(lastThumbnailStart+interval-now));
+      return;
+    }
+    qint64 soonest=0;
     for(int i=first;i<qMin(first+6,posts.size());++i){
       const Post &p=posts[i];
-      if(thumbnails.contains(p.id)||pendingThumbnails.contains(p.id)||failedThumbnails.contains(p.id)||thumbJobs.size()>=3)continue;
-      QUrl u=imageUrl(p.preview);if(!u.isValid())continue;
-      int id=p.id;auto r=net.get(request(u,false));thumbJobs<<r;pendingThumbnails.insert(id);
-      connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){if(n>512*1024)r->abort();});
+      if(thumbnails.contains(p.id)||pendingThumbnails.contains(p.id)||
+         failedThumbnails.contains(p.id))continue;
+      const QUrl u=imageUrl(p.preview);
+      if(!u.isValid()){failedThumbnails.insert(p.id);continue;}
+      if(thumbRetryAt.value(p.id)>now){
+        const qint64 wait=thumbRetryAt.value(p.id)-now;
+        if(!soonest||wait<soonest)soonest=wait;
+        continue;
+      }
+      const int id=p.id;lastThumbnailStart=now;
+      auto r=net.get(request(u,false));thumbJobs<<r;pendingThumbnails.insert(id);
+      connect(r,&QNetworkReply::downloadProgress,this,[r](qint64 n,qint64){
+        if(n>512*1024)r->abort();
+      });
       connect(r,&QNetworkReply::finished,this,[this,r,id]{
         thumbJobs.removeAll(r);pendingThumbnails.remove(id);
-        QByteArray b=r->readAll();bool ok=r->error()==QNetworkReply::NoError&&b.size()<=512*1024;
-        r->deleteLater();
-        if(!ok)failedThumbnails.insert(id);
+        const int code=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray b=r->readAll();
+        const bool ok=r->error()==QNetworkReply::NoError&&code>=200&&code<300&&b.size()<=512*1024;
         if(ok){
-          QBuffer buffer(&b);buffer.open(QIODevice::ReadOnly);QImageReader reader(&buffer);
-          reader.setAutoTransform(true);QSize sz=reader.size();
-          if(sz.isValid())reader.setScaledSize(sz.scaled(320,260,Qt::KeepAspectRatio));
-          QImage im=reader.read();if(!im.isNull())thumbnails.insert(id,im);
-          else failedThumbnails.insert(id);
+          QBuffer buffer(const_cast<QByteArray*>(&b));buffer.open(QIODevice::ReadOnly);
+          QImageReader reader(&buffer);reader.setAutoTransform(true);
+          const QSize native=reader.size();
+          if(native.isValid())reader.setScaledSize(native.scaled(320,260,Qt::KeepAspectRatio));
+          const QImage im=reader.read();
+          if(!im.isNull()){
+            thumbnails.insert(id,im);thumbAttempts.remove(id);thumbRetryAt.remove(id);
+            // Bound decoded image memory on this 512 MiB device.
+            while(thumbnails.size()>60){
+              int oldest=thumbnails.firstKey();
+              thumbnails.remove(oldest);
+            }
+          } else failedThumbnails.insert(id);
+        } else if((code==429||code==503||code==502||code==504||
+                   r->error()==QNetworkReply::TimeoutError) && thumbAttempts.value(id)<3){
+          const int count=thumbAttempts.value(id)+1;thumbAttempts.insert(id,count);
+          int seconds=qMin(30,2*(1<<count));
+          bool headerOk=false;
+          const int retry=r->rawHeader("Retry-After").toInt(&headerOk);
+          if(headerOk)seconds=qBound(1,retry,60);
+          thumbRetryAt.insert(id,QDateTime::currentMSecsSinceEpoch()+seconds*1000LL);
+        } else {
+          failedThumbnails.insert(id);
         }
+        r->deleteLater();
         if(page==GALLERY){requestThumbs();update();}
       });
+      if(!thumbTimer.isActive())thumbTimer.start(interval);
+      return;
     }
+    if(soonest&&!thumbTimer.isActive())thumbTimer.start(qBound(1,int(soonest),60000));
   }
   Post *current(){return selected>=0&&selected<posts.size()?&posts[selected]:nullptr;}
   QString cacheRoot() const {
@@ -314,8 +399,9 @@ class Booru : public Screen {
   }
   void back(){
     if(page==SETTINGS){page=HOME;}
+    else if(page==SEARCH){page=GALLERY;}
+    else if(page==INFO){page=tagsFromSearch?SEARCH:POST;}
     else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
-    else if(page==INFO){page=POST;}
     else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
     else if(page==GALLERY){stop(api);loadingMore=false;page=HOME;homeIndex=qBound(0,homeIndex,sections().size()-1);}
     else {close();return;}
@@ -323,6 +409,8 @@ class Booru : public Screen {
   }
   void navigate(int dx,int dy){
     if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
+    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,6);}
+    else if(page==INFO){tagIndex=qBound(0,tagIndex+dx+dy,qMax(0,currentTags().size()-1));}
     else if(page==HOME){
       int max=sections().size()-1;homeIndex=qBound(0,homeIndex+dx+dy,max);
 
@@ -345,6 +433,11 @@ protected:
     const QRect area=r.adjusted(4,3,-4,-3);
     if(page==SETTINGS) {
       list(p,area,{"Server", "Open images automatically"},{host().name,autoOpenImages?"On":"Off · use View on a post"},settingIndex);
+    } else if(page==SEARCH) {
+      const int active=int(tagFilters.size());
+      list(p,area,{"Tags from selected post","Sort","Rating","Media type","Minimum score","Clear filters","Apply search"},
+        {QString::number(active)+" tag filters",sorts[sortIndex],ratings[ratingIndex],
+         mediaTypes[mediaIndex],scoreLevels[scoreIndex],"Restore search defaults",builtSearch().left(90)},searchIndex);
     } else if(page==HOME) {
       const QStringList names=sections();
       QStringList details;
@@ -380,10 +473,13 @@ protected:
     } else if(page==POST||page==INFO||page==CONFIRM||page==DOWNLOADING) {
       Post *post=current();
       if(page==INFO) {
-        // Post information is content, not a second application title bar.
-        label(p,QRect(area.x()+8,area.y()+4,area.width()-16,45),
-              post?"Post #"+QString::number(post->id)+" · "+post->rating:"Post",27,true);
-        text(p,area.adjusted(12,56,-12,-8),post?post->tags:"",21);
+        const QStringList names=currentTags();
+        QStringList details;
+        for(const auto &t:names) {
+          const int rule=tagFilters.value(t);
+          details<<(rule==1?"Include":rule==-1?"Exclude":"Not filtered");
+        }
+        list(p,area,names,details,tagIndex);
       } else {
         if(post) {
           QRect picture(area.x()+8,area.y()+8,area.width()/2-20,area.height()-24);
@@ -424,18 +520,38 @@ protected:
     else if(page==POST&&key==READER_VIEW_TOGGLE&&state==1){loadFull();}
     else if(key==READER_OPTIONS&&state==1){
       if(page==HOME){page=SETTINGS;settingIndex=0;status.clear();chrome();}
+      else if(page==GALLERY){page=SEARCH;searchIndex=0;status.clear();chrome();}
+      else if(page==SEARCH||page==INFO)applySearch();
       else if(page==POST)download();
-    }else if(key==READER_PLAY&&state==1&&page==POST){page=INFO;chrome();}
+    }else if(key==READER_PLAY&&state==1&&page==POST){page=INFO;tagsFromSearch=false;tagIndex=0;chrome();}
     else if(key==READER_OK&&state==1) {
       if(page==SETTINGS){
         if(settingIndex==0){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;}
         else {autoOpenImages=!autoOpenImages;writeJson(preferencesPath(),{{"auto_open_images",autoOpenImages}});}
         update();
+      } else if(page==SEARCH){
+        if(searchIndex==0){page=INFO;tagsFromSearch=true;tagIndex=0;chrome();}
+        else if(searchIndex==1){sortIndex=(sortIndex+1)%sorts.size();update();}
+        else if(searchIndex==2){ratingIndex=(ratingIndex+1)%ratings.size();update();}
+        else if(searchIndex==3){mediaIndex=(mediaIndex+1)%mediaTypes.size();update();}
+        else if(searchIndex==4){scoreIndex=(scoreIndex+1)%scoreLevels.size();update();}
+        else if(searchIndex==5){tagFilters.clear();sortIndex=ratingIndex=mediaIndex=scoreIndex=0;update();}
+        else applySearch();
+      } else if(page==INFO){
+        const auto tags=currentTags();
+        if(tagIndex<tags.size()){
+          const QString t=tags[tagIndex];const int current=tagFilters.value(t);
+          if(current==0)tagFilters.insert(t,1);
+          else if(current==1)tagFilters.insert(t,-1);
+          else tagFilters.remove(t);
+          update();
+        }
       }else if(page==HOME){
         if(homeIndex==1){
           if(host().username.isEmpty()){status="Set account in web Apps / Booru settings";update();return;}
           search="fav:"+host().username;
         } else search=homeIndex==0?QString():host().searches.value(homeIndex-2);
+        baseSearch=search;tagFilters.clear();sortIndex=ratingIndex=mediaIndex=scoreIndex=0;
         pageNumber=1;page=GALLERY;chrome();fetchPage();
       }else if(page==GALLERY&&!posts.isEmpty()){page=POST;chrome();if(autoOpenImages)loadFull();maybeLoadMore();}
       else if(page==POST)favorite();
@@ -443,12 +559,14 @@ protected:
   }
 public:
   Booru():Screen("booru"){
+    thumbTimer.setSingleShot(true);
+    connect(&thumbTimer,&QTimer::timeout,this,[this]{requestThumbs();});
     autoOpenImages=readJson(preferencesPath()).value("auto_open_images").toBool(false);
     if(!parseConfig()){Host x;x.name="Configuration error";x.url="https://e926.net";hosts<<x;}
     chrome();
   }
   ~Booru() override {
-    stop(api);stop(imageJob);stop(transfer);
+    thumbTimer.stop();stop(api);stop(imageJob);stop(transfer);
     for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
     if(saving)saving->cancelWriting();
   }
