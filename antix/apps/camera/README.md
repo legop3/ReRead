@@ -1,6 +1,6 @@
 # Camera
 
-An independent Qt/LinuxFB application, packaged as `reread-app-camera`.
+An independent Qt/X11 application, packaged as `reread-app-camera`.
 `main.cpp` contains the complete on-device Camera UI and its local service client;
 `reread-camera.svg` is its standard hicolor application icon. `VERSION` sets the
 app package version. Home launches its ordinary `.desktop` entry.

@@ -1,3 +1,7 @@
+Current canonical map, icons and physical locations: [antix/input/README.md](antix/input/README.md).
+
+The following are historical owner measurements before udev normalization.
+
 top buttons:
 shoot: code 141 scan 0x66
 hold: scan 0x65 unknown scan

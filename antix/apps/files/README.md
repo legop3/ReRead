@@ -1,6 +1,6 @@
 # Files
 
-An independent Qt/LinuxFB program, packaged as `reread-app-files`. Its standard
+An independent Qt/X11 program, packaged as `reread-app-files`. Its standard
 `.desktop` entry and `reread-files` SVG icon put it on Home. Removing the app
 removes the browser, never shared files. No background file service is added.
 
@@ -33,7 +33,7 @@ antix/apps/files/build.sh build/antix/ui
 
 `test-navigation.cpp` exercises navigation, image zoom, text/details, live updates,
 canceling deletion, and confirmed deletion of disposable files/folders offscreen.
-It also runs the real entry point to verify that Qt's duplicate LinuxFB keyboard
+It also runs the real entry point to verify that raw evdev keyboard
 handler is disabled. It never targets the Reader's shared data.
 
 Hardware validation for 0.1.1: one evdev OK press enters exactly one directory;

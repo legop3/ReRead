@@ -1,4 +1,4 @@
-"""Optional QEMU framebuffer boot/input check; never touches host disks or a Reader."""
+"""Optional QEMU X11 boot/input check; never touches host disks or a Reader."""
 import argparse
 import json
 from pathlib import Path
@@ -53,7 +53,7 @@ def wait_screen(name, predicate, timeout=90):
 
 try:
     vm.expect('boot:')
-    # Provide a VM framebuffer for the same LinuxFB UI used on the Reader.
+    # Provide a VM framebuffer for the same X11/fbdev UI used on the Reader.
     vm.send('serial vga=0x315')
     vm.expect('ReRead base: antiX Core', timeout=180)
     vm.expect('/boot')
@@ -86,6 +86,6 @@ try:
         time.sleep(2)
         assert 'running' in vm.monitor('info status'), 'Wake caused another suspend'
         wait_screen('ui-vm-resumed-' + str(cycle), lambda frame: accent(frame, 0) > 100)
-    print('SSD boot, Qt framebuffer input, app return and two VM suspend/resume cycles: PASS', flush=True)
+    print('SSD boot, Qt X11 input, app return and two VM suspend/resume cycles: PASS', flush=True)
 finally:
     vm.close()

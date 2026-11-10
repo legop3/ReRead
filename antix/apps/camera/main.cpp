@@ -345,10 +345,9 @@ public:
   }
 };
 int main(int argc, char **argv) {
-  qputenv("QT_QPA_FB_DISABLE_INPUT", "1");
   QApplication app(argc, argv);
   app.setFont(QFont("DejaVu Sans"));
   Camera window;
-  window.showFullScreen();
+  window.show();
   return app.exec();
 }

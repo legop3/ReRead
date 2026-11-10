@@ -3,7 +3,6 @@
 #include "reader-device.hpp"
 #include <QtWidgets>
 int main(int argc, char **argv) {
-  qputenv("QT_QPA_FB_DISABLE_INPUT", "1"); // Device owns evdev in this example.
   QApplication app(argc, argv);
   QWidget window;
   window.setWindowTitle("Independent app");
@@ -17,16 +16,23 @@ int main(int argc, char **argv) {
   layout.addWidget(&status);
   ReRead::Device device;
   int presses = 0;
-  device.onButton([&](reader_button id, int value) {
-    if (value != 1) return;
-    if (id == READER_OK) count.setText("Select presses: " + QString::number(++presses));
-    if (id == READER_BACK || id == READER_FAVORITES) app.quit();
-  });
+  // Ordinary Qt keyboard shortcuts, independent of ReRead input adapters.
+  QObject::connect(new QShortcut(QKeySequence(Qt::Key_Return),&window),&QShortcut::activated,
+                   [&]{count.setText("Select presses: "+QString::number(++presses));});
+  QObject::connect(new QShortcut(QKeySequence(Qt::Key_Escape),&window),&QShortcut::activated,
+                   &app,&QApplication::quit);
+  QObject::connect(new QShortcut(QKeySequence(Qt::Key_Favorites),&window),&QShortcut::activated,
+                   &app,&QApplication::quit);
   device.onNotice([&](const QString &message) { status.setText(message); });
   device.onIdle([&](bool dimmed) { status.setText(dimmed ? "Idle" : "Back returns to Home"); });
   device.onHold([&](bool locked) { status.setText(locked ? "Hold locked" : "Back returns to Home"); });
   device.onResume([&] { window.update(); });
-  window.showFullScreen();
+  QObject::connect(&app,&QGuiApplication::applicationStateChanged,&device,
+                   [&](Qt::ApplicationState state) {
+    device.setActive(window.isVisible() && state==Qt::ApplicationActive);
+  });
+  window.resize(960,544);
+  window.show();
   device.setActive(true);
   int result = app.exec();
   device.setActive(false);

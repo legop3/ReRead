@@ -994,7 +994,6 @@ public:
   }
 };
 int main(int argc,char **argv) {
-  qputenv("QT_QPA_FB_DISABLE_INPUT","1");
   QApplication app(argc,argv);app.setFont(QFont("DejaVu Sans"));
-  Archive window;window.showFullScreen();return app.exec();
+  Archive window;window.show();return app.exec();
 }

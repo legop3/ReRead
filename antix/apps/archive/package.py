@@ -41,12 +41,12 @@ def main():
     subprocess.run(["g++", "-m32", "-std=c++17", "-O2", "-fPIC",
                     "-Wall", "-Wextra", "-Werror", *widget_flags,
                     "-I" + str(BASE / "antix"), "-shared",
-                    "-Wl,-soname,libreader-ui.so.3",
+                    "-Wl,-soname,libreader-ui.so.4",
                     str(ui / "reader-ui.cpp"), "-L" + str(BUILD),
                     "-lreader-device", *widget_libs,
-                    "-o", str(BUILD / "libreader-ui.so.3")],
+                    "-o", str(BUILD / "libreader-ui.so.4")],
                    check=True, env=compiler_env)
-    subprocess.run(["ln", "-sfn", "libreader-ui.so.3",
+    subprocess.run(["ln", "-sfn", "libreader-ui.so.4",
                     str(BUILD / "libreader-ui.so")], check=True)
     binary = BUILD / "reader-archive-app"
     flags = pkg("Qt5Widgets", "Qt5Network")
@@ -67,7 +67,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: net
 Priority: optional
-Depends: reread (>= 0.13.0), libqt5network5t64, libmpg123-0t64, libasound2t64
+Depends: reread (>= 0.17.0), libqt5network5t64, libmpg123-0t64, libasound2t64
 Description: Internet Archive browser for ReRead
  Browse audio, texts and image collections with artwork and physical controls.
  Stream media in memory, or explicitly download selected files.

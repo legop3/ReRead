@@ -55,13 +55,14 @@ def build(base, build_dir, output, kernel=KERNEL, version=None):
                          ('manager.py', 'reader_manager.py'), ('repositories.py', 'reader_repositories.py'),
                          ('files.sh', 'reader-files'), ('software.py', 'reader-software'), ('update.py', 'reader-update')]:
         copy(base / 'antix' / source, 'usr/local/sbin/' + name, 0o755)
+    subprocess.run(['python3',str(base/'antix/input/generate.py'),'--check'],check=True)
     ui = build_dir / 'ui'
     subprocess.run([str(base / 'antix/ui/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/camera/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/software/build.sh'), str(ui)], check=True)
     subprocess.run([str(base / 'antix/apps/files/build.sh'), str(ui)], check=True)
-    copy(ui / 'libreader-ui.so.3', 'usr/lib/libreader-ui.so.3', 0o755)
-    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.3')
+    copy(ui / 'libreader-ui.so.4', 'usr/lib/libreader-ui.so.4', 0o755)
+    (root / 'usr/lib/libreader-ui.so').symlink_to('libreader-ui.so.4')
     copy(ui / 'libreader-device.so.1', 'usr/lib/libreader-device.so.1', 0o755)
     (root / 'usr/lib/libreader-device.so').symlink_to('libreader-device.so.1')
     copy(base / 'antix/ui/reader-device.hpp', 'usr/include/reread/reader-device.hpp')
@@ -75,6 +76,13 @@ Cflags: -I/usr/include/reread
 """)
     copy(ui / 'reader-launcher', 'usr/local/bin/reader-launcher', 0o755)
     copy(ui / 'reader-session', 'usr/local/libexec/reader-session', 0o755)
+    copy(base / 'antix/x11/xorg.conf', 'usr/share/reader/xorg.conf')
+    copy(base / 'antix/x11/session.sh', 'usr/local/libexec/reader-x11-session', 0o755)
+    for asset in (base / 'antix/input/icons').glob('*.svg'):
+        copy(asset, 'usr/share/icons/hicolor/scalable/actions/' + asset.name)
+    copy(base / 'antix/input/buttons.json', 'usr/share/reread/buttons.json')
+    copy(base / 'antix/input/README.md', 'usr/share/doc/reread/buttons.md')
+    copy(base / 'antix/input/button-reference.svg', 'usr/share/doc/reread/button-reference.svg')
     copy(base / 'antix/input/70-reread-keyboard.hwdb', 'usr/lib/udev/hwdb.d/70-reread-keyboard.hwdb')
     copy(base / 'antix/input/reader-volume.conf', 'etc/triggerhappy/triggers.d/reader-volume.conf')
     copy(base / 'antix/power-hardware.sh', 'etc/elogind/system-sleep/50-reread', 0o755)
@@ -86,7 +94,7 @@ Cflags: -I/usr/include/reread
     copy(base / 'antix/reader-keys.h', 'usr/include/reread/reader-keys.h')
     write('usr/lib/i386-linux-gnu/pkgconfig/reread-ui.pc', f"""prefix=/usr
 Name: ReRead UI
-Description: Optional ReRead framebuffer drawing helpers
+Description: Optional ReRead Qt drawing helpers
 Version: {version}
 Requires: reread-device Qt5Widgets
 Libs: -L/usr/lib -lreader-ui
@@ -140,9 +148,9 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
+Depends: xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
 Recommends: reread-app-files
-Breaks: reread-app-camera (<< 0.3.0)
+Breaks: reread-app-camera (<< 0.6.0), reread-app-software (<< 0.3.0), reread-app-files (<< 0.3.0), reread-app-archive (<< 0.7.0), reread-app-booru (<< 0.2.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
  Wi-Fi setup, platform updates and application management.
@@ -170,7 +178,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.16.0), libqt5network5t64
+Depends: reread (>= 0.17.0), libqt5network5t64
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
 """)
@@ -202,7 +210,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: reread (>= 0.16.0)
+Depends: reread (>= 0.17.0)
 Description: ReRead Software manager
  Check and install system updates, browse applications, and install or remove apps.
 """)
@@ -234,7 +242,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: utils
 Priority: optional
-Depends: reread (>= 0.16.0)
+Depends: reread (>= 0.17.0)
 Description: ReRead Files
  Browse shared folders, view photos and text, inspect and delete files.
 """)

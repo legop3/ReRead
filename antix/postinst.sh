@@ -47,6 +47,9 @@ for service in elogind reader-hotkeys; do
         ln -s "/etc/sv/$service" "$link"
     fi
 done
+# Stop the display before changing the live keyboard transport assignments.
+# evdev/Qt window ownership is supplied by the new core; existing app IDs stay stable.
+if [ "$live" = yes ]; then sv -w 15 down reader || true; fi
 udevadm hwdb --update
 if [ "$live" = yes ]; then
     udevadm trigger --subsystem-match=input --action=change

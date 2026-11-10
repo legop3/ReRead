@@ -9,14 +9,14 @@ symbols. Status colors describe actual battery state. Application icons remain
 ordinary SVG theme assets, and apps can use standard Qt palette roles. There
 are no shadows, gradients or glow effects.
 
-Home and the [Camera app](../apps/camera/README.md) use Qt 5 Widgets on the LinuxFB platform plugin. Independent
-apps choose their own UI; neither the Screen base class nor these libraries are
-mandatory. See [the program contract](../apps/README.md). Qt paints straight to
-Linux `/dev/fb0`; there is no desktop, X server, Wayland compositor, browser, or
-GPU requirement. The Reader exposes a 960 × 544, 32-bit framebuffer with a
-4096-byte stride. Qt handles that layout. Use large pixel fonts and keep all
-controls inside `Screen::content()`: a fixed 14-pixel inset on all four sides accounts for the overlapping bezel.
-It is not a user preference.
+Home and the [Camera app](../apps/camera/README.md) use Qt 5 Widgets on X11.
+Xorg uses the Reader's existing framebuffer through its unaccelerated fbdev driver;
+Matchbox maximizes applications and owns focus/stacking. No desktop environment,
+compositor or GPU acceleration is required. Independent apps can use any X11
+compatible toolkit; Screen and Device are optional helpers. See
+[the program contract](../apps/README.md). The logical screen is 960 × 544.
+Keep controls inside `Screen::content()`: the fixed 14-pixel inset on all sides
+accounts for the overlapping bezel. It is not a user preference.
 
 Home uses a three-column icon grid, with six tiles per page and D-pad navigation.
 It launches installed applications, browses photos/files, and opens system
@@ -29,7 +29,7 @@ packages and device administration. It does not run device applications.
 ## Controls and ownership
 
 `libreader-device.so.1` is an optional QtCore/QtDBus navigation/session adapter. It owns no
-renderer or app lifecycle. `libreader-ui.so.3` supplies optional drawing helpers:
+renderer or app lifecycle. `libreader-ui.so.4` supplies optional drawing helpers:
 a safe content rectangle, selection list, notices and physical-button icons. Apps choose whether to
 show a compact header (`showHeader`), grouped icon/action controls (`controls`
 and `showControls`), or overlay controls on their own content (`controlsOverlay`).
@@ -44,23 +44,24 @@ own Linux input/rendering without either library. The Camera service client
 belongs to the Camera executable, not the shared drawing library. `reader-keys.h` is the stable semantic button enumeration; apps
 never depend on historical stock labels or raw scan codes.
 
-Only the foreground process paints the framebuffer and handles navigation.
-Input devices are shared nonexclusively with the system services; apps must not
-use EVIOCGRAB to steal Power/volume events. Home closes its navigation readers
-while an app runs. On exit or launch failure it returns and reopens them. Apps
-exit on Back at their root or Favorites (Home). GIO handles standard desktop entries and process spawning; the launch callback
-sets Linux's parent-death signal. A Linux pidfd lets Qt observe app exit without
-polling. Home returns after normal exit, a crash or a launch error. No shell is
-added by the launcher. USB arrow/Enter/Escape keys also work.
+Xorg delivers keyboard events to the focused window. No GUI app opens evdev or
+writes `/dev/fb0`. Home launches ordinary desktop entries through GIO; GLib reaps
+its launch processes and the window manager exposes Home when an app closes.
+Home does not hide, watch child PIDs or set parent-death signals on applications.
+Apps can open other windows/processes normally; their lifetime is independent of
+Home. xinit owns the X server lifetime and runit supervises the PAM session.
 
-Udev hwdb applies the model-specific control map. Zoom now uses Linux's actual
-Zoom In (418) and Zoom Out (419) codes; ReRead's semantic button IDs are stable.
-Elogind owns Power and automatic suspend, and triggerhappy owns global volume
-shortcuts through ALSA. Hold events lock ordinary controls (pressed unlocked,
-released locked); initial state before the first event is not yet established.
-Guide supplies contextual help; Options opens app settings. The helper observes
-central dim/Hold/audio state and login1's `PrepareForSleep` signal. There is no
-per-app suspend timer or mixer/power-button handler.
+The canonical physical key map and reusable freedesktop SVG button icons are
+[documented here](../input/README.md). Semantic `READER_*` IDs remain stable. UI library version 4 uses ordinary Qt
+key press/release handlers and managed windows. All in-repo apps are rebuilt
+for this interface; framebuffer-era app binaries are not supported.
+
+Elogind owns Power, suspend policy and inhibitors. Triggerhappy owns global
+volume shortcuts through ALSA. The session adapter owns physical Hold state,
+including an X input disable/enable on the built-in keyboard. Qt focus/resume
+releases cannot lock the Reader. Guide supplies contextual help; Options opens
+app settings. Helpers observe central dim/Hold/audio state and login1 lifecycle;
+there is no per-app mixer, power policy, raw keyboard listener or suspend timer.
 
 ## Collection views
 
@@ -69,9 +70,8 @@ and info rectangles, the visible row range and row geometry. `listInfoRow` paint
 selection; `label` supplies consistent typography and elision. Files and Software
 use these helpers while supplying their own icons, columns and detail content.
 Keep `list` for short action menus and confirmations. The helpers are optional
-and add no model, application lifecycle or background service. These helper symbols
-are additive to UI SONAME 3 and first ship in ReRead 0.16.0; apps using them must
-depend on `reread (>= 0.16.0)`.
+and add no model, application lifecycle or background service. They are part of
+UI SONAME 4; rebuilt apps depend on `reread (>= 0.17.0)`.
 
 ## App packaging and SDK
 
@@ -97,7 +97,7 @@ The camera releases its preview lease while dimmed; hardware closes after the
 lease expires. `auto_suspend_seconds` defaults to 0 (Off); Settings / Power offers
 Off, 2, 5, 10 or 30 minutes without button activity. It applies on battery and
 external power. The PAM-backed `reader-service` starts a tracked seat0 session
-using standard setsid/su; `reader-session` is the GUI-free framebuffer adapter.
+using standard setsid/su; `reader-session` is the GUI-free X session adapter.
 It monitors evdev activity, updates the console last-input timestamp used by
 elogind, and dims the Linux backlight. This is a tty session: elogind only accepts
 `SetIdleHint` for X11/Wayland/Mir. On idle-policy changes, the adapter restarts
@@ -131,10 +131,10 @@ Qt references: [embedded Linux](https://doc.qt.io/qt-6/embedded-linux.html),
 [Linux device input](https://doc.qt.io/qt-6/inputs-linux-device.html). Qt 5 is used
 because Debian supplies its maintained i386 packages for this Reader's CPU.
 
-The 0.7.0 split uses device SONAME 1 and optional UI SONAME 3. Upgrade core and
-Camera 0.3.0 together when moving from the earlier combined helper. The core package declares a conflict
-with the old Camera binary instead of letting it start with an incompatible
-SDK. Future apps should declare the minimum core version for their SDK.
+The X11 platform uses device SONAME 1 and UI SONAME 4. Install ReRead 0.17.0
+and the rebuilt applications together. Package dependencies prevent mixing this
+platform with the earlier app binaries. New applications declare the minimum
+core version required by their SDK.
 
 Settings / Power / Auto sleep on selects Battery only or Battery and external
 power. `auto_suspend_battery_only` defaults to false for compatibility. Battery-only

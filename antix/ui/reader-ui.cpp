@@ -1,6 +1,18 @@
 #include "reader-ui.hpp"
 #include <memory>
 namespace ReRead {
+static reader_button keyButton(QKeyEvent *e) {
+  auto id=e->nativeScanCode()>=8 ? reader_button_from_key(e->nativeScanCode()-8) : READER_NONE;
+  if(id!=READER_NONE)return id;
+  switch(e->key()) {
+    case Qt::Key_Up:return READER_UP; case Qt::Key_Down:return READER_DOWN;
+    case Qt::Key_Left:return READER_LEFT; case Qt::Key_Right:return READER_RIGHT;
+    case Qt::Key_Return:case Qt::Key_Enter:return READER_OK;
+    case Qt::Key_Escape:return READER_BACK;case Qt::Key_F1:return READER_GUIDE;
+    case Qt::Key_Menu:return READER_OPTIONS;case Qt::Key_Plus:return READER_ZOOM_IN;
+    case Qt::Key_Minus:return READER_ZOOM_OUT;default:return READER_NONE;
+  }
+}
 Screen::Screen(const QString &name) : title(name) {
   QPalette colors;
   colors.setColor(QPalette::Window, QColor("#000000"));
@@ -17,7 +29,7 @@ Screen::Screen(const QString &name) : title(name) {
   colors.setColor(QPalette::ToolTipBase, Qt::white);
   colors.setColor(QPalette::ToolTipText, Qt::black);
   setPalette(colors);
-  setWindowFlags(Qt::FramelessWindowHint);
+  setWindowFlags(Qt::Window);
   setCursor(Qt::BlankCursor);
   resize(960, 544);
   device = new Device(this);
@@ -34,6 +46,9 @@ Screen::Screen(const QString &name) : title(name) {
   device->onHold([this](bool) { update(); });
   device->onNotice([this](const QString &message) { toast(message); });
   device->onResume([this] { update(); });
+  connect(qGuiApp,&QGuiApplication::applicationStateChanged,this,[this](Qt::ApplicationState state){
+    device->setActive(isVisible() && state==Qt::ApplicationActive);
+  });
   connect(&clock, &QTimer::timeout, this, [this] {
     if (isVisible())
       update();
@@ -69,10 +84,6 @@ void Screen::hideEvent(QHideEvent *event) {
   device->setActive(false);
   QWidget::hideEvent(event);
 }
-void Screen::foreground(bool enabled) {
-  if (enabled) { showFullScreen(); update(); }
-  else { device->setActive(false); hide(); }
-}
 void Screen::dispatch(reader_button id, int value) {
   if (isVisible()) device->dispatch(id, value);
 }
@@ -81,60 +92,21 @@ QRect Screen::content() const {
   return safeArea().adjusted(0, showHeader ? 56 : 0, 0,
       showControls && !controlsOverlay && !controls.isEmpty() ? -56 : 0);
 }
-// Simple vector glyphs follow the symbols on the physical Reader controls.
-// They are drawn in code so they stay crisp at the panel's unusual scale.
+// Physical control glyphs are standard SVG icon-theme assets.
 void Screen::buttonIcon(QPainter &p, const QRect &r, reader_button id) {
-  p.save();
-  p.translate(r.center());
-  p.scale(r.width() / 32.0, r.height() / 32.0);
-  p.setPen(QPen(QColor("#ffffff"), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-  p.setBrush(Qt::NoBrush);
-  switch (id) {
-  case READER_BACK: {
-    QPolygonF arrow; arrow << QPointF(10,10) << QPointF(-9,-9)
-                         << QPointF(-9,3) << QPointF(-9,-9) << QPointF(3,-9);
-    p.drawPolyline(arrow); break;
+  static QHash<int,QIcon> icons;
+  if(!icons.contains(id)) {
+    QString name=QString::fromLatin1(reader_button_icon_name(id));
+    icons.insert(id,QIcon::fromTheme(name,QIcon("/usr/share/icons/hicolor/scalable/actions/"+name+".svg")));
   }
-  case READER_OPTIONS:
-    p.drawRoundedRect(QRectF(-12,-11,24,22),2,2);
-    for (int y : {-6,0,6}) p.drawLine(-7,y,7,y);
-    break;
-  case READER_VIEW_TOGGLE:
-    p.drawRect(QRectF(-13,-10,18,15));
-    p.drawRect(QRectF(-5,-3,18,15)); break;
-  case READER_OK:
-    p.drawEllipse(QRectF(-11,-11,22,22));
-    p.setBrush(QColor("#ffffff")); p.drawEllipse(QRectF(-3,-3,6,6)); break;
-  case READER_SHOOT:
-    p.drawRoundedRect(QRectF(-13,-8,26,18),3,3);
-    p.drawEllipse(QRectF(-5,-5,10,10)); p.drawLine(-6,-12,5,-12); break;
-  case READER_UP: case READER_DOWN: case READER_LEFT: case READER_RIGHT: {
-    if (id == READER_DOWN) p.rotate(180);
-    if (id == READER_LEFT) p.rotate(-90);
-    if (id == READER_RIGHT) p.rotate(90);
-    p.drawLine(0,11,0,-10); p.drawLine(0,-10,-7,-3); p.drawLine(0,-10,7,-3); break;
-  }
-  case READER_ZOOM_IN: case READER_ZOOM_OUT:
-    p.drawLine(-10,0,10,0);
-    if (id == READER_ZOOM_IN) p.drawLine(0,-10,0,10);
-    break;
-  case READER_GUIDE:
-    { auto f=p.font(); f.setPixelSize(29); p.setFont(f);
-      p.drawText(QRect(-16,-16,32,32),Qt::AlignCenter,"?"); } break;
-  case READER_PLAY:
-    p.drawLine(-10,0,10,0); p.drawLine(10,0,3,-7); p.drawLine(10,0,3,7); break;
-  default: break;
-  }
-  p.restore();
+  icons.value(id).paint(&p,r);
 }
 void Screen::text(QPainter &p, const QRect &r, const QString &t, int size,
                   QColor color) {
   auto f = p.font();
   f.setPixelSize(size);
   p.setFont(f);
-  // Older app binaries compiled the previous light-text default into calls.
-  // Preserve their ABI while allowing them to inherit the new foreground.
-  if (!color.isValid() || color == QColor("#eef3f8"))
+  if (!color.isValid())
     color = palette().color(QPalette::WindowText);
   p.setPen(color);
   p.drawText(r, Qt::AlignVCenter | Qt::TextWordWrap, t);
@@ -276,31 +248,16 @@ void Screen::toast(const QString &t) {
     }
   });
 }
-void Screen::keyPressEvent(QKeyEvent *e) {
-  reader_button id = READER_NONE;
-  switch (e->key()) {
-  case Qt::Key_Up:
-    id = READER_UP;
-    break;
-  case Qt::Key_Down:
-    id = READER_DOWN;
-    break;
-  case Qt::Key_Left:
-    id = READER_LEFT;
-    break;
-  case Qt::Key_Right:
-    id = READER_RIGHT;
-    break;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    id = READER_OK;
-    break;
-  case Qt::Key_Escape:
-    id = READER_BACK;
-    break;
-  default:
-    break;
-  }
-  dispatch(id, e->isAutoRepeat() ? 2 : 1);
+void Screen::keyPressEvent(QKeyEvent *event) {
+  auto id=keyButton(event);
+  if(id==READER_NONE) { QWidget::keyPressEvent(event); return; }
+  dispatch(id,event->isAutoRepeat()?2:1);
+  event->accept();
+}
+void Screen::keyReleaseEvent(QKeyEvent *event) {
+  auto id=keyButton(event);
+  if(id==READER_NONE) { QWidget::keyReleaseEvent(event); return; }
+  if(!event->isAutoRepeat())dispatch(id,0);
+  event->accept();
 }
 } // namespace ReRead

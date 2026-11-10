@@ -1,6 +1,6 @@
 # ReRead build and system notes
 
-ReRead is a handheld platform built on **antiX 26.1 Core i386**, kernel `5.10.256-antix.1-486-smp`. It uses antiX's package management and normal runit startup, with a Qt LinuxFB button interface and no desktop. There is one maintained OS image.
+ReRead is a handheld platform built on **antiX 26.1 Core i386**, kernel `5.10.256-antix.1-486-smp`. It uses antiX's package management and normal runit startup, with a Qt X11 button interface and no desktop. There is one maintained OS image.
 
 ## Releases and updates
 
@@ -169,7 +169,7 @@ platform-upgrade and app-management checks in a disposable chroot, including
 settings/data preservation and a web-server restart during installation. It
 uses synthetic data and never connects to a Reader.
 
-An optional end-to-end installer check is `python3 /work/antix/test-installer.py` inside the builder. It writes only a disposable virtual SSD, checks automatic reboot, and boots that SSD to check `/boot`, input and sleep. A direct Qt framebuffer boot, card navigation, Camera/Back handoff and two-cycle VM suspend/resume check is `python3 /work/antix/test.py` inside the builder. Pass `--device /dev/kvm` to `docker run` for acceleration when available; QEMU otherwise uses software emulation. SSD installation, display, all 19 controls, and Power-button sleep have been confirmed on the Reader.
+An optional end-to-end installer check is `python3 /work/antix/test-installer.py` inside the builder. It writes only a disposable virtual SSD, checks automatic reboot, and boots that SSD to check `/boot`, input and sleep. A direct Qt X11 boot, card navigation, Camera/Back handoff and two-cycle VM suspend/resume check is `python3 /work/antix/test.py` inside the builder. Pass `--device /dev/kvm` to `docker run` for acceleration when available; QEMU otherwise uses software emulation. SSD installation, display, all 19 controls, and Power-button sleep have been confirmed on the Reader.
 
 ## Hardware and maintenance
 
@@ -280,7 +280,7 @@ its hardware hook. A failed Camera preparation cancels sleep. Logs are
 
 Settings / Power also provides automatic sleep after 2, 5, 10 or 30 minutes
 without input, default Off, on battery and AC. `auto_suspend_seconds` is saved in
-`/etc/reader/display.json`; the PAM-managed framebuffer adapter reports activity
+`/etc/reader/display.json`; the PAM-managed X session adapter reports activity
 to login1 and generates elogind's idle-action configuration. This works across
 apps, including apps that use no ReRead helper. Standard idle inhibitors keep
 playback/downloads or package operations awake. Global volume shortcuts run in

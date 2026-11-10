@@ -8,7 +8,7 @@ QJsonObject readJson(const QString &path);
 void writeJson(const QString &path, const QJsonObject &value);
 void command(const QString &program, const QStringList &args,
              std::function<void(QByteArray)> done = {}, QObject *owner = nullptr);
-// Optional QtCore/QtDBus foreground input and session-state adapter. System
+// Optional QtCore/QtDBus semantic dispatch and session-state adapter. System
 // services own power policy, volume and dimming. This object owns no renderer.
 class Device : public QObject {
   Q_OBJECT

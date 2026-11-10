@@ -13,7 +13,7 @@ You need an Intel Reader, a **1 GB or larger USB stick**, and a **powered USB hu
 3. Connect the stick to the Reader through the powered hub and select USB boot in its BIOS boot menu, using a USB keyboard if needed.
 4. Installation runs automatically and reboots. Keep the stick connected until **INSTALLATION COMPLETE**, then remove it during the reboot countdown.
 
-No source checkout, Docker, stock disk dump or registered USB drive is required. The published 0.14.0 installer includes **Camera** and **Software**; update ReRead and its apps through Software to get the current interface and independent **Files** app. New source builds include all three.
+No source checkout, Docker, stock disk dump or registered USB drive is required. The installer includes **Camera**, **Software** and **Files**. Use Software to update the platform and apps or install additional applications.
 
 ### Linux command line
 
@@ -56,7 +56,7 @@ services, interfaces and formats before building replacements; keep custom code
 focused on Reader-specific hardware support and the ReRead experience. Apps remain
 independent Linux programs with optional shared helpers.
 
-ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux evdev/udev buttons, elogind power policy and inhibitors, triggerhappy global hotkeys, UPower battery policy over Linux power_supply, and wpa_supplicant networking. Native helpers use libc and normal Linux interfaces. GLib/GIO handles desktop entries and app launching. Qt Widgets/LinuxFB provides the embedded UI. Reader-specific code covers its physical control map, display configuration, USB controller driver, camera USB/FPGA protocol and stock fan reset. The native camera engine uses libusb and libjpeg-turbo, with recovered stock image processing. The installer also uses antiX; no stock kernel or vendor executables are required.
+ReRead uses antiX/runit, apt/dpkg packages, ALSA audio and mixer state, Linux evdev/udev buttons, elogind power policy and inhibitors, triggerhappy global hotkeys, UPower battery policy over Linux power_supply, and wpa_supplicant networking. Native helpers use libc and normal Linux interfaces. GLib/GIO handles desktop entries and app launching. Qt Widgets/X11 and Matchbox provide the embedded UI. Reader-specific code covers its physical control map, display configuration, USB controller driver, camera USB/FPGA protocol and stock fan reset. The native camera engine uses libusb and libjpeg-turbo, with recovered stock image processing. The installer also uses antiX; no stock kernel or vendor executables are required.
 
 ## Project files
 

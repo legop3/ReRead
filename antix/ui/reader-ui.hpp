@@ -12,6 +12,7 @@ protected:
   void hideEvent(QHideEvent *) override;
   void paintEvent(QPaintEvent *) override;
   void keyPressEvent(QKeyEvent *) override;
+  void keyReleaseEvent(QKeyEvent *) override;
   virtual void idleChanged(bool) {}
   virtual void draw(QPainter &, const QRect &) = 0;
   virtual void button(reader_button, int) = 0;
@@ -29,7 +30,6 @@ public:
   ~Screen() override;
   QRect content() const;
   void dispatch(reader_button id, int value);
-  void foreground(bool enabled);
   void toast(const QString &text);
   struct ListInfoLayout {
     QRect entries, info;

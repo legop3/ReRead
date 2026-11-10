@@ -1,11 +1,7 @@
 #include <gio/gdesktopappinfo.h>
 #include "reader-ui.hpp"
 #include <sys/statvfs.h>
-#include <sys/prctl.h>
-#include <sys/syscall.h>
-#include <sys/wait.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <unistd.h>
 using namespace ReRead;
 class Launcher : public Screen {
@@ -21,9 +17,6 @@ class Launcher : public Screen {
   static QString filesRoot() { return qEnvironmentVariable("REREAD_FILES_DIR", "/var/lib/reader/files"); }
   QList<QIcon> icons;
   static constexpr int columns = 3, pageSize = 6;
-  GPid child = 0;
-  int childFd = -1;
-  QSocketNotifier *childWatch = nullptr;
   QMap<QString, int> positions;
   bool adjustmentPage() const {
     return page == "display" || page == "sound" || (page == "power" && selected == 0);
@@ -162,36 +155,10 @@ class Launcher : public Screen {
     selected = positions.value(page);
     refresh();
   }
-  static void childSetup(gpointer data) {
-    // GIO owns Exec parsing/spawning; retain the foreground parent-death rule.
-    pid_t parent = *static_cast<pid_t *>(data);
-    if (prctl(PR_SET_PDEATHSIG,SIGTERM) != 0 || getppid() != parent) _exit(127);
-  }
-  static void launched(GDesktopAppInfo *, GPid pid, gpointer data) {
-    auto self = static_cast<Launcher *>(data);
-    self->child = pid;
-    self->childFd = syscall(SYS_pidfd_open,pid,0);
-  }
-  void appFinished() {
-    int status = 0;
-    if (waitpid(child,&status,WNOHANG) != child) return;
-    g_spawn_close_pid(child); child = 0;
-    if (childWatch) { childWatch->setEnabled(false);childWatch->deleteLater();childWatch=nullptr; }
-    if (childFd >= 0) { ::close(childFd);childFd=-1; }
-    foreground(true); refresh();
-    if (!WIFEXITED(status) || WEXITSTATUS(status))
-      toast("App closed unexpectedly. See apps.log over USB.");
-  }
   void launch(const App &app) {
     GDesktopAppInfo *entry = g_desktop_app_info_new_from_filename(app.desktop.toUtf8());
     if (!entry) { toast("Unable to read this application entry.");return; }
-    // Foreground ownership needs a direct process, not terminal/D-Bus activation.
-    if (g_desktop_app_info_get_boolean(entry,"Terminal") ||
-        g_desktop_app_info_get_boolean(entry,"DBusActivatable")) {
-      g_object_unref(entry);toast("This app needs a direct foreground executable.");return;
-    }
     auto context = g_app_launch_context_new();
-    g_app_launch_context_unsetenv(context,"QT_QPA_FB_DISABLE_INPUT");
     QString data = "/var/lib/reader/apps/" + app.id;
     QDir().mkpath(data);
     g_app_launch_context_setenv(context,"REREAD_FILES_DIR",filesRoot().toUtf8());
@@ -199,25 +166,15 @@ class Launcher : public Screen {
     g_app_launch_context_setenv(context,"READER_APP_DATA_DIR",data.toUtf8());
     g_app_launch_context_setenv(context,"XDG_DATA_HOME",data.toUtf8());
     int log = open("/var/log/reader/apps.log",O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC,0644);
-    pid_t parent = getpid(); GError *error = nullptr;
-    foreground(false);
+    GError *error = nullptr;
     gboolean ok = g_desktop_app_info_launch_uris_as_manager_with_fds(
-      entry,nullptr,context,G_SPAWN_DO_NOT_REAP_CHILD,childSetup,&parent,
-      launched,this,STDIN_FILENO,log,log,&error);
+      entry,nullptr,context,G_SPAWN_DEFAULT,nullptr,nullptr,
+      nullptr,nullptr,STDIN_FILENO,log,log,&error);
     if (log >= 0) ::close(log);
     g_object_unref(context);g_object_unref(entry);
-    if (!ok || !child) {
-      if (error) {qWarning() << error->message;g_error_free(error);}
-      foreground(true);refresh();toast("Unable to start this app.");return;
-    }
-    if (childFd >= 0) {
-      childWatch = new QSocketNotifier(childFd,QSocketNotifier::Read,this);
-      connect(childWatch,&QSocketNotifier::activated,this,[this](int){appFinished();});
-    } else {
-      // The supported Reader kernel has pidfd_open. Reap an already-exited
-      // child immediately; report an unsupported kernel rather than lose Home.
-      kill(child,SIGKILL);waitpid(child,nullptr,0);g_spawn_close_pid(child);child=0;
-      foreground(true);refresh();toast("Cannot track the application process.");
+    if (!ok) {
+      if(error){qWarning()<<error->message;g_error_free(error);}
+      toast("Unable to start this app.");
     }
   }
   void button(reader_button id, int value) override {
@@ -398,11 +355,6 @@ class Launcher : public Screen {
   }
 
 public:
-  ~Launcher() override {
-    if (child) kill(child,SIGTERM);
-    delete childWatch;
-    if (childFd >= 0) ::close(childFd);
-  }
   Launcher() : Screen("ReRead") {
     refresh();
     auto watcher = new QFileSystemWatcher(this);
@@ -416,7 +368,7 @@ public:
 int main(int argc, char **argv) {
   qputenv("XDG_CURRENT_DESKTOP","ReRead");
   QApplication app(argc, argv);
-  // LinuxFB has no desktop platform theme to populate icon search paths.
+  // No desktop environment supplies icon search paths; use standard data locations.
   QStringList iconPaths{QDir::homePath() + "/.icons"}, pixmapPaths;
   for (const auto &path : QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation)) {
     iconPaths << path + "/icons";
@@ -428,6 +380,6 @@ int main(int argc, char **argv) {
   QIcon::setFallbackThemeName("hicolor");
   app.setFont(QFont("DejaVu Sans"));
   Launcher window;
-  window.showFullScreen();
+  window.show();
   return app.exec();
 }

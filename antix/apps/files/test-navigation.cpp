@@ -12,11 +12,14 @@ static void settle() {
   while(clock.elapsed()<100) {QCoreApplication::processEvents();QThread::msleep(5);}
 }
 // Exercise the real entry point too: constructing Files directly misses
-// LinuxFB setup, and two active input readers turn one OK into multiple opens.
+// entry setup; GUI apps must leave raw evdev ownership to system services.
 static void checkEntryInput() {
   if(!qEnvironmentVariableIsSet("REREAD_FILES_ENTRY_TEST"))return;
   QTimer::singleShot(0,[]{
-    QCoreApplication::exit(qEnvironmentVariable("QT_QPA_FB_DISABLE_INPUT")=="1"?0:1);
+    bool raw=false;
+    for(const auto &fd:QDir("/proc/self/fd").entryInfoList(QDir::Files|QDir::System))
+      if(fd.symLinkTarget().startsWith("/dev/input/"))raw=true;
+    QCoreApplication::exit(raw?1:0);
   });
 }
 Q_COREAPP_STARTUP_FUNCTION(checkEntryInput)
@@ -26,12 +29,11 @@ int main(int argc,char **argv) {
   qputenv("REREAD_FILES_DIR",fixture.path().toUtf8());
   QProcess entry;
   auto environment=QProcessEnvironment::systemEnvironment();
-  environment.remove("QT_QPA_FB_DISABLE_INPUT");
   environment.insert("REREAD_FILES_ENTRY_TEST","1");
   entry.setProcessEnvironment(environment);
   entry.start(QCoreApplication::applicationFilePath(),{"--entry-test"});
   require(entry.waitForFinished(5000) && entry.exitStatus()==QProcess::NormalExit && entry.exitCode()==0,
-          "Real entry point disables Qt's duplicate LinuxFB input handler and exits cleanly");
+          "Real entry point uses focused toolkit input without raw evdev readers");
   QDir().mkpath(fixture.path()+"/A/Camera");
   QImage image(16,16,QImage::Format_RGB32);image.fill(Qt::green);
   require(image.save(fixture.path()+"/A/Camera/photo.png"),"Create fixture");

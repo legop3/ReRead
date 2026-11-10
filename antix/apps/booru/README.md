@@ -1,6 +1,6 @@
 # booru for ReRead
 
-Independent i386 Qt5 framebuffer app for e926/e621-compatible API hosts. Its UI uses ReRead's black/white palette, native selection colors, standard list and button-icon controls, without a top header or a custom top strip. No browser engine, X11, RetroArch, keyboard, platform web changes or global configuration changes.
+Independent i386 Qt5 X11 app for e926/e621-compatible API hosts. Its UI uses ReRead's black/white palette, native selection colors, standard list and button-icon controls, without a top header or a custom top strip. Uses ordinary X11 windows without a browser engine or desktop environment.
 
 ## Build
 

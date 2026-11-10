@@ -1,9 +1,5 @@
 #include "reader-device.hpp"
 #include <QtDBus>
-#include <fcntl.h>
-#include <linux/input.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
 namespace ReRead {
 QJsonObject readJson(const QString &path) {
   QFile f(path);
@@ -51,9 +47,6 @@ void command(const QString &program, const QStringList &args,
 // keys, idle policy and the backlight; apps observe state and login1 lifecycle.
 struct Device::State {
   Device &owner;
-  struct Input { int fd; QSocketNotifier *notifier; };
-  QList<Input> inputs;
-  QTimer discovery;
   QFileSystemWatcher status;
   bool active=false, locked=false, dimmed=false, sleeping=false;
   int noticeSequence=-1;
@@ -66,12 +59,10 @@ struct Device::State {
     QObject::connect(&status,&QFileSystemWatcher::fileChanged,&owner,[this]{
       status.addPath("/run/reader-session.json");readStatus();
     });
-    QObject::connect(&discovery,&QTimer::timeout,&owner,[this]{discover();});
     readStatus();
     QDBusConnection::systemBus().connect("org.freedesktop.login1","/org/freedesktop/login1",
       "org.freedesktop.login1.Manager","PrepareForSleep",&owner,SLOT(sleepChanged(bool)));
   }
-  ~State(){closeInputs();}
   void readStatus() {
     auto data=readJson("/run/reader-session.json");
     bool nextLocked=data.value("locked").toBool(),nextDimmed=data.value("dimmed").toBool();
@@ -82,35 +73,10 @@ struct Device::State {
       noticeHandler(data.value("volume").toString());
     noticeSequence=seq;
   }
-  void closeInputs(){for(auto input:inputs){delete input.notifier;::close(input.fd);}inputs.clear();}
-  void discover(){
-    for(const auto &name:QDir("/dev/input").entryList({"event*"},QDir::System|QDir::Files)){
-      QString path="/dev/input/"+name;bool found=false;
-      for(auto input:inputs){char link[256]={};int n=::readlink(("/proc/self/fd/"+QString::number(input.fd)).toLocal8Bit(),link,255);
-        if(n>0&&path==QString::fromLocal8Bit(link,n))found=true;}
-      if(found)continue;
-      int fd=::open(path.toLocal8Bit(),O_RDONLY|O_NONBLOCK|O_CLOEXEC);if(fd<0)continue;
-      unsigned long types=0;ioctl(fd,EVIOCGBIT(0,sizeof(types)),&types);
-      if(!(types&(1UL<<EV_KEY))){::close(fd);continue;}
-      auto notifier=new QSocketNotifier(fd,QSocketNotifier::Read,&owner);inputs.append({fd,notifier});
-      QObject::connect(notifier,&QSocketNotifier::activated,&owner,[this,fd](int){
-        QPointer<Device> alive(&owner);input_event events[32];ssize_t size;
-        while((size=::read(fd,events,sizeof(events)))>0)
-          for(int n=0;n<size/int(sizeof(input_event));++n){
-            const auto &event=events[n];if(event.type!=EV_KEY)continue;
-            reader_button id=READER_NONE;for(const auto &key:reader_keys)if(event.code==key.key){id=key.id;break;}
-            if(event.code==KEY_ESC)id=READER_BACK;
-            dispatch(id,event.value);if(!alive||!active)return;
-          }
-        if(size==0||(size<0&&(errno==ENODEV||errno==EIO)))
-          for(int i=0;i<inputs.size();++i)if(inputs[i].fd==fd){inputs[i].notifier->setEnabled(false);inputs[i].notifier->deleteLater();::close(fd);inputs.removeAt(i);break;}
-      });
-    }
-  }
   void dispatch(reader_button id,int value){
     if(!active||id==READER_NONE)return;
     if(id==READER_POWER||id==READER_VOLUME_UP||id==READER_VOLUME_DOWN)return;
-    if(id==READER_HOLD){locked=value==0;if(holdHandler)holdHandler(locked);return;}
+    if(id==READER_HOLD)return; // The session owns Hold; X11 may synthesize releases on wake.
     if(!locked&&buttonHandler)buttonHandler(id,value);
   }
 };
@@ -119,9 +85,9 @@ Device::~Device()=default;
 void Device::setActive(bool value){
   if(state->active==value)return;
   state->active=value;
-  if(value){state->readStatus();state->discover();state->discovery.start(5000);
+  if(value){state->readStatus();
     if(state->idleHandler)state->idleHandler(state->dimmed||state->sleeping);
-  }else{state->discovery.stop();state->closeInputs();}
+  }else if(state->idleHandler)state->idleHandler(true);
 }
 bool Device::isActive()const{return state->active;}
 bool Device::isLocked()const{return state->locked;}

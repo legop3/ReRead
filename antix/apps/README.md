@@ -30,9 +30,9 @@ expansion. Standard Hidden/NoDisplay, TryExec and OnlyShowIn/NotShowIn rules app
 the desktop identity is `ReRead`. GIO handles quoting, escapes, field codes and
 `Path=` working directories. Apps start without documents/URLs, so the document
 field codes receive no inputs. No shell is added by the launcher.
-Use `Terminal=false` and omit `DBusActivatable` (or set it false): a foreground
-app must be a direct process so Home can track its lifetime and reclaim the
-screen. Terminal apps and D-Bus-activated services do not fit that contract.
+Use `Terminal=false` for the on-device UI. GIO owns desktop-entry activation; a foreground
+app can use normal independent windows and processes. D-Bus activation is handled
+by GIO. Terminal=true needs a separately installed terminal emulator.
 Use one entry per foreground app. Its desktop ID without `.desktop` is the
 stable UI identity, e.g. `reread-camera`.
 
@@ -69,23 +69,21 @@ services, touch raw hardware already owned by a service, or reset global setting
 
 ## Independent programs and lifecycle
 
-An app is its own Linux executable, launched as a child process. No ReRead base
+An app is its own Linux executable. No ReRead base
 class, plugin API, shared UI, theme or runtime library is required. Choose your
 own toolkit, widgets, layout and rendering. Home only launches the desktop
-entry, releases its framebuffer/input, and returns when the program exits.
-It also sets Linux's parent-death signal before exec, so the main app terminates
-if Home dies even when the app links no ReRead library. Foreground programs must
-not daemonize; clean up their own worker processes on exit.
+entry through GIO. Xorg and Matchbox handle focus and stacking; Home stays mapped beneath app
+windows. Apps have independent lifetimes and clean up their own workers on exit.
 
 There are two **optional** helpers for Qt applications:
 
 - `reread-device` / `reader-device.hpp`: a GUI-free QtCore/QtDBus
-  `ReRead::Device` object for foreground navigation and observing shared Hold,
+  `ReRead::Device` object for observing shared Hold,
   dimming, volume notices and login1 sleep/wake events. It owns no window or
-  power policy. Register callbacks with `onButton`, `onIdle`, `onHold`,
+  power policy or input listener. Register callbacks with `onIdle`, `onHold`,
   `onNotice` and `onResume`; call `setActive(true)` only while foreground and
-  `setActive(false)` when handing back navigation. `activity()` reports any
-  additional user input to the framebuffer-session adapter.
+  `setActive(false)` when backgrounded. `activity()` reports any
+  additional user input to the session adapter.
 - `reread-ui` / `reader-ui.hpp`: optional Qt Widgets drawing helpers and a
   `Screen` widget, used by Home and Camera by choice. Lists, button glyphs,
   margins, headers, notices and rotation are conveniences, not an app format.
@@ -102,14 +100,12 @@ subclass and does not link `libreader-ui`. After building the libraries with
 `antix/ui/build.sh`, `antix/apps/examples/build.sh` builds this developer example
 inside the builder. It is not installed as a default app.
 
-When choosing `Device`, disable duplicate toolkit evdev handling before creating
-QApplication with `qputenv("QT_QPA_FB_DISABLE_INPUT", "1")`; the example and Camera
-do this. Home does not force that setting on independent applications. Apps using
-their own toolkit input or raw Linux evdev can ignore both optional libraries.
-They use the same button IDs/keycode table in `reader-keys.h` and existing system
-helpers below. Power, volume and automatic sleep work independently of the
-app. Release input/resources on exit; do not take EVIOCGRAB on shared keyboards
-or system input devices, which would block global controls.
+Device supplies status/lifecycle callbacks and optional semantic dispatch; it
+opens no keyboard device and creates no renderer. Without Screen, use ordinary
+Qt shortcuts/widgets or your toolkit's focused X11 input. The example handles
+Return, Escape and Favorites through QShortcut. Screen provides the optional
+physical-button adapter for apps choosing that helper. Power, volume and sleep
+work independently of either library.
 
 Button values follow Linux evdev: 0 released, 1 pressed and 2 repeated. Ignore
 release for ordinary navigation; use value 1 for actions that must fire only once.
@@ -120,11 +116,11 @@ animations or polling; use Qt socket notifiers, signals and timers only as neede
 Use Device's `onIdle` callback, or Screen's `idleChanged(bool)` when choosing
 that widget, to stop/restart expensive activity during dimming.
 
-Only one foreground app renders the framebuffer and handles navigation. The launcher releases its navigation readers
-before starting an app and returns automatically when it exits, including crashes.
-Stop activity and close local-service requests on exit. Launch failures return to
-Home with feedback. The launcher terminates the main app on parent death rather than leaving input
-grabs behind. An app must not start a second framebuffer renderer.
+Apps render ordinary X11 windows and receive focused keyboard events. They must
+not write `/dev/fb0`, open raw evdev for GUI navigation, or take exclusive input
+grabs. Multiple independent windows/processes are supported by the window manager;
+Home does not own application lifetime. Use standard Qt widgets/X11 input or the
+optional Screen helper. See [buttons and icons](../input/README.md).
 
 ## Platform services
 
@@ -150,7 +146,7 @@ when preparation must finish before suspend; delay has a configured time limit.
 This is the existing [login1 interface](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html),
 not an application-framework API.
 
-The PAM-managed framebuffer session updates its console input timestamp from
+The PAM-managed X session updates its console input timestamp from
 raw evdev activity, which elogind uses for tty idle detection. Its
 small adapter handles transient Linux-backlight dimming and publishes optional
 UI state in `/run/reader-session.json`: `dimmed`, `locked`, `volume` and

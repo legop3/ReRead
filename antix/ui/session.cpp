@@ -1,9 +1,8 @@
-// Framebuffer-session integration: evdev activity -> console activity, Linux
+// X session integration: evdev activity -> console activity, Linux
 // backlight dimming and UI status. Elogind owns suspend policy and inhibitors.
 #include "reader-device.hpp"
 #include <QtDBus>
 #include <linux/input.h>
-#include <linux/kd.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/signalfd.h>
@@ -30,11 +29,18 @@ class Session : public QObject {
   QDBusInterface manager;
   QString sessionPath, policy;
   QDBusUnixFileDescriptor externalPowerInhibitor;
-  bool dimmed = false, locked = false, sleeping = false;
+  bool dimmed = false, locked = false, sleeping = false, inputLocked = false;
   QString volume;
   int noticeSequence = 0;
-  int tty = -1, oldKeyboardMode = -1;
+  int tty = -1;
   void publish() {
+    // Disable only the Reader keyboard in X; raw Hold/Power and system services
+    // keep receiving Linux events, including the event that unlocks it.
+    if(inputLocked!=locked && !qEnvironmentVariableIsEmpty("DISPLAY")) {
+      if(QProcess::execute("xinput", {locked?"disable":"enable", "AT Translated Set 2 keyboard"})==0)
+        inputLocked=locked;
+      else qWarning("Cannot apply Reader Hold state to X input");
+    }
     writeJson(statusPath, {{"dimmed",dimmed},{"locked",locked},
                           {"volume",volume},{"notice_sequence",noticeSequence}});
   }
@@ -45,7 +51,7 @@ class Session : public QObject {
   void activity() {
     if (sleeping) return;
     // elogind uses tty atime for console sessions. evdev bypasses tty input
-    // while K_OFF is active, so record that activity here, as a tty read would.
+    // while Xorg owns the console, so record activity here as a tty read would.
     const timespec times[2] = {{0,UTIME_NOW},{0,UTIME_OMIT}};
     if (tty >= 0 && futimens(tty,times) != 0)
       qWarning("Cannot update console activity: %s",strerror(errno));
@@ -122,7 +128,7 @@ class Session : public QObject {
         while ((size=read(fd,events,sizeof(events))) > 0)
           for (int i=0;i<size/int(sizeof(input_event));++i) {
             auto event=events[i];
-            if (event.type != EV_KEY) continue;
+            if (event.type != EV_KEY || sleeping) continue;
             if (event.code == 152 && event.value != 2) {
               locked = event.value == 0; publish();
             }
@@ -140,21 +146,20 @@ public slots:
   void sleepChanged(bool value) {
     sleeping = value;
     if (value) dim.stop();
-    else { dimmed = false; publish(); configure(); }
+    else { dimmed = false; inputLocked=!locked; publish(); configure(); }
   }
 public:
   explicit Session(QObject *parent=nullptr) : QObject(parent),
     manager("org.freedesktop.login1","/org/freedesktop/login1",
             "org.freedesktop.login1.Manager",QDBusConnection::systemBus()) {
     QDBusReply<QDBusObjectPath> result = manager.call("GetSessionByPID",uint(getpid()));
-    if (!result.isValid()) qFatal("Framebuffer session is not registered: %s",qPrintable(result.error().message()));
+    if (!result.isValid()) qFatal("Reader session is not registered: %s",qPrintable(result.error().message()));
     sessionPath = result.value().path();
     QDBusConnection::systemBus().connect("org.freedesktop.login1","/org/freedesktop/login1",
        "org.freedesktop.login1.Manager","PrepareForSleep",this,SLOT(sleepChanged(bool)));
     const char *console = ttyname(STDIN_FILENO);
     tty = console ? open(console,O_RDWR|O_CLOEXEC) : -1;
-    if (tty < 0) qFatal("Framebuffer session has no controlling console");
-    if (tty >= 0 && ioctl(tty,KDGKBMODE,&oldKeyboardMode) == 0) ioctl(tty,KDSKBMODE,K_OFF);
+    if (tty < 0) qFatal("Reader session has no controlling console");
     dim.setSingleShot(true);
     connect(&dim,&QTimer::timeout,this,[this]{ dimmed=true; brightness(10); publish(); });
     auto settings = new QFileSystemWatcher(this);
@@ -204,7 +209,7 @@ public:
     home.terminate(); if(!home.waitForFinished(2000)) {home.kill();home.waitForFinished();}
     for (auto input:inputs) { delete input.notifier; close(input.fd); }
     brightness(readJson("/etc/reader/display.json").value("brightness_percent").toInt(100));
-    if(tty>=0) {if(oldKeyboardMode>=0)ioctl(tty,KDSKBMODE,oldKeyboardMode);close(tty);}
+    if(tty>=0)close(tty);
     QFile::remove(statusPath);
   }
 };
