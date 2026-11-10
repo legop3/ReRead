@@ -12,7 +12,6 @@ using namespace ReRead;
 namespace {
 struct Host {
   QString name, url, username, key;
-  QStringList searches;
 };
 struct Post {
   int id=0;
@@ -328,8 +327,6 @@ class Booru : public Screen {
         if(x.url.isEmpty())continue;
         x.name=str(h.value("name"));if(x.name.isEmpty())x.name=QUrl(x.url).host();
         x.username=str(h.value("username"));x.key=str(h.value("api_key"));
-        for(auto t:h.value("searches").toArray())if(t.isString()&&!t.toString().isEmpty()&&x.searches.size()<20)
-          x.searches<<t.toString().left(180);
         hosts<<x;
         if(hosts.size()>=8)break;
       }
