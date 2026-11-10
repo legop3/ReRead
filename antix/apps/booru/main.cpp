@@ -273,10 +273,6 @@ class Booru : public Screen {
   QString tagState(const QString &tag) const {
     return queryTerms.contains(tag)?"Include":queryTerms.contains("-"+tag)?"Exclude":"Off";
   }
-  void cycleTag(const QString &tag){
-    // Tag picker adds a term. The editor is the ONLY place to modify or remove it.
-    addTag(tag);
-  }
   void activeSearchChanged(){
     const QString query=builtSearch();
     if(query==search){update();return;}
@@ -421,7 +417,9 @@ class Booru : public Screen {
     showHeader=false;
     controls.clear();
     if(page==HOME){
-      controls={{READER_UP,"Choose"},{READER_OK,"Open"},
+      controls={{READER_UP,"Choose"},
+                {READER_OK,hosts.size()>1&&homeIndex==sections().size()-1?
+                   "Switch server":"Open"},
                 {READER_OPTIONS,"Edit search"},{READER_BACK,"Exit"}};
     }else if(page==SEARCH){
       controls={{READER_UP,"Select"},
@@ -891,7 +889,10 @@ class Booru : public Screen {
     if(page==GALLERY){requestThumbs();maybeLoadMore();}
   }
   void navigate(int dx,int dy){
-    if(page==HOME && dy)homeIndex=qBound(0,homeIndex+dy,sections().size()-1);
+    if(page==HOME && dy){
+      homeIndex=qBound(0,homeIndex+dy,sections().size()-1);
+      chrome();
+    }
     else if(page==SEARCH){
       if(dy)searchIndex=qBound(0,searchIndex+dy,editorRows().size()-1);
       if(dx && searchIndex<queryTerms.size())changeTerm(searchIndex,dx);
