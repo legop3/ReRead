@@ -99,3 +99,13 @@ keeps image files available across app exit; explicit saves remain in shared
 storage. Tests cover cache eviction, cached GIO opening, unchanged files on
 non-image responses, and cache lifetime. An isolated on-device post fixture
 opened Images and returned to Booru without network or account requests.
+
+## Shared media opening (0.19)
+
+Files, Booru, Camera review and Internet Archive now use freedesktop MIME defaults
+and GIO for full-file opening. Standalone Images (Qt codecs), Text (Qt document
+layout) and Audio (GStreamer playbin/ALSA) replace embedded viewers. Archive
+no longer carries its custom MP3 network/decoder/PCM worker or text pagination.
+The audio UI owns no codec, mixer or power daemon; it uses login1 idle inhibitors
+and pauses on its PrepareForSleep signal. Runtime dependencies are distro
+GStreamer base/good/ALSA plugins, not FFmpeg or a desktop environment.

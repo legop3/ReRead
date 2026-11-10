@@ -38,7 +38,7 @@ def configure(root, base, build, kernel):
     policy.chmod(0o755)
     try:
         run('chroot', str(root), 'apt-get', 'install', '-y', '--no-install-recommends',
-            'desktop-file-utils', 'shared-mime-info', 'libglib2.0-bin', 'xdg-utils', 'xserver-xorg-core', 'xserver-xorg-video-fbdev', 'xserver-xorg-input-libinput', 'xinit', 'xinput', 'matchbox-window-manager', 'python3-jinja2', 'ca-certificates', 'dropbear-bin', 'chrony', 'alsa-utils', 'python3-usb', 'python3-dbus', 'python3-gi', 'python3-apt', 'upower', 'elogind', 'libpam-elogind', 'triggerhappy', 'libstdc++6', 'libusb-1.0-0', 'libjpeg62-turbo', 'fxload', 'libqt5network5t64', 'libqt5widgets5t64', 'libqt5gui5t64', 'libqt5dbus5t64', 'libqt5svg5', 'qt5-image-formats-plugins', 'hicolor-icon-theme', 'fonts-dejavu-core')
+            'desktop-file-utils', 'shared-mime-info', 'libglib2.0-bin', 'xdg-utils', 'xserver-xorg-core', 'xserver-xorg-video-fbdev', 'xserver-xorg-input-libinput', 'xinit', 'xinput', 'matchbox-window-manager', 'python3-jinja2', 'ca-certificates', 'dropbear-bin', 'chrony', 'alsa-utils', 'python3-usb', 'python3-dbus', 'python3-gi', 'python3-apt', 'upower', 'elogind', 'libpam-elogind', 'triggerhappy', 'libstdc++6', 'libusb-1.0-0', 'libjpeg62-turbo', 'fxload', 'libqt5network5t64', 'libqt5widgets5t64', 'libqt5gui5t64', 'libqt5dbus5t64', 'libqt5svg5', 'qt5-image-formats-plugins', 'libgstreamer1.0-0', 'gstreamer1.0-plugins-base', 'gstreamer1.0-plugins-good', 'gstreamer1.0-alsa', 'hicolor-icon-theme', 'fonts-dejavu-core')
     finally:
         if old_policy is None:
             policy.unlink()

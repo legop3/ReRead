@@ -1,5 +1,5 @@
+#include <gio/gio.h>
 #include "reader-ui.hpp"
-#include "audio.hpp"
 #include <QtNetwork>
 #include <QtWidgets>
 #include <QStorageInfo>
@@ -37,7 +37,6 @@ QString human(qint64 n) {
   if(n<1024LL*1024*1024) return QString::number(n/(1024.0*1024),'f',1)+" MB";
   return QString::number(n/(1024.0*1024*1024),'f',2)+" GB";
 }
-QString clockString(int s) {return QString("%1:%2").arg(qMax(0,s)/60).arg(qMax(0,s)%60,2,10,QChar('0'));}
 int durationValue(QString v) {
   if(v.contains(':')) {
     int result=0;
@@ -65,13 +64,14 @@ bool isImage(QString s) {
 }
 bool isText(QString s) { s=s.toLower(); return s.endsWith(".txt")||s.endsWith(".text"); }
 bool isAudio(QString s) {
-  s=s.toLower();return s.endsWith(".mp3");
+  s=QFileInfo(s).suffix().toLower();return QStringList{"mp3","ogg","oga","wav","flac","opus"}.contains(s);
 }
 }
 struct Entry {QString id,title,creator,date,kind;};
 struct File {QString name,format; qint64 size=0; int seconds=0;};
 class Archive : public Screen {
-  enum Page {HOME, BROWSE, ITEM, FILES, VIEW, READER, PLAYER, DOWNLOAD_CONFIRM, DOWNLOADING, INFO};
+  friend struct ArchiveTest;
+  enum Page {HOME, BROWSE, ITEM, FILES, DOWNLOAD_CONFIRM, DOWNLOADING, INFO};
   Page page=HOME, downloadReturn=FILES;
   QNetworkAccessManager network;
   QNetworkReply *api=nullptr, *transfer=nullptr;
@@ -84,26 +84,15 @@ class Archive : public Screen {
   QList<File> files;
   QStringList favorites;
   QString category, collectionId, itemId, itemTitle, creator, itemDate, description, status;
-  QString currentFile, currentFormat, bookText;
   int selected=0, gridStart=0, fileStart=0, searchPage=1, sortIndex=0;
   int browseSelected=0, browseGridStart=0;
   bool loadingMore=false, hasMore=false;
   static constexpr int resultsPerPage=24;
-  int imageZoomStep=0, imageX=0, imageY=0, fontSize=27;
-  QImage viewedImage;
-  QVector<int> pageStarts{0};
-  int bookPage=0;
-  static constexpr int zoomSteps=13;
-  const double zoomLevels[zoomSteps]={1.0,1.15,1.3,1.5,1.75,2.0,2.5,3.0,4.0,5.0,6.0,8.0,10.0};
   File selectedFile, downloadFile;
   std::unique_ptr<QSaveFile> saveFile;
   QString downloadPath;
   qint64 received=0, expected=0;
-  ArchiveAudio *audio=nullptr;
-  QElapsedTimer audioTimer;
-  QTimer playbackTick;
-  int audioOffset=0, audioDuration=0;
-  bool paused=false, loaded=false;
+  bool loaded=false;
   QStringList sections={"Audio","Books","Images","Software","Collections","Favorites"};
   QStringList types={"audio","texts","image","software","collection",""};
   QString storagePath() const {return qEnvironmentVariable("READER_APP_DATA_DIR","/var/lib/reader/apps/reread-archive");}
@@ -179,23 +168,10 @@ class Archive : public Screen {
         fitText(sub,18,r.width()-22),18,QColor("#777777"));
   }
 
-  int elapsed() const {return audioOffset+(audio && !paused && audioTimer.isValid()?int(audioTimer.elapsed()/1000):0);}
   void abortApi() {if(api){api->disconnect(this);api->abort();api->deleteLater();api=nullptr;}}
   void abortCovers() {
     for(auto r:coverJobs){r->disconnect(this);r->abort();r->deleteLater();}
     coverJobs.clear();coverPending.clear();
-  }
-  void stopAudio() {
-    if(audio) {
-      ArchiveAudio *worker=audio;
-      audio=nullptr;
-      worker->stop();
-      worker->wait();
-      worker->deleteLater();
-    }
-    audioTimer.invalidate();
-    paused=false;
-    playbackTick.stop();
   }
     void showStatus(const QString &s) {status=s;update();}
   void loadFavorites(){
@@ -232,19 +208,13 @@ class Archive : public Screen {
         return;
       }
       status.clear();
-      if(kind=="image") {
-        QBuffer buffer(&bytes);buffer.open(QIODevice::ReadOnly);
-        QImageReader reader(&buffer);reader.setAutoTransform(true);
-        QSize native=reader.size();
-        if(native.isValid()&&(native.width()>2048||native.height()>2048))
-          reader.setScaledSize(native.scaled(2048,2048,Qt::KeepAspectRatio));
-        viewedImage=reader.read();
-        if(viewedImage.isNull())status="Image couldn't be decoded. You can download the original.";
-      } else if(kind=="text") {
-        // Keep text in memory, not in device Files. Pre-layout for fast page turns.
-        bookText=QString::fromUtf8(bytes);
-        if(bookText.startsWith(QChar(0xfeff)))bookText.remove(0,1);
-        pageStarts={0};bookPage=0;
+      if(kind=="open") {
+        const QString path=cachedFile(fileUrl(itemId,selectedFile.name));
+        QDir().mkpath(QFileInfo(path).absolutePath());
+        QSaveFile file(path);
+        if(!file.open(QIODevice::WriteOnly) || file.write(bytes)!=bytes.size() || !file.commit())
+          status="Cannot cache this file. Check available storage.";
+        else {trimCache(path);launchFile(QUrl::fromLocalFile(path),selectedFile.name);}
       } else {
         QJsonParseError err;
         auto doc=QJsonDocument::fromJson(bytes,&err);
@@ -371,7 +341,7 @@ class Archive : public Screen {
     });
   }
   void requestVisibleCovers() {
-    if(page==ITEM||page==FILES||page==PLAYER||page==VIEW){
+    if(page==ITEM||page==FILES){
       requestCover(itemId);
       if(page==FILES)requestFilePreviews();
       return;
@@ -421,134 +391,57 @@ class Archive : public Screen {
     fileThumbFailed.clear();selected=0;page=ITEM;requestCover(itemId);
     fetch(QUrl("https://archive.org/metadata/"+QString::fromUtf8(QUrl::toPercentEncoding(itemId))),"metadata",12*1024*1024);
   }
-  void openFile(const File &f) {
-    selectedFile=f;currentFile=f.name;currentFormat=f.format;
-    imageZoomStep=0;imageX=0;imageY=0;viewedImage=QImage();
-    bookText.clear();pageStarts={0};bookPage=0;
-    if(isAudio(f.name)){
-      page=PLAYER;requestCover(itemId);
-      audioOffset=0;audioDuration=f.seconds;startAudio();return;
-    }
-    if(isImage(f.name)){page=VIEW;fetch(fileUrl(itemId,f.name),"image",14*1024*1024);return;}
-    if(isText(f.name)){page=READER;fetch(fileUrl(itemId,f.name),"text",7*1024*1024);return;}
-    status="No in-app viewer for this file type. Options can download it.";update();
+  QString cachedFile(const QUrl &url) const {
+    auto key=QString::fromLatin1(QCryptographicHash::hash(url.toEncoded(),QCryptographicHash::Sha256).toHex());
+    return QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation)+"/reread-archive/files/"+
+      key+"/"+sanitize(QFileInfo(url.path()).fileName());
   }
-  int visibleBookLines() const {
-    return qMax(1,(height()-78)/(fontSize+10));
-  }
-  // Wrap only a single screen of text; never split or measure an entire book.
-  // 7 MiB source files used to block the GUI for seconds during initial layout.
-  QStringList bookPageLines(int start, int *next) const {
-    QStringList result;
-    const int length=bookText.size();
-    int pos=qBound(0,start,length);
-    QFont f=font();f.setFamily("DejaVu Serif");f.setPixelSize(fontSize);
-    QFontMetrics fm(f);
-    const int lineWidth=qMax(180,width()-120);
-    const int limit=visibleBookLines();
-    while(pos<length && result.size()<limit) {
-      if(bookText.at(pos)=='\r') {++pos;continue;}
-      if(bookText.at(pos)=='\n') {result<<"";++pos;continue;}
-      // Examine at most 512 UTF-16 units, even for a huge unbroken line.
-      // Searching for the next newline across the whole file on each
-      // visual line caused repeated megabyte-scale scans during painting.
-      const int scanEnd=qMin(length,pos+512);
-      int end=pos;
-      while(end<scanEnd && bookText.at(end)!='\n' && bookText.at(end)!='\r')
-        ++end;
-      const bool hasBreak=end<length &&
-        (bookText.at(end)=='\n'||bookText.at(end)=='\r');
-      int count=end-pos;
-      if(count<=0){result<<"";++pos;continue;}
-      int lo=1,hi=count;
-      while(lo<hi) {
-        int mid=(lo+hi+1)/2;
-        if(fm.horizontalAdvance(bookText.mid(pos,mid))<=lineWidth)lo=mid;
-        else hi=mid-1;
+  void trimCache(const QString &keep) {
+    QDir root(QFileInfo(keep).dir().absolutePath());root.cdUp();
+    QList<QFileInfo> entries;qint64 total=0;
+    for(const auto &folder:root.entryInfoList(QDir::Dirs|QDir::NoDotAndDotDot))
+      for(const auto &file:QDir(folder.absoluteFilePath()).entryInfoList(QDir::Files)) {
+        entries.append(file);total+=file.size();
       }
-      count=lo;
-      if(pos+count<end) {
-        int whitespace=bookText.lastIndexOf(' ',pos+count-1);
-        if(whitespace>pos)count=whitespace-pos+1;
-      }
-      result<<bookText.mid(pos,count).trimmed();
-      pos+=count;
-      while(pos<end && bookText.at(pos).isSpace())++pos;
-      if(pos>=end && hasBreak) {
-        pos=end+1;
-        if(pos<length && bookText.at(end)=='\r' && bookText.at(pos)=='\n')++pos;
+    std::sort(entries.begin(),entries.end(),[](const QFileInfo &a,const QFileInfo &b){return a.lastModified()<b.lastModified();});
+    for(const auto &file:entries) {
+      if(total<=64*1024*1024)break;
+      if(file.absoluteFilePath()!=keep && QFile::remove(file.absoluteFilePath())) {
+        total-=file.size();QDir().rmdir(file.absolutePath());
       }
     }
-    if(next)*next=pos;
-    return result;
   }
-  void changeBookPage(int delta) {
-    if(bookText.isEmpty())return;
-    if(delta<0){bookPage=qMax(0,bookPage-1);update();return;}
-    if(bookPage+1<pageStarts.size()){++bookPage;update();return;}
-    int next=pageStarts[bookPage];
-    bookPageLines(next,&next);
-    if(next>pageStarts[bookPage]&&next<bookText.size()){
-      pageStarts<<next;++bookPage;
+  void launchFile(const QUrl &url,const QString &name) {
+    const QByteArray filename=name.toUtf8();
+    gchar *type=g_content_type_guess(filename.constData(),nullptr,0,nullptr);
+    GAppInfo *handler=g_app_info_get_default_for_type(type,!url.isLocalFile());g_free(type);
+    if(!handler){showStatus("No default viewer for this file. Install one through Software or download it.");return;}
+    auto context=g_app_launch_context_new();
+    g_app_launch_context_unsetenv(context,"READER_APP_ID");g_app_launch_context_unsetenv(context,"READER_APP_DATA_DIR");
+    QByteArray uri=url.toEncoded();GList argument{uri.data(),nullptr,nullptr};GError *error=nullptr;
+    bool opened=g_app_info_launch_uris(handler,&argument,context,&error);
+    g_object_unref(context);g_object_unref(handler);
+    status=opened?QString():error?QString::fromUtf8(error->message):"Unable to launch the default viewer.";
+    if(error)g_error_free(error);
+    update();
+  }
+  void openFile(const File &file) {
+    selectedFile=file;const QUrl url=fileUrl(itemId,file.name);
+    if(isAudio(file.name)){launchFile(url,file.name);return;}
+    if(!isImage(file.name) && !isText(file.name)) {
+      showStatus("No preview for this type. Options can download it, then Files can open it.");return;
     }
-    update();
-  }
-  void changeBookFont(int delta) {
-    int newFont=qBound(18,fontSize+delta,42);
-    if(newFont==fontSize)return;
-    int anchor=pageStarts.value(bookPage,0);
-    fontSize=newFont;
-    // Preserve the current reading position without a full-book reflow.
-    pageStarts={anchor};
-    bookPage=0;
-    update();
-  }
-  void startAudio(){
-    stopAudio();
-    status.clear();
-    if(!currentFile.toLower().endsWith(".mp3")){
-      status="Only MP3 is supported for streaming; other formats can be downloaded.";
-      update();
-      return;
+    QString cached=cachedFile(url);
+    if(QFileInfo(cached).isFile()) {
+      QFile touch(cached);if(touch.open(QIODevice::ReadOnly))touch.setFileTime(QDateTime::currentDateTime(),QFileDevice::FileModificationTime);
+      launchFile(QUrl::fromLocalFile(cached),file.name);return;
     }
-    // Estimate byte offset from known duration and size for a small,
-    // approximate network seek. Beginning playback starts at byte zero.
-    qint64 offset=0;
-    if(audioOffset>0 && audioDuration>0 && selectedFile.size>0)
-      offset=qMax(qint64(0),selectedFile.size*qint64(audioOffset)/audioDuration-4096);
-    auto worker=new ArchiveAudio(fileUrl(itemId,currentFile),offset,this,
-      [this](const QString &message){status=message;update();});
-    audio=worker;
-    connect(worker,&QThread::finished,this,[this,worker]{
-      if(audio==worker){audio=nullptr;audioTimer.invalidate();playbackTick.stop();}
-      worker->deleteLater();
-      update();
-    });
-    paused=false;
-    audioTimer.start();
-    worker->start();
-    playbackTick.start(900);
-    update();
-  }
-  void toggleAudio(){
-    if(!audio){startAudio();return;}
-    if(paused){
-      paused=false;
-      audio->setPaused(false);
-      audioTimer.start();
-    } else {
-      audioOffset=elapsed();
-      paused=true;
-      audio->setPaused(true);
-      audioTimer.invalidate();
+    trimCache(cached);
+    QStorageInfo disk(QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation));
+    if(disk.isValid() && disk.bytesAvailable()<128LL*1024*1024+14*1024*1024) {
+      showStatus("Not enough storage for a preview. Keeping 128 MiB free.");return;
     }
-    update();
-  }
-  void seek(int seconds){
-    int position=qMax(0,elapsed()+seconds);
-    if(audioDuration>0)position=qMin(position,qMax(0,audioDuration-1));
-    audioOffset=position;
-    startAudio();
+    fetch(url,"open",isImage(file.name)?14*1024*1024:7*1024*1024);
   }
     void downloadSelected() {
     downloadFile=selectedFile;downloadReturn=page;page=DOWNLOAD_CONFIRM;status.clear();update();
@@ -624,21 +517,10 @@ class Archive : public Screen {
       requestVisibleCovers();
     }
     else if(page==FILES||page==INFO){page=ITEM;}
-    else if(page==VIEW||page==READER||page==PLAYER){stopAudio();page=FILES;}
     else if(page==DOWNLOAD_CONFIRM)page=downloadReturn;
     update();
   }
   int activeFiles() const {return qMax(1,(safeArea().height()-140)/58);}
-  void clampPan() {
-    if(viewedImage.isNull()||imageZoomStep==0){imageX=imageY=0;return;}
-    QSize scaled=viewedImage.size();
-    scaled.scale(size(),Qt::KeepAspectRatio);
-    const double factor=zoomLevels[imageZoomStep];
-    const int xMax=qMax(0,int((scaled.width()*factor-width())/2));
-    const int yMax=qMax(0,int((scaled.height()*factor-height())/2));
-    imageX=qBound(-xMax,imageX,xMax);
-    imageY=qBound(-yMax,imageY,yMax);
-  }
   void navigate(int dx,int dy) {
     if(page==HOME){
       selected=qBound(0,selected+dx+dy*3,5);
@@ -659,13 +541,7 @@ class Archive : public Screen {
       if(selected<fileStart)fileStart=selected;
       if(selected>=fileStart+activeFiles())fileStart=selected-activeFiles()+1;
       requestFilePreviews();
-    } else if(page==VIEW){
-      if(imageZoomStep>0) {
-        // Move the viewport through the image, not the picture with the arrow.
-        imageX-=dx*80;imageY-=dy*80;
-        clampPan();
-      }
-    } else if(page==READER){changeBookPage(dx+dy);}
+    }
     update();
   }
   void paintChrome(QPainter &p,const QRect &safe) {
@@ -680,9 +556,6 @@ class Archive : public Screen {
     else if(page==BROWSE)hints={{READER_UP,"Browse"},{READER_OK,"Open"},{READER_OPTIONS,"Sort"},{READER_BACK,"Back"}};
     else if(page==ITEM)hints={{READER_UP,"Action"},{READER_OK,"Select"},{READER_BACK,"Results"}};
     else if(page==FILES)hints={{READER_OK,"Open"},{READER_OPTIONS,"Download"},{READER_BACK,"Item"}};
-    else if(page==VIEW)hints={{READER_ZOOM_IN,"Zoom"},{READER_UP,"Pan"},{READER_OPTIONS,"Download"},{READER_BACK,"Files"}};
-    else if(page==READER)hints={{READER_DOWN,"Page"},{READER_ZOOM_IN,"Text size"},{READER_OPTIONS,"Download"},{READER_BACK,"Files"}};
-    else if(page==PLAYER)hints={{READER_PLAY,"Pause"},{READER_LEFT,"Seek"},{READER_OPTIONS,"Download"},{READER_BACK,"Files"}};
     else if(page==DOWNLOAD_CONFIRM)hints={{READER_OK,"Download"},{READER_BACK,"Cancel"}};
     else if(page==DOWNLOADING)hints={{READER_BACK,"Cancel"}};
     else hints={{READER_BACK,"Return"}};
@@ -705,9 +578,8 @@ class Archive : public Screen {
 protected:
   void draw(QPainter &p,const QRect &r) override {
     p.fillRect(r,bg);
-    const bool immersive=page==VIEW || page==READER || page==PLAYER;
-    if(!immersive)paintChrome(p,r);
-    QRect area=immersive?rect():r.adjusted(8,8,-8,-48);
+    paintChrome(p,r);
+    QRect area=r.adjusted(8,8,-8,-48);
     if(page==HOME) {
       const QStringList sub={
         "Music, radio & recordings","Books, magazines & documents",
@@ -815,80 +687,6 @@ protected:
             human(files[i].size),20,muted,Qt::AlignRight|Qt::AlignVCenter);
       }
       if(files.isEmpty())txt(p,area,loaded?"No files listed":"Loading files...",22,muted,Qt::AlignCenter);
-    } else if(page==VIEW) {
-      QRect view=area;
-      p.fillRect(view,QColor("#323232"));
-      if(viewedImage.isNull())txt(p,view,status.isEmpty()?"Loading image...":status,
-          23,Qt::white,Qt::AlignCenter);
-      else {
-        QSize size=viewedImage.size();
-        size.scale(view.size(),Qt::KeepAspectRatio);
-        size.setWidth(int(size.width()*zoomLevels[imageZoomStep]));
-        size.setHeight(int(size.height()*zoomLevels[imageZoomStep]));
-        QRect dest(QPoint(0,0),size);dest.moveCenter(view.center()+QPoint(imageX,imageY));
-        p.save();p.setClipRect(view);p.setRenderHint(QPainter::SmoothPixmapTransform);
-        p.drawImage(dest,viewedImage);p.restore();
-
-      }
-    } else if(page==READER) {
-      QRect paper=area;
-      p.fillRect(paper,QColor("#fffdf6"));
-      QRect textArea=paper.adjusted(48,29,-48,-40);
-      QFont f=p.font();f.setFamily("DejaVu Serif");f.setPixelSize(fontSize);
-      p.setFont(f);p.setPen(QColor("#222222"));
-      const int step=fontSize+10;
-      QStringList lines=bookPageLines(pageStarts.value(bookPage,0),nullptr);
-      for(int i=0;i<lines.size();++i)
-        p.drawText(textArea.left(),textArea.top()+fontSize+i*step,lines[i]);
-      if(lines.isEmpty()) {
-        txt(p,textArea,status.isEmpty()?"Loading text...":status,26,muted,Qt::AlignCenter);
-      } else {
-        txt(p,QRect(textArea.right()-180,paper.bottom()-32,175,25),
-            "Page "+QString::number(bookPage+1),18,muted,Qt::AlignRight);
-      }
-    } else if(page==PLAYER) {
-      p.fillRect(area,QColor("#f7f7f5"));
-      const int coverSide=qMin(area.height()-92,area.width()/2-55);
-      QRect cover(area.x()+24,area.y()+26,coverSide,coverSide);
-      p.fillRect(cover,QColor("#dedede"));
-      p.setPen(QPen(outline));p.drawRect(cover.adjusted(0,0,-1,-1));
-      if(!thumbs.value(itemId).isNull())
-        imageIn(p,cover.adjusted(6,6,-6,-6),thumbs.value(itemId),false);
-      else icon(p,cover.adjusted(coverSide/4,coverSide/4,-coverSide/4,-coverSide/4),"Audio",muted);
-      int x=cover.right()+29,w=area.right()-x-20;
-      txt(p,QRect(x,area.y()+29,w,64),fitText(currentFile,29,w*2),29,ink,
-          Qt::AlignLeft|Qt::AlignTop,true);
-      txt(p,QRect(x,area.y()+102,w,47),fitText(itemTitle,23,w),23,muted);
-      int progress=qMax(0,elapsed());
-      txt(p,QRect(x,area.y()+159,w,33),audio?(paused?"Paused":"Playing"):"Stopped",
-          23,accent,Qt::AlignLeft|Qt::AlignVCenter,true);
-      QRect bar(x,area.y()+214,w,13);
-      p.fillRect(bar,QColor("#c7c7c7"));
-      if(audioDuration>0)
-        p.fillRect(QRect(bar.x(),bar.y(),int(bar.width()*qMin(1.0,double(progress)/audioDuration)),
-                         bar.height()),QColor("#1769aa"));
-      txt(p,QRect(x,area.y()+233,w,35),
-          clockString(progress)+" / "+(audioDuration?clockString(audioDuration):"--:--"),
-          23,ink);
-      const int controlY=area.y()+298;
-      const int cell=qMin(121,(w-16)/3);
-      const reader_button keys[3]={READER_LEFT,READER_PLAY,READER_RIGHT};
-      const QString captions[3]={"Back 10s",paused||!audio?"Play":"Pause","Ahead 10s"};
-      for(int i=0;i<3;++i){
-        QRect c(x+i*(cell+8),controlY,cell,84);
-        p.fillRect(c,QColor("#333a42"));
-        buttonIcon(p,QRect(c.center().x()-19,c.y()+8,38,38),keys[i]);
-        txt(p,QRect(c.x()+3,c.y()+50,c.width()-6,28),captions[i],17,Qt::white,Qt::AlignCenter);
-      }
-      // Navigation and download remain visible without blocking the artwork.
-      QRect bottom(area.x()+26,area.bottom()-56,area.width()-52,45);
-      p.setPen(QPen(outline));p.drawLine(bottom.left(),bottom.top(),bottom.right(),bottom.top());
-      buttonIcon(p,QRect(bottom.x()+7,bottom.y()+10,27,27),READER_BACK);
-      txt(p,QRect(bottom.x()+39,bottom.y()+7,95,34),"Files",19,ink);
-      buttonIcon(p,QRect(bottom.x()+150,bottom.y()+10,27,27),READER_OPTIONS);
-      txt(p,QRect(bottom.x()+184,bottom.y()+7,185,34),"Download",19,ink);
-      if(!status.isEmpty())
-        txt(p,QRect(x,area.y()+389,w,45),status,19,QColor("#985d18"));
     } else if(page==DOWNLOAD_CONFIRM||page==DOWNLOADING) {
       QRect dialog=area.adjusted(120,35,-120,-35);
       p.fillRect(dialog,Qt::white);
@@ -917,7 +715,7 @@ protected:
           description.isEmpty()?"No description provided.":description,22,ink,
           Qt::AlignLeft|Qt::AlignTop);
     }
-    if(!status.isEmpty()&&page!=VIEW&&page!=READER&&page!=PLAYER&&
+    if(!status.isEmpty()&&
        page!=DOWNLOAD_CONFIRM&&page!=DOWNLOADING) {
       QRect note(area.x()+4,area.bottom()-30,area.width()-8,30);
       p.fillRect(note,QColor("#fff3de"));
@@ -927,35 +725,16 @@ protected:
 
   void button(reader_button key,int state) override {
     if(state!=1 && state!=2)return;
-    if(key==READER_FAVORITES&&state==1){stopAudio();close();return;}
+    if(key==READER_FAVORITES&&state==1){close();return;}
     if(key==READER_BACK&&state==1){back();return;}
     if(page==DOWNLOADING)return;
-    if(page==PLAYER) {
-      if((key==READER_PLAY||key==READER_OK)&&state==1)toggleAudio();
-      else if(key==READER_LEFT&&state==1)seek(-10);
-      else if(key==READER_RIGHT&&state==1)seek(10);
-    } else if(page==READER) {
-      if(key==READER_UP)changeBookPage(-1);
-      else if(key==READER_DOWN)changeBookPage(1);
-      else if(key==READER_ZOOM_IN&&state==1)changeBookFont(2);
-      else if(key==READER_ZOOM_OUT&&state==1)changeBookFont(-2);
-    } else if(page==VIEW) {
-      if(key==READER_ZOOM_IN&&state==1){imageZoomStep=qMin(zoomSteps-1,imageZoomStep+1);clampPan();update();}
-      else if(key==READER_ZOOM_OUT&&state==1){imageZoomStep=qMax(0,imageZoomStep-1);clampPan();update();}
-      else if(key==READER_LEFT)navigate(-1,0);
-      else if(key==READER_RIGHT)navigate(1,0);
-      else if(key==READER_UP)navigate(0,-1);
-      else if(key==READER_DOWN)navigate(0,1);
-    } else {
-      if(key==READER_LEFT)navigate(-1,0);
-      else if(key==READER_RIGHT)navigate(1,0);
-      else if(key==READER_UP)navigate(0,-1);
-      else if(key==READER_DOWN)navigate(0,1);
-    }
+    if(key==READER_LEFT)navigate(-1,0);
+    else if(key==READER_RIGHT)navigate(1,0);
+    else if(key==READER_UP)navigate(0,-1);
+    else if(key==READER_DOWN)navigate(0,1);
     if(key==READER_OPTIONS&&state==1){
       if(page==BROWSE&&category!="Favorites"){sortIndex=1-sortIndex;search();}
       else if(page==FILES&&selected>=0&&selected<files.size()){selectedFile=files[selected];downloadSelected();}
-      else if(page==VIEW||page==READER||page==PLAYER)downloadSelected();
       return;
     }
     if(key!=READER_OK||state!=1||api)return;
@@ -983,12 +762,10 @@ public:
   Archive():Screen("Internet Archive") {
     showHeader=false;showControls=false;
     loadFavorites();loaded=true;
-    connect(&playbackTick,&QTimer::timeout,this,[this]{if(page==PLAYER)update();});
   }
   ~Archive() override {
     abortApi();abortCovers();
     for(auto job:fileThumbJobs){job->disconnect(this);job->abort();job->deleteLater();}
-    stopAudio();
     if(transfer)transfer->abort();
     if(saveFile)saveFile->cancelWriting();
   }

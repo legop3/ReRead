@@ -11,16 +11,16 @@ filesystem APIs. The web browser and Camera use that same directory. It provides
   columns and a selected-item inspector with modification time and position.
 - Folder navigation with remembered parent selection and live directory updates.
 - Name, newest-first or size sorting, with folders first.
-- Normal GIO/MIME opening: images launch the separate Images handler; other
-  installed default handlers are used for their file types.
-- UTF-8 text previews up to 256 KiB; other types show file details.
+- Normal GIO/MIME opening: images, text and audio launch their separate default
+  viewers. Other installed handlers are used for their advertised file types.
+- Missing associations show file details and suggest installing a viewer.
 - File/folder details, size and modification time.
 - Permanent file or recursive folder deletion, with Cancel selected by default.
 
 Arrows select items; OK opens; Back goes up and returns Home from the shared root.
 Options opens Details, Delete, Sort and Refresh. Favorites returns Home directly.
-Closing a viewer returns to the same folder and selection in Files. Text retains
-a small inline preview until a default text handler is installed. The app does not browse outside
+Closing a viewer returns to the same folder and selection in Files. There are no
+embedded text or image viewers. The app does not browse outside
 the shared root or follow directory symlinks. Deleting a folder removes its
 contents; there is no trash/undo. Unsupported formats and naming operations such
 as rename/new folder remain available through the web file manager.
@@ -34,7 +34,7 @@ antix/apps/files/build.sh build/antix/ui
 
 `test-navigation.cpp` exercises navigation, real GIO dispatch to an isolated MIME
 handler (including a filename with spaces, quotes, Unicode and URI metacharacters),
-text/details, live updates,
+text dispatch, details, live updates,
 canceling deletion, and confirmed deletion of disposable files/folders offscreen.
 It also runs the real entry point to verify GUI input does not open raw evdev. It never targets the Reader's shared data.
 

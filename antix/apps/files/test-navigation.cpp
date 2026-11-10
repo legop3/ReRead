@@ -39,10 +39,10 @@ int main(int argc,char **argv) {
   QFile desktop(settings.path()+"/data/applications/test-images.desktop");
   require(desktop.open(QIODevice::WriteOnly),"Create MIME handler");
   desktop.write(("[Desktop Entry]\nType=Application\nName=Fixture image handler\nExec="+
-    QCoreApplication::applicationFilePath()+" --record-open %U\nMimeType=image/png;\nNoDisplay=true\n").toUtf8());desktop.close();
+    QCoreApplication::applicationFilePath()+" --record-open %U\nMimeType=image/png;text/plain;\nNoDisplay=true\n").toUtf8());desktop.close();
   QFile defaults(settings.path()+"/config/mimeapps.list");
   require(defaults.open(QIODevice::WriteOnly),"Create MIME defaults");
-  defaults.write("[Default Applications]\nimage/png=test-images.desktop;\n");defaults.close();
+  defaults.write("[Default Applications]\nimage/png=test-images.desktop;\ntext/plain=test-images.desktop;\n");defaults.close();
   require(QProcess::execute("update-desktop-database",{settings.path()+"/data/applications"})==0,"Update MIME cache");
   qputenv("REREAD_FILES_DIR",fixture.path().toUtf8());
   QProcess entry;
@@ -72,7 +72,7 @@ int main(int argc,char **argv) {
   QElapsedTimer opening;opening.start();
   while(QFileInfo(settings.path()+"/opened-uri").size()==0 && opening.elapsed()<5000)settle();
   QFile record(settings.path()+"/opened-uri");require(record.open(QIODevice::ReadOnly),"GIO launched default handler");
-  auto received=record.readAll();auto url=QUrl::fromEncoded(received);
+  auto received=record.readAll();record.close();auto url=QUrl::fromEncoded(received);
   require((url.isLocalFile()?url.toLocalFile():QString::fromUtf8(received))==fixture.path()+"/A/Camera/photo ' # ü %.png","Handler receives exact filename, as a path or file URI");
   require(window.subtitle.startsWith("A/Camera ·") && window.showHeader,"Files preserves folder when launching another app");
   press(window,READER_OPTIONS);press(window,READER_DOWN);press(window,READER_OK);
@@ -87,8 +87,13 @@ int main(int argc,char **argv) {
   press(window,READER_OPTIONS);press(window,READER_DOWN);press(window,READER_OK);
   press(window,READER_DOWN);press(window,READER_OK);settle();
   require(!QFileInfo::exists(fixture.path()+"/A"),"Confirmed folder deletion");
-  press(window,READER_OK);require(window.showHeader,"Text preview");
-  press(window,READER_BACK);press(window,READER_OPTIONS);press(window,READER_OK);
+  QFile::remove(settings.path()+"/opened-uri");press(window,READER_OK);
+  opening.restart();while(QFileInfo(settings.path()+"/opened-uri").size()==0 && opening.elapsed()<5000)settle();
+  require(record.open(QIODevice::ReadOnly),"Text uses default MIME handler");
+  received=record.readAll();record.close();url=QUrl::fromEncoded(received);
+  require((url.isLocalFile()?url.toLocalFile():QString::fromUtf8(received))==fixture.path()+"/z.txt","Text handler receives exact file");
+  require(window.title=="Files","Text opening keeps Files in its browser");
+  press(window,READER_OPTIONS);press(window,READER_OK);
   require(window.title=="Details","Details view");
   press(window,READER_BACK);
   QFile external(fixture.path()+"/new.txt");external.open(QIODevice::WriteOnly);external.write("new");external.close();settle();

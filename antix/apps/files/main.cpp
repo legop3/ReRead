@@ -5,10 +5,10 @@ using namespace ReRead;
 
 class Files : public Screen {
   QString root, directory, page="browse", target;
-  QStringList names, labels, details, lines;
+  QStringList names, labels, details;
   QFileSystemWatcher watcher;
   QMap<QString,int> positions;
-  int selected=0, action=0, sort=0, scroll=0;
+  int selected=0, action=0, sort=0;
   bool busy=false;
   QString path() const { return QDir(root).filePath(directory); }
   QString chosen() const { return QDir(path()).filePath(names.value(selected)); }
@@ -47,7 +47,7 @@ class Files : public Screen {
       controls={{READER_OK,"Open"},{READER_OPTIONS,"Actions"},{READER_BACK,directory.isEmpty()?"Home":"Up"}};
     } else if(page=="options") controls={{READER_OK,"Select"},{READER_BACK,"Files"}};
     else if(page=="confirm") controls={{READER_OK,"Select"},{READER_BACK,"Cancel"}};
-    else controls={{READER_UP,"Scroll"},{READER_OPTIONS,"Actions"},{READER_BACK,"Files"}};
+    else controls={{READER_OPTIONS,"Actions"},{READER_BACK,"Files"}};
     update();
   }
   void browse() { page="browse"; refresh(); }
@@ -71,16 +71,7 @@ class Files : public Screen {
     QString message=error?QString::fromUtf8(error->message):QStringLiteral("Unable to open this file.");
     if(error)g_error_free(error);
     if(!missing){toast(message);return;}
-    const auto mime=QMimeDatabase().mimeTypeForFile(target);
-    if(mime.name().startsWith("text/") || QStringList{"json","log","md","csv"}.contains(QFileInfo(target).suffix().toLower())) {
-      QFile file(target);
-      if(!file.open(QIODevice::ReadOnly)) { toast(file.errorString()); return; }
-      const bool truncated=file.size()>262144;
-      lines=QString::fromUtf8(file.read(262144)).split('\n');
-      if(truncated) lines << "[Preview limited to 256 KiB. Download the file for the full text.]";
-      page="text"; scroll=0; chrome(); return;
-    }
-    page="details"; chrome(); toast("No viewer for this type. Download it through the web Files page.");
+    page="details"; chrome(); toast("No viewer for this type. Install a viewer through Software.");
   }
   void options() {
     if(page=="browse") target=names.isEmpty()?QString():chosen();
@@ -113,17 +104,14 @@ class Files : public Screen {
       if(id==READER_UP || id==READER_DOWN) { action=qBound(0,action+(id==READER_DOWN?1:-1),count-1);update(); }
       if(id==READER_OK && value==1) {
         if(page=="confirm") { if(action==1) remove(); else browse(); }
-        else if(action==0) { if(target.isEmpty()) toast("Select a file or folder first."); else {page="details";scroll=0;chrome();} }
+        else if(action==0) { if(target.isEmpty()) toast("Select a file or folder first."); else {page="details";chrome();} }
         else if(action==1) { if(target.isEmpty()) toast("Select a file or folder first.");else {page="confirm";action=0;chrome();} }
         else if(action==2) { sort=(sort+1)%3; browse(); }
         else browse();
       }
       return;
     }
-    if(page=="text" || page=="details") {
-      if(id==READER_UP || id==READER_DOWN) {scroll=qBound(0,scroll+(id==READER_DOWN?1:-1),qMax(0,lines.size()-1));update();}
-      return;
-    }
+    if(page=="details")return;
     if(id==READER_UP || id==READER_DOWN) { selected=qBound(0,selected+(id==READER_DOWN?1:-1),qMax(0,names.size()-1));update(); }
     if(id==READER_OK && value==1) open();
   }
@@ -185,13 +173,6 @@ class Files : public Screen {
       info+="\nModified: "+file.lastModified().toString("dd MMM yyyy HH:mm");
       if(file.isDir()) info+="\n"+QString::number(QDir(target).entryList(QDir::AllEntries|QDir::NoDotAndDotDot).size())+" items directly inside";
       text(p,r,info,25);
-    } else {
-      p.fillRect(r,palette().base()); p.setClipRect(r); auto font=p.font();font.setPixelSize(23);p.setFont(font);p.setPen(palette().text().color());
-      int y=r.top();
-      for(int i=scroll;i<lines.size()&&y<r.bottom();++i) {
-        QRect bounds=p.boundingRect(QRect(r.left(),y,r.width(),10000),Qt::TextWordWrap,lines[i].isEmpty()?" ":lines[i]);
-        p.drawText(bounds,Qt::TextWordWrap,lines[i]);y+=qMax(29,bounds.height()+5);
-      }
     }
   }
 public:

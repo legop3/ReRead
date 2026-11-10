@@ -7,6 +7,8 @@ import subprocess
 from gadget import stage, build_module
 from third_party import stage_file_manager
 from apps.images.package import build as build_images
+from apps.text.package import build as build_text
+from apps.audio.package import build as build_audio
 
 KERNEL = '5.10.256-antix.1-486-smp'
 
@@ -150,7 +152,7 @@ Maintainer: ReRead contributors
 Section: admin
 Priority: optional
 Depends: desktop-file-utils, shared-mime-info, libglib2.0-bin, xdg-utils, xserver-xorg-core, xserver-xorg-video-fbdev, xserver-xorg-input-libinput, xinit, xinput, matchbox-window-manager, ca-certificates, libqt5widgets5t64, libqt5gui5t64, libqt5dbus5t64, libqt5svg5, hicolor-icon-theme, fonts-dejavu-core, libc6 (>= 2.36), python3, python3-jinja2, python3-dbus, python3-gi, python3-apt, upower, libglib2.0-0t64, python3-usb, libstdc++6, libusb-1.0-0, libjpeg62-turbo, fxload, runit-antix, elogind, libpam-elogind, triggerhappy, dropbear-bin, chrony, wpasupplicant, dhcpcd-base, kmod, console-setup-linux, alsa-utils, linux-image-{kernel} (= {kernel_package_version})
-Recommends: reread-app-files, reread-app-images
+Recommends: reread-app-files, reread-app-images, reread-app-text, reread-app-audio
 Breaks: reread-app-camera (<< 0.6.0), reread-app-software (<< 0.3.0), reread-app-files (<< 0.3.0), reread-app-archive (<< 0.7.0), reread-app-booru (<< 0.2.0)
 Description: ReRead handheld platform for Intel Reader
  Button interface, power management, USB networking, web management,
@@ -180,7 +182,8 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.17.0), libqt5network5t64
+Depends: reread (>= 0.19.0), libqt5network5t64
+Recommends: reread-app-images
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
 """)
@@ -245,9 +248,9 @@ Maintainer: ReRead contributors
 Section: utils
 Priority: optional
 Depends: reread (>= 0.18.0)
-Recommends: reread-app-images
+Recommends: reread-app-images, reread-app-text, reread-app-audio
 Description: ReRead Files
- Browse shared folders, view photos and text, inspect and delete files.
+ Browse shared folders, open files in default viewers, inspect and delete files.
 """)
     appwrite('usr/share/applications/reread-files.desktop', """[Desktop Entry]
 Type=Application
@@ -269,6 +272,8 @@ Terminal=false
     target.chmod(0o755)
     subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '--build', str(app), str(output / f'reread-app-files_{files_version}_i386.deb')], check=True)
     build_images(base, build_dir, output)
+    build_text(base, build_dir, output)
+    build_audio(base, build_dir, output)
     return package
 
 

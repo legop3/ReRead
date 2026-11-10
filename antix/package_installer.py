@@ -19,7 +19,7 @@ def package(system,packed,root_id):
     usb=image.disk('reread-installer-usb',size,files)
     version=(BUILD/'root/usr/share/reader/version').read_text().strip()
     app_packages = []
-    for name in ('camera', 'software', 'files', 'images'):
+    for name in ('camera', 'software', 'files', 'images', 'text', 'audio'):
         app_version = subprocess.check_output(['dpkg-query', '--admindir='+str(BUILD/'root/var/lib/dpkg'),
             '-W', '-f=${Version}', 'reread-app-' + name], text=True).strip()
         app_packages.append(f'reread-app-{name}_{app_version}_i386.deb')

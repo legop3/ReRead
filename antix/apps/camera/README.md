@@ -19,3 +19,7 @@ The shared hardware service and native camera driver/processing code remain in
 `antix/`, since the web interface and other applications can also use them. The
 app uses the same local socket API described in [camera support](../../CAMERA.md).
 Removing Camera removes the app, retaining that platform support and user photos.
+
+Last photo opens the saved JPEG in the default image viewer through GIO. Back
+closes that viewer and exposes Camera again. Camera yields its live preview
+lease while unfocused and resumes on return; it has no embedded photo viewer.

@@ -197,6 +197,9 @@ first separately packaged foreground app and follows this same contract.
 
 Use normal GIO or `gio open FILE` to open a file in its default application;
 see [file opening](../FILE_OPENING.md). Do not execute a hardcoded viewer or
-copy its display code into a browser. Files and Booru use the system image
-handler; Internet Archive, Camera review and text/audio viewers will move in
-later steps. Their thumbnails and browsing previews may stay local.
+copy its display code into a browser. Files, Booru, Internet Archive and
+Camera review use default MIME handlers. The supplied Images, Text and Audio
+programs are independent document handlers (`NoDisplay=true`); their icons and
+MIME declarations are normal desktop entries. Thumbnails and browsing previews
+may stay local. Remote audio uses its audio MIME association, not the HTTPS
+scheme browser; the handler owns streaming.

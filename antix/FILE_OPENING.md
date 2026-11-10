@@ -36,7 +36,8 @@ launch failure is reported by the caller.
 ## Defaults and replacement viewers
 
 System policy lives in `/etc/xdg/reread-mimeapps.list`. It selects
-`reread-images.desktop` for supported image types. The image handler declares
+`reread-images.desktop` for images, `reread-text.desktop` for plain text/Markdown/CSV/JSON/XML,
+and `reread-audio.desktop` for supported audio types. The image handler declares
 `MimeType=...`, `Exec=... -- %U` and `Icon=reread-images`. `%U` lets GIO pass one or
 more correctly encoded file URIs. `NoDisplay=true` hides this document handler
 from the Home grid while retaining its MIME associations and Software entry.
@@ -53,16 +54,29 @@ A replacement desktop entry must advertise the MIME type. Missing/uninstalled
 handlers fall through according to the freedesktop specification. Install or
 remove viewers with APT; no ReRead-specific registration command is needed.
 
-## This step
+## Supplied handlers and callers
 
-Images is a small Qt front end for physical controls, icon hints and the screen's
-safe inset. Qt and its distro image plugins do the decoding. Files dispatches
-regular files through GIO, retaining its inline text fallback only when no text
-handler exists. Missing non-text handlers show file details and an explanation.
-Booru also caches image samples and dispatches them through GIO; its thumbnails
-and post actions remain inside Booru. Audio/text handlers and conversion of
-Internet Archive and Camera's full review actions are later steps. Browsing thumbnails are not file
-opening and can remain within those applications.
+Images uses Qt and distro image plugins for decoding; Text uses Qt's document
+layout and Unicode codecs. Audio uses GStreamer playbin with ALSA output and
+base/good distro plugins. These are small independent X11 front ends for the
+Reader's controls and safe inset, with no viewer service or custom codec.
+Images uses `%U`; Text uses `%f`; Audio uses `%u`. Handlers must accept native
+paths as well as encoded `file:` URIs: GIO may convert a file URI when launching.
+
+Files dispatches all regular files through GIO. No inline text/image fallback
+remains; a missing association shows details and suggests installing a viewer.
+Booru opens cached samples with the default image handler. Camera's last-photo
+action opens its saved JPEG the same way, and releases its live preview lease
+while the viewer has focus. Internet Archive opens cached images/text and sends
+audio URLs to the default **audio MIME handler**, rather than the HTTPS scheme's
+browser. Its catalog selection remains underneath the new window.
+
+For remote audio, first infer the MIME type from the filename with
+`g_content_type_guess()`, get its URI-capable handler using
+`g_app_info_get_default_for_type()`, and call `g_app_info_launch_uris()`. The
+handler then owns streaming. The default Audio player supports HTTP(S); Images
+and Text require local files. Caches remain caller-owned. Thumbnails and browsing
+previews are separate from opening files and stay in their respective apps.
 
 References: [freedesktop MIME defaults](https://specifications.freedesktop.org/mime-apps/latest/default.html),
 [desktop Exec field codes](https://specifications.freedesktop.org/desktop-entry-spec/latest/exec-variables.html),

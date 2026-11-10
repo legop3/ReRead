@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Audio
+Comment=Play local and streamed audio with the Reader buttons
+Exec=/usr/lib/reread/apps/audio/reader-audio-app -- %u
+TryExec=/usr/lib/reread/apps/audio/reader-audio-app
+Icon=reread-audio
+NoDisplay=true
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+MimeType=audio/mpeg;audio/mp3;audio/x-mp3;audio/x-wav;audio/wav;audio/vnd.wave;audio/ogg;audio/x-vorbis+ogg;audio/flac;audio/x-flac;audio/opus;audio/x-opus+ogg;
+X-ReRead=true
