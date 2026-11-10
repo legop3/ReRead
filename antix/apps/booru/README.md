@@ -10,7 +10,7 @@ From the ReRead checkout with the existing `reread-builder` image:
 docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/apps/booru/package.py
 ```
 
-Package: `out/antix/reread-app-booru_0.1.2_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Package is not yet published to the APT repo; build and test first.
+Package: `out/antix/reread-app-booru_0.1.3_i386.deb`. Install with the normal ReRead Apps web page or dpkg. Package is not yet published to the APT repo; build and test first.
 
 ## Configuration
 
@@ -29,8 +29,8 @@ The app supports e621-style `/posts.json`, `/favorites.json`, and `/favorites/{p
 ## Controls
 
 - Home: D-pad selects Recent, My favorites, or a configured saved search; OK opens; Options rotates between configured hosts; Back exits.
-- Gallery: D-pad moves through 3×2 cards, OK views, Options fetches the next 30-post page, Back returns to Home.
-- Viewer: D-pad Left/Right switches posts at 1×, or pans when zoomed. Plus/Minus zoom. OK toggles online account favorite. Play shows post ID, rating, and tags; Options downloads the original file explicitly into `Files/Pictures/Booru`. Back closes viewer.
+- Gallery: D-pad moves through 3×2 cards, OK views, the next 30 posts load automatically near the end, Back returns to Home.
+- Viewer: unobstructed fullscreen without header/footer; D-pad Left/Right switches posts at 1× and prefetches following pages, or pans in the expected direction when zoomed (with bounded edges). Plus/Minus zoom through 13 levels from fit-to-screen to 10×. OK toggles online account favorite. Play shows post ID, rating, and tags; Options downloads the original file explicitly into `Files/Pictures/Booru`. Back closes viewer.
 - Favorites button returns to ReRead Home immediately. Power, volume, Hold, and suspend remain with the platform.
 
 Images are fetched on demand into bounded RAM, not saved unless explicitly downloaded. Originals are capped at 64 MiB on download; sample decode at 9 MiB and 2304 px, thumbnail requests 512 KiB. Video formats are not supported. Favorites require an account.
