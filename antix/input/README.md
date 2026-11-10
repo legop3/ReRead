@@ -3,7 +3,8 @@
 App-facing usage and required glyph shapes are defined in the
 [app development guide](../../APP_DEVELOPMENT.md#buttons-and-their-icons).
 The shared SVGs match the documented physical markings: hollow-circle OK,
-northeast Play triangle, speed-line Voice Speed arrow and tailless D-pad points.
+blue diagonal Play pill with a white northeast-pointing triangle, speed-line
+Voice Speed arrow and tailless D-pad points.
 Use these shared icon names rather than drawing per-app replacements.
 
 The canonical map is [buttons.json](buttons.json). Run `python3 antix/input/generate.py`
@@ -39,9 +40,10 @@ The named SVG files under [icons](icons) are installed in
 `/usr/share/icons/hicolor/scalable/actions`. They are freedesktop icon-theme
 assets, available through normal theme lookup, e.g.
 `QIcon::fromTheme("reread-button-back")`. `reader_button_icon_name(READER_BACK)`
-returns that name; Screen uses these same assets for hints. They have white
-strokes on transparency for ReRead's high-contrast control hints. Apps may tint
-them for other backgrounds. Application icons remain independent `.desktop`
+returns that name; Screen uses these same assets for hints. Most use white
+glyphs on transparency for ReRead's high-contrast control hints; Play keeps its
+blue pill and white triangle. Preserve its color; monochrome glyphs may be tinted
+for other backgrounds. Application icons remain independent `.desktop`
 `Icon=` entries; a button icon identifies the physical control next to an action.
 
 The symbols are vector redrawings of the owner-described controls, not extracted
@@ -62,14 +64,14 @@ Shoot, Hold and Power are on the top edge; Volume +/− are on the right edge.
 | `SHOOT` | Top edge; Camera outline | `CAMERA` (212) | `XF86WebCam` | `reread-button-shoot` | Capture or open Camera |
 | `HOLD` | Top edge switch; Padlock | `SCREENLOCK` (152) | `XF86ScreenSaver` | `reread-button-hold` | Lock ordinary input; pressed means unlocked |
 | `POWER` | Top edge; Power | `POWER` (116) | `XF86PowerOff` | `reread-button-power` | Sleep; hardware long hold forces off |
-| `PLAY` | Front, upper right blue button; Triangle pointing up and right | `PLAYPAUSE` (164) | `XF86AudioPlay` | `reread-button-play` | Play/pause or primary app action |
-| `BACK` | Above-left of D-pad; Diagonal return arrow | `ESC` (1) | `Escape` | `reread-button-back` | Back; close at app root |
+| `PLAY` | Front, upper right blue button; Blue diagonal pill with a white northeast-pointing triangle | `PLAYPAUSE` (164) | `XF86AudioPlay` | `reread-button-play` | Play/pause or primary app action |
+| `BACK` | Above-left of D-pad; Thick northwest arrow with rounded ends | `ESC` (1) | `Escape` | `reread-button-back` | Back; close at app root |
 | `UP` | D-pad top; Up chevron without tail | `UP` (103) | `Up` | `reread-button-up` | Move up |
 | `DOWN` | D-pad bottom; Down chevron without tail | `DOWN` (108) | `Down` | `reread-button-down` | Move down |
 | `LEFT` | D-pad left; Left chevron without tail | `LEFT` (105) | `Left` | `reread-button-left` | Move left or decrease |
 | `RIGHT` | D-pad right; Right chevron without tail | `RIGHT` (106) | `Right` | `reread-button-right` | Move right or increase |
 | `OK` | D-pad center; Empty circle | `ENTER` (28) | `Return` | `reread-button-ok` | Activate selection |
-| `OPTIONS` | Below-left of D-pad; Menu lines | `MENU` (139) | `Menu` | `reread-button-options` | Context menu or settings |
+| `OPTIONS` | Below-left of D-pad; Long top bar with two shorter right-aligned bars below | `MENU` (139) | `Menu` | `reread-button-options` | Context menu or settings |
 | `ZOOM_OUT` | Bottom row, first button; Minus | `KPMINUS` (74) | `KP_Subtract` | `reread-button-zoom-out` | Zoom out or decrease |
 | `VIEW_TOGGLE` | Bottom row, second button; Overlapping rectangles | `SWITCHVIDEOMODE` (227) | `XF86Display` | `reread-button-view-toggle` | Change view |
 | `ZOOM_IN` | Bottom row, third button; Plus | `KPPLUS` (78) | `KP_Add` | `reread-button-zoom-in` | Zoom in or increase |

@@ -178,16 +178,19 @@ QIcon icon = QIcon::fromTheme("reread-button-back");
 // reader_button_icon_name(READER_BACK) supplies that same theme name.
 ```
 
-They use white strokes; tint using the palette when needed on a light selection
-or background. Labels identify actions; glyphs identify physical controls. A
-button's old stock-OS name does not force an unrelated action in every app.
+Most glyphs are white on transparency; Play retains its blue pill and white
+triangle. Preserve that color in normal icon rendering. Monochrome glyphs may
+be tinted for a light selection or background. Labels identify actions; glyphs
+identify physical controls. A button's old stock-OS name does not force an unrelated action in every app.
 
 The shared artwork must match the Reader's physical markings:
 
 | Button | Required shape |
 | --- | --- |
 | OK | Empty circle, distinct from the record-like Favorites glyph |
-| Play | Triangle pointing up and right; its physical button adjoins the screen's upper-right corner |
+| Play | Blue diagonal pill with a white northeast-pointing triangle near its upper end |
+| Back | Thick northwest arrow with rounded ends |
+| Options | Long top bar with two shorter right-aligned bars below; no enclosing box |
 | Voice Speed | Thick downward arrow with speed lines on its tail |
 | D-pad | Arrow points/chevrons without tails |
 

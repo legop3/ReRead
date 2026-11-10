@@ -43,7 +43,7 @@
     "linux_code": 164,
     "xkb": "XF86AudioPlay",
     "location": "Front, upper right blue button",
-    "symbol": "Triangle pointing up and right",
+    "symbol": "Blue diagonal pill with a white northeast-pointing triangle",
     "action": "Play/pause or primary app action",
     "icon": "reread-button-play"
   },
@@ -55,7 +55,7 @@
     "linux_code": 1,
     "xkb": "Escape",
     "location": "Above-left of D-pad",
-    "symbol": "Diagonal return arrow",
+    "symbol": "Thick northwest arrow with rounded ends",
     "action": "Back; close at app root",
     "icon": "reread-button-back"
   },
@@ -127,7 +127,7 @@
     "linux_code": 139,
     "xkb": "Menu",
     "location": "Below-left of D-pad",
-    "symbol": "Menu lines",
+    "symbol": "Long top bar with two shorter right-aligned bars below",
     "action": "Context menu or settings",
     "icon": "reread-button-options"
   },
