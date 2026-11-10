@@ -32,7 +32,7 @@ public:
    window.toggleBookmark();
    require(window.bookmarks().contains("dog"),"Bookmark the composed search");
    require(readJson(window.preferencesPath()).value("bookmarks").toObject()
-             .value("https://e926.net").toArray().contains("dog"),"Persist search bookmarks");
+             .value("https://e926.net").toArray().contains(QJsonValue(QStringLiteral("dog"))),"Persist search bookmarks");
    window.toggleBookmark();
    require(!window.bookmarks().contains("dog"),"Remove a bookmark without text input");
    window.initializeSearch("");
