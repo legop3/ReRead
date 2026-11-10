@@ -115,9 +115,14 @@ public:
     window.posts.clear();window.posts.append(post);window.selected=0;
     window.page=Booru::POST;
     window.button(READER_OPTIONS,1);
-    require(window.page==Booru::SEARCH&&window.postTagSnapshot.contains("cat"),
-            "Post tags are accessible from the SAME editor");
-    window.searchIndex=window.queryTerms.size()+2;
+    require(window.page==Booru::SEARCH&&window.postTagSnapshot.contains("cat") &&
+            window.contextPostId==42 && window.editorReturnPage==Booru::POST,
+            "Options from post captures its own tags and remembers the post");
+    require(window.selectedEditorAction()==Booru::FROM_POST &&
+            window.editorRows()[window.searchIndex].contains("post #42"),
+            "Editor opens focused on a visible post-specific tag action");
+    require(window.editorActions().first().contains("post #42"),
+            "Post-specific action appears first among search actions");
     window.button(READER_OK,1);
     require(window.page==Booru::LOOKUP && window.lookupMode==2 &&
             window.suggestions.contains("cat"),"Post tag chooser only adds terms");
@@ -125,10 +130,15 @@ public:
             window.suggestionCategories==QList<int>({1,5,0,0,7,8}),
             "Post picker preserves API categories in the site's section order");
     window.suggestionIndex=0;window.button(READER_OK,1);
-    require(window.search.contains("an_artist"),
-            "Post tag selection adds the selected categorized tag to active query");
+    require(window.search.contains("an_artist")&&window.editorChanged,
+            "Post tag selection edits active query and invalidates previous post results");
     window.searchTimer.stop();window.button(READER_BACK,1);
-    require(window.page==Booru::SEARCH,"Post tag chooser returns to editor");
+    require(window.page==Booru::SEARCH &&
+            window.editorActions().first().contains("post #42"),
+            "Post category action survives search refresh and empty results");
+    window.button(READER_OPTIONS,1);
+    require(window.page==Booru::GALLERY,
+            "Edited search returns to refreshed results, not a stale post");
 
     window.posts.clear();
     for(int i=0;i<18;++i){Post item;item.id=100+i;window.posts.append(item);}
