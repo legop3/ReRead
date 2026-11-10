@@ -345,7 +345,7 @@ class Booru : public Screen {
     loadingMore=append;
     if(!append){
       for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
-      thumbTimer.stop();thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();thumbnails.clear();
+      thumbTimer.stop();thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
       thumbAttempts.clear();thumbRetryAt.clear();
       posts.clear();selected=0;first=0;
       pageNumber=1;more=false;
@@ -680,15 +680,17 @@ protected:
         if(chosen)p.fillRect(line,palette().highlight());
         else {p.setPen(palette().mid());p.drawLine(line.left(),line.bottom(),line.right(),line.bottom());}
         const QString name=suggestions[i];
-        label(p,line.adjusted(10,0,-8,0),name,21,chosen,
+        label(p,line.adjusted(10,0,-8,0),
+              (tagState(name)=="Include"?"+ ":tagState(name)=="Exclude"?"− ":"")+name,
+              21,chosen,
               palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
       }
       if(suggestions.isEmpty())
         text(p,QRect(right.x()+5,right.y()+76,right.width()-10,150),
              prefix.isEmpty()?"Select letters to find matching tags.":"Finding matches...",21);
       label(p,QRect(right.x(),right.bottom()-43,right.width(),37),
-            "View: "+QString(lookupResultsFocus?"Keyboard":"Matches")+
-            "   ·   "+QString::number(tagFilters.size())+" filters",18);
+            builtSearch()==search?"Search unchanged":"CHANGES NOT APPLIED",18,
+            builtSearch()!=search,palette().color(QPalette::Link));
     } else if(page==SEARCH) {
       const QStringList names={"Find tag by name","Browse popular tags","Tag category","Tags on selected post","Edit active tags",
         "Sort order","Rating","File type","Minimum score",
@@ -784,7 +786,7 @@ protected:
           text(p,QRect(layout.info.x()+8,layout.info.y()+72,layout.info.width()-16,180),
                "Filter: "+rule+
                (tagSource==0?"\nUsed in "+QString::number(popularTagCounts.value(tag))+" posts":"")+
-               "\n\nSelect tags to include or exclude from the search.",22);
+               (builtSearch()==search?"\n\nSearch unchanged":"\n\nCHANGES NOT APPLIED"),22);
           label(p,QRect(layout.info.x()+8,layout.info.bottom()-46,layout.info.width()-16,35),
                 tagSource==0?"Page "+QString::number(tagPage)+" · "+QString::number(names.size())+" tags":
                   QString::number(tagFilters.size())+" overrides",19);
@@ -841,7 +843,16 @@ protected:
       tagsFromSearch=false;openTagBrowser(1);
     }else if(key==READER_OK){
       if(page==SETTINGS){
-        if(settingIndex==0){hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;}
+        if(settingIndex==0){
+          hostIndex=(hostIndex+1)%hosts.size();homeIndex=0;
+          // Post IDs are not globally unique across configured servers.
+          thumbTimer.stop();
+          for(auto reply:thumbJobs){reply->disconnect(this);reply->abort();reply->deleteLater();}
+          thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
+          thumbAttempts.clear();thumbRetryAt.clear();thumbnails.clear();
+          posts.clear();selected=first=0;
+          initializeSearch("");
+        }
         else {autoOpenImages=!autoOpenImages;savePreferences();}
         update();
       }else if(page==SEARCH){
