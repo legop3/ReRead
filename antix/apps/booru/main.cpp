@@ -358,8 +358,13 @@ class Booru : public Screen {
         controls.prepend({READER_LEFT,"Previous / Include"});
         controls.prepend({READER_RIGHT,"Next / Exclude"});
       }
-    }else if(page==LOOKUP)controls={{READER_UP,"Choose tag"},{READER_OK,"Add tag"},
-          {READER_VIEW_TOGGLE,"Switch area"},{READER_BACK,"Search editor"}};
+    }else if(page==LOOKUP){
+      controls={{READER_UP,"Choose tag"},{READER_OK,"Add tag"},{READER_BACK,"Search editor"}};
+      if(lookupMode==0){
+        controls.append({READER_VIEW_TOGGLE,"Keyboard / matches"});
+        controls.append({READER_ZOOM_OUT,"Delete character"});
+      }
+    }
     else if(page==GALLERY)controls={{READER_UP,"Browse"},{READER_OK,"Open post"},
           {READER_OPTIONS,"Edit search"},{READER_BACK,"Search editor"}};
     else if(page==POST)controls={{READER_VIEW_TOGGLE,"View image"},{READER_OK,"Favorite"},
@@ -380,7 +385,7 @@ class Booru : public Screen {
   }
   QNetworkRequest request(QUrl u,bool authenticated) {
     QNetworkRequest req(u);
-    req.setRawHeader("User-Agent","ReRead-Booru/0.7.1 (+https://github.com/legop3/ReRead; "+host().username.toUtf8()+")");
+    req.setRawHeader("User-Agent","ReRead-Booru/0.8.0 (+https://github.com/legop3/ReRead; "+host().username.toUtf8()+")");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
     req.setRawHeader("Accept","application/json");
     if(authenticated&&!host().username.isEmpty()&&!host().key.isEmpty()&&u.host()==QUrl(host().url).host())
