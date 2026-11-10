@@ -39,7 +39,7 @@ QString safeName(QString name) {
 
 class Booru : public Screen {
   friend class BooruTest;
-  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING, SETTINGS, SEARCH };
+  enum Page { HOME, GALLERY, POST, INFO, CONFIRM, DOWNLOADING, SETTINGS, SEARCH, LOOKUP };
   Page page=HOME;
   QNetworkAccessManager net;
   QList<Host> hosts;
@@ -48,12 +48,12 @@ class Booru : public Screen {
   QMap<int,QImage> thumbnails;
   QSet<int> pendingThumbnails, failedThumbnails;
   QList<QNetworkReply*> thumbJobs;
-  QTimer thumbTimer;
+  QTimer thumbTimer, lookupTimer;
   QHash<int,int> thumbAttempts;
   QHash<int,qint64> thumbRetryAt;
   qint64 lastThumbnailStart=0;
   bool thumbnailsPaused=false;
-  QNetworkReply *api=nullptr, *tagApi=nullptr, *imageJob=nullptr, *transfer=nullptr;
+  QNetworkReply *api=nullptr, *tagApi=nullptr, *lookupApi=nullptr, *imageJob=nullptr, *transfer=nullptr;
   std::unique_ptr<QSaveFile> saving;
   QString status, search, baseSearch, downloadName;
   QStringList popularTags;
@@ -72,6 +72,11 @@ class Booru : public Screen {
   QStringList scoreLevels={"Any","10+","50+","100+"};
   int sortIndex=0,ratingIndex=0,mediaIndex=0,scoreIndex=0,searchIndex=0,tagIndex=0;
   bool tagsFromSearch=false, searchFromGallery=false;
+  QString prefix;
+  QStringList suggestions;
+  bool lookupResultsFocus=false;
+  int keyIndex=0,suggestionIndex=0;
+  QString keyboardLetters="abcdefghijklmnopqrstuvwxyz0123456789_";
   int settingIndex=0, hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
   bool autoOpenImages=false, more=false, loadingMore=false, favoritePending=false;
@@ -216,12 +221,59 @@ class Booru : public Screen {
     tagSource=source;tagIndex=0;page=INFO;status.clear();chrome();
     if(source==0)fetchPopularTags();
   }
+  void fetchSuggestions(){
+    stop(lookupApi);
+    if(prefix.isEmpty()){suggestions.clear();update();return;}
+    QUrl u(host().url+"/tags.json");QUrlQuery q;
+    q.addQueryItem("search[name_matches]",prefix+"*");
+    q.addQueryItem("search[order]","count");
+    q.addQueryItem("limit","30");u.setQuery(q);
+    auto reply=net.get(request(u,true));lookupApi=reply;
+    connect(reply,&QNetworkReply::downloadProgress,this,[reply](qint64 received,qint64){
+      if(received>256*1024)reply->abort();
+    });
+    connect(reply,&QNetworkReply::finished,this,[this,reply]{
+      if(lookupApi!=reply){reply->deleteLater();return;}
+      lookupApi=nullptr;
+      const int code=reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+      const auto payload=reply->readAll();
+      const bool ok=reply->error()==QNetworkReply::NoError && code>=200 && code<300 &&
+                    payload.size()<=256*1024;
+      reply->deleteLater();
+      suggestions.clear();suggestionIndex=0;
+      if(ok){
+        for(const auto &v:QJsonDocument::fromJson(payload).array()){
+          const QString name=str(v.toObject().value("name"));
+          if(!name.isEmpty()&&!suggestions.contains(name)&&suggestions.size()<30)
+            suggestions<<name;
+        }
+        status=suggestions.isEmpty()?"No matching tags":QString();
+      }else{
+        status="Tag lookup failed (HTTP "+QString::number(code)+")";
+        if(code==429||code==503)lookupTimer.start(2500);
+      }
+      update();
+    });
+  }
+  void changePrefix(const QString &key){
+    if(key=="DEL"){if(!prefix.isEmpty())prefix.chop(1);}
+    else if(key=="CLR")prefix.clear();
+    else if(prefix.size()<40)prefix+=key;
+    stop(lookupApi);lookupTimer.stop();suggestions.clear();
+    suggestionIndex=0;status.clear();
+    if(!prefix.isEmpty())lookupTimer.start(650);
+    update();
+  }
+  void openTagFinder(){
+    page=LOOKUP;prefix.clear();suggestions.clear();
+    keyIndex=suggestionIndex=0;lookupResultsFocus=false;status.clear();chrome();
+  }
   void applySearch() {
     const QString query=builtSearch();
     if(query.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts).size()>40){
       status="Search exceeds the server's 40-tag limit";update();return;
     }
-    stop(tagApi);stop(api);loadingMore=false;apiRetryPending=false;
+    lookupTimer.stop();stop(lookupApi);stop(tagApi);stop(api);loadingMore=false;apiRetryPending=false;
     search=query;page=GALLERY;chrome();fetchPage();
   }
   void chrome() {
@@ -229,6 +281,7 @@ class Booru : public Screen {
 
     if(page==SETTINGS) controls={{READER_UP,"Select"},{READER_OK,"Change"},{READER_BACK,"Home"}};
     else if(page==SEARCH) controls={{READER_UP,"Navigate"},{READER_OK,"Change"},{READER_OPTIONS,"Show results"},{READER_BACK,"Return"}};
+    else if(page==LOOKUP) controls={{READER_UP,"Select"},{READER_OK,"Choose"},{READER_VIEW_TOGGLE,"Switch panel"},{READER_ZOOM_OUT,"Delete letter"},{READER_OPTIONS,"Show results"},{READER_BACK,"Explore"}};
     else if(page==HOME) controls={{READER_OK,"Open"},{READER_OPTIONS,"Settings"},{READER_BACK,"Exit"}};
     else if(page==GALLERY) controls={{READER_UP,"Browse"},{READER_OK,"View"},{READER_OPTIONS,"Refine search"},{READER_BACK,"Explore"}};
     else if(page==POST) controls={{READER_VIEW_TOGGLE,"Open image"},{READER_OK,"Favorite"},{READER_PLAY,"Details"},{READER_OPTIONS,"Save"},{READER_BACK,"Gallery"}};
@@ -549,6 +602,7 @@ class Booru : public Screen {
   void back(){
     if(page==SETTINGS){page=HOME;}
     else if(page==SEARCH){page=searchFromGallery?GALLERY:HOME;}
+    else if(page==LOOKUP){lookupTimer.stop();stop(lookupApi);page=SEARCH;}
     else if(page==INFO){stop(tagApi);page=tagsFromSearch?SEARCH:POST;}
     else if(page==DOWNLOADING){stop(transfer);if(saving)saving->cancelWriting();saving.reset();page=POST;}
     else if(page==POST||page==CONFIRM){stop(imageJob);page=GALLERY;requestThumbs();}
@@ -778,6 +832,8 @@ public:
   Booru():Screen("booru"){
     thumbTimer.setSingleShot(true);
     connect(&thumbTimer,&QTimer::timeout,this,[this]{requestThumbs();});
+    lookupTimer.setSingleShot(true);
+    connect(&lookupTimer,&QTimer::timeout,this,[this]{if(page==LOOKUP)fetchSuggestions();});
     const auto prefs=readJson(preferencesPath());
     autoOpenImages=prefs.value("auto_open_images").toBool(false);
     const auto saved=prefs.value("bookmarks").toObject();
@@ -800,7 +856,7 @@ public:
     } else requestThumbs();
   }
   ~Booru() override {
-    thumbTimer.stop();stop(tagApi);stop(api);stop(imageJob);stop(transfer);
+    thumbTimer.stop();lookupTimer.stop();stop(lookupApi);stop(tagApi);stop(api);stop(imageJob);stop(transfer);
     for(auto r:thumbJobs){r->disconnect(this);r->abort();r->deleteLater();}
     if(saving)saving->cancelWriting();
   }
