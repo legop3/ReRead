@@ -180,7 +180,7 @@ class Booru : public Screen {
     if(page==INFO && !tagsFromSearch)postTagsChanged=true;
     posts.clear();selected=0;first=0;
     status="Updating results...";
-    searchTimer.start(250); // Coalesce rapid button presses, not a separate Apply step.
+    searchTimer.start(500); // Query updates now; coalesce rapid edits before network I/O.
     update();
   }
   void cycleTag(const QString &tag){
@@ -418,7 +418,7 @@ class Booru : public Screen {
           const QString expectedSearch=search;
           const int expectedPage=pageNumber;
           QTimer::singleShot(delay,this,[this,append,expectedSearch,expectedPage,revision]{
-            if(!apiRetryPending||revision!=searchRevision)return;
+            if(!apiRetryPending||revision!=searchRevision||page==HOME||page==SETTINGS)return;
             apiRetryPending=false;
             if(search==expectedSearch&&
                 pageNumber==expectedPage&&!api)fetchPage(append,true);
@@ -536,7 +536,9 @@ class Booru : public Screen {
             }
           }else failedThumbnails.insert(id);
         }else if(code==429||code==503||code==502||code==504||
-                 reply->error()==QNetworkReply::TimeoutError){
+                 reply->error()==QNetworkReply::TimeoutError||
+                 reply->error()==QNetworkReply::TemporaryNetworkFailureError||
+                 reply->error()==QNetworkReply::RemoteHostClosedError){
           const int count=qMin(6,thumbAttempts.value(id)+1);
           thumbAttempts.insert(id,count);
           int seconds=qMin(60,2*(1<<qMin(4,count)));
