@@ -261,9 +261,8 @@ class Booru : public Screen {
     if(index<0||index>=queryTerms.size())return false;
     const QString term=queryTerms[index];
     if(!term.contains(":"))return true;
-    for(const QString &prefix:{"rating:","order:","type:","score:"})
-      if(term.startsWith(prefix))return true;
-    return false;
+    return term.startsWith("rating:")||term.startsWith("order:")||
+           term.startsWith("type:")||term.startsWith("score:");
   }
   void changeTerm(int index,int direction){
     if(index<0||index>=queryTerms.size())return;
