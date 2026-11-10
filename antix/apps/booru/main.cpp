@@ -422,14 +422,12 @@ class Booru : public Screen {
     showHeader=false;
     controls.clear();
     if(page==HOME){
-      controls={{READER_OK,"Open"},{READER_OPTIONS,"Edit search"},{READER_BACK,"Exit"}};
-    }else if(page==SETTINGS){
-      controls={{READER_UP,"Select"},{READER_OK,"Change"},
-                {READER_OPTIONS,"Edit search"},{READER_BACK,"Home"}};
+      controls={{READER_UP,"Choose"},{READER_OK,"Open"},
+                {READER_OPTIONS,"Edit search"},{READER_BACK,"Exit"}};
     }else if(page==SEARCH){
       controls={{READER_UP,"Select"},
                 {READER_OK,searchIndex<queryTerms.size()?"Remove term":"Choose"},
-                {READER_OPTIONS,"Edit search"},{READER_BACK,searchFromGallery?"Gallery":"Home"}};
+                {READER_OPTIONS,"Edit search"},{READER_BACK,"Home"}};
       if(searchIndex<queryTerms.size()&&!queryTerms[searchIndex].startsWith("fav:")){
         controls.prepend({READER_LEFT,"Previous / Include"});
         controls.prepend({READER_RIGHT,"Next / Exclude"});
@@ -444,8 +442,9 @@ class Booru : public Screen {
     }else if(page==GALLERY||page==POST){
       controls={{READER_UP,"Browse"},
                 {READER_OK,page==POST?"Open image":"Preview post"},
-                {READER_PLAY,"Favorite"},
-                {READER_SHOOT,"Download"},
+                {READER_VIEW_TOGGLE,"View image"},
+                {READER_PLAY,"Toggle favorite"},
+                {READER_SHOOT,"Download original"},
                 {READER_OPTIONS,"Edit search"},
                 {READER_BACK,page==POST?"Gallery":"Search editor"}};
     }else if(page==DOWNLOADING){
@@ -465,13 +464,28 @@ class Booru : public Screen {
       if(saving)saving->cancelWriting();
       saving.reset();
     }
-    if(page==GALLERY||page==POST||page==DOWNLOADING)
-      searchFromGallery=true;
-    else if(page==HOME)
-      searchFromGallery=false;
+    if(page==SEARCH)return; // Options already means edit this search.
     page=SEARCH;
     searchIndex=qBound(0,searchIndex,editorRows().size()-1);
     status.clear();
+    chrome();
+  }
+  void switchServer(){
+    if(hosts.size()<2){toast("Only one server configured");return;}
+    thumbTimer.stop();searchTimer.stop();lookupTimer.stop();
+    stop(api);stop(tagApi);stop(lookupApi);stop(imageJob);
+    for(auto reply:thumbJobs){
+      reply->disconnect(this);reply->abort();reply->deleteLater();
+    }
+    thumbJobs.clear();pendingThumbnails.clear();failedThumbnails.clear();
+    thumbAttempts.clear();thumbRetryAt.clear();thumbnails.clear();
+    ++searchRevision;
+    apiRetryPending=false;loadingMore=false;hasResults=false;more=false;
+    hostIndex=(hostIndex+1)%hosts.size();
+    posts.clear();selected=first=0;pageNumber=1;
+    postTagSnapshot.clear();postCategorySnapshot.clear();
+    initializeSearch("");
+    status="Server: "+host().name;
     chrome();
   }
   void imageIn(QPainter &p,QRect target,const QImage &img,bool crop=false) const {
