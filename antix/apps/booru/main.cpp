@@ -47,7 +47,7 @@ class Booru : public Screen {
   int contextPostId=0;
   enum EditorAction { FROM_POST, FIND_TAG, POPULAR_TAG, FAVORITE_FILTER,
                       SORT_ORDER, RATING_FILTER, FILE_FILTER, SCORE_FILTER,
-                      SAVE_SEARCH, VIEW_RESULTS };
+                      SAVE_SEARCH };
   QNetworkAccessManager net;
   QList<Host> hosts;
   QHash<QString,QStringList> bookmarksByHost;
@@ -186,7 +186,7 @@ class Booru : public Screen {
     QList<EditorAction> actions;
     if(!postTagSnapshot.isEmpty())actions<<FROM_POST;
     actions<<FIND_TAG<<POPULAR_TAG<<FAVORITE_FILTER<<SORT_ORDER
-           <<RATING_FILTER<<FILE_FILTER<<SCORE_FILTER<<SAVE_SEARCH<<VIEW_RESULTS;
+           <<RATING_FILTER<<FILE_FILTER<<SCORE_FILTER<<SAVE_SEARCH;
     return actions;
   }
   QStringList editorActions() const {
@@ -204,7 +204,6 @@ class Booru : public Screen {
         case SCORE_FILTER:names<<"Minimum score";break;
         case SAVE_SEARCH:
           names<<(bookmarks().contains(builtSearch())?"Unsave search":"Save search");break;
-        case VIEW_RESULTS:names<<"View results";break;
       }
     }
     return names;
@@ -212,7 +211,7 @@ class Booru : public Screen {
   EditorAction selectedEditorAction() const {
     const auto actions=editorActionIds();
     const int index=searchIndex-queryTerms.size();
-    return actions.value(index,VIEW_RESULTS);
+    return actions.value(index,SAVE_SEARCH);
   }
   QStringList editorRows() const {
     QStringList names;
@@ -300,7 +299,6 @@ class Booru : public Screen {
       case FILE_FILTER:return "Change the file type filter.";
       case SCORE_FILTER:return "Change the minimum post score.";
       case SAVE_SEARCH:return "Save or remove this search on the Reader.";
-      case VIEW_RESULTS:return "Return to matching posts.";
     }
     return {};
   }
@@ -551,7 +549,11 @@ class Booru : public Screen {
   void openHomeSelection(){
     if(hosts.size()>1&&homeIndex==sections().size()-1){switchServer();return;}
     // Search editor is a *resume* action. Do not reset or refetch its query.
-    if(homeIndex==0){editorReturnPage=GALLERY;editorChanged=false;page=SEARCH;status.clear();chrome();return;}
+    if(homeIndex==0){
+      postTagSnapshot.clear();postCategorySnapshot.clear();contextPostId=0;
+      editorReturnPage=GALLERY;editorChanged=false;
+      page=SEARCH;status.clear();chrome();return;
+    }
     postTagSnapshot.clear();postCategorySnapshot.clear();contextPostId=0;
     editorReturnPage=GALLERY;editorChanged=false;
     if(homeIndex==1)initializeSearch("");
@@ -1087,17 +1089,29 @@ protected:
               palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
       }
       const QRect side=layout.info.adjusted(10,10,-8,-10);
-      label(p,QRect(side.x(),side.y(),side.width(),42),"Search editor",28,true,
+      label(p,QRect(side.x(),side.y(),side.width(),42),
+            searchIndex<queryTerms.size()?"Edit term":"Search actions",27,true,
             palette().color(QPalette::Link));
-      label(p,QRect(side.x(),side.y()+50,side.width(),33),
-            QString::number(queryTerms.size())+" terms",20);
-      text(p,QRect(side.x(),side.y()+91,side.width(),104),
+      label(p,QRect(side.x(),side.y()+50,side.width(),30),
+            QString::number(queryTerms.size())+" terms",19);
+      text(p,QRect(side.x(),side.y()+91,side.width(),142),
            selectedTermDetail(),21);
-      p.setPen(QPen(palette().mid(),1));
-      p.drawLine(side.left(),side.y()+205,side.right(),side.y()+205);
-      label(p,QRect(side.x(),side.y()+214,side.width(),32),"Active query",21,true);
-      text(p,QRect(side.x(),side.y()+252,side.width(),qMax(45,side.height()-267)),
-           builtSearch().isEmpty()?"(all posts)":builtSearch(),21);
+      if(!postTagSnapshot.isEmpty()){
+        p.setPen(QPen(palette().mid(),1));
+        p.drawLine(side.left(),side.y()+242,side.right(),side.y()+242);
+        label(p,QRect(side.x(),side.y()+254,side.width(),36),
+              "From post #"+QString::number(contextPostId),21,true,
+              palette().color(QPalette::Link));
+        QStringList counts;
+        for(int category:siteCategoryOrder()){
+          const int n=postCategorySnapshot.value(category).size();
+          if(n)counts<<categoryName(category)+": "+QString::number(n);
+        }
+        text(p,QRect(side.x(),side.y()+299,side.width(),
+                     qMax(35,side.height()-313)),
+             counts.isEmpty()?QString::number(postTagSnapshot.size())+" tags":
+             counts.join("\n"),19);
+      }
     } else if(page==HOME) {
       const QStringList names=sections();
       const auto layout=listInfo(p,area,names.size(),homeIndex,66,0.57);
@@ -1226,7 +1240,6 @@ protected:
         case SCORE_FILTER:
           setTerm("score",{"","score:>=10","score:>=50","score:>=100"});break;
         case SAVE_SEARCH:toggleBookmark();break;
-        case VIEW_RESULTS:showResults();break;
       }
     }else if(page==LOOKUP){
       if(lookupMode!=0||lookupResultsFocus){
