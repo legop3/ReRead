@@ -221,6 +221,10 @@ class Booru : public Screen {
     tagSource=source;tagIndex=0;page=INFO;status.clear();chrome();
     if(source==0)fetchPopularTags();
   }
+  QString lookupKey(int index) const {
+    return index<keyboardLetters.size()?QString(keyboardLetters[index]):
+           index==keyboardLetters.size()?"DEL":"CLR";
+  }
   void fetchSuggestions(){
     stop(lookupApi);
     if(prefix.isEmpty()){suggestions.clear();update();return;}
@@ -612,7 +616,11 @@ class Booru : public Screen {
   }
   void navigate(int dx,int dy){
     if(page==SETTINGS){settingIndex=qBound(0,settingIndex+dx+dy,1);}
-    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,9);}
+    else if(page==SEARCH){searchIndex=qBound(0,searchIndex+dx+dy,10);}
+    else if(page==LOOKUP){
+      if(lookupResultsFocus)suggestionIndex=qBound(0,suggestionIndex+dx+dy,qMax(0,suggestions.size()-1));
+      else keyIndex=qBound(0,keyIndex+dx+dy*6,keyboardLetters.size()+1);
+    }
     else if(page==INFO){
       tagIndex=qBound(0,tagIndex+dx+dy,qMax(0,currentTags().size()-1));
       if(tagSource==0 && !tagLoading && !tagApi && tagHasMore &&
@@ -642,12 +650,51 @@ protected:
     const QRect area=r.adjusted(4,3,-4,-3);
     if(page==SETTINGS) {
       list(p,area,{"Server", "Open images automatically"},{host().name,autoOpenImages?"On":"Off · use View on a post"},settingIndex);
+    } else if(page==LOOKUP) {
+      // Compact D-pad character picker; no system keyboard or text input required.
+      const QRect left(area.x()+4,area.y()+4,area.width()*45/100,area.height()-8);
+      const QRect right(left.right()+20,area.y()+4,area.right()-left.right()-24,area.height()-8);
+      label(p,QRect(left.x(),left.y(),left.width(),38),"Find a tag",28,true,palette().color(QPalette::Link));
+      label(p,QRect(left.x(),left.y()+43,left.width(),43),
+            prefix.isEmpty()?"Prefix: (empty)":"Prefix: "+prefix,23,true);
+      const int gap=5,cols=6;
+      const int width=(left.width()-(cols-1)*gap)/cols;
+      const int height=51;
+      for(int i=0;i<keyboardLetters.size()+2;++i){
+        const int x=i%cols,y=i/cols;
+        const QRect cell(left.x()+x*(width+gap),left.y()+99+y*(height+gap),width,height);
+        const bool chosen=!lookupResultsFocus&&keyIndex==i;
+        if(chosen)p.fillRect(cell,palette().highlight());
+        else {p.setPen(palette().mid());p.drawRect(cell.adjusted(1,1,-1,-1));}
+        label(p,cell.adjusted(3,0,-3,0),lookupKey(i),21,chosen,
+              palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+      }
+      label(p,QRect(right.x(),right.y(),right.width(),40),
+            "Matching tags",26,true,palette().color(QPalette::Link));
+      const int visible=8;
+      const int firstMatch=(suggestionIndex/visible)*visible;
+      for(int j=0;j<visible&&firstMatch+j<suggestions.size();++j){
+        const int i=firstMatch+j;
+        const QRect line(right.x(),right.y()+52+j*49,right.width(),44);
+        const bool chosen=lookupResultsFocus&&i==suggestionIndex;
+        if(chosen)p.fillRect(line,palette().highlight());
+        else {p.setPen(palette().mid());p.drawLine(line.left(),line.bottom(),line.right(),line.bottom());}
+        const QString name=suggestions[i];
+        label(p,line.adjusted(10,0,-8,0),name,21,chosen,
+              palette().color(chosen?QPalette::HighlightedText:QPalette::Text));
+      }
+      if(suggestions.isEmpty())
+        text(p,QRect(right.x()+5,right.y()+76,right.width()-10,150),
+             prefix.isEmpty()?"Select letters to find matching tags.":"Finding matches...",21);
+      label(p,QRect(right.x(),right.bottom()-43,right.width(),37),
+            "View: "+QString(lookupResultsFocus?"Keyboard":"Matches")+
+            "   ·   "+QString::number(tagFilters.size())+" filters",18);
     } else if(page==SEARCH) {
-      const QStringList names={"Browse popular tags","Tag category","Tags on selected post","Edit active tags",
+      const QStringList names={"Find tag by name","Browse popular tags","Tag category","Tags on selected post","Edit active tags",
         "Sort order","Rating","File type","Minimum score",
         bookmarks().contains(builtSearch())?"Remove saved search":"Save this search","SHOW RESULTS"};
-      const QStringList descriptions={"Explore tags without typing",categories[tagCategory],
-        "Find related tags","Remove or change tags",sorts[sortIndex],ratings[ratingIndex],
+      const QStringList descriptions={"Build a tag prefix using the D-pad","Explore tags without typing",
+        categories[tagCategory],"Find related tags","Remove or change tags",sorts[sortIndex],ratings[ratingIndex],
         mediaTypes[mediaIndex],scoreLevels[scoreIndex],"Available from Home","Run this search"};
       const auto layout=listInfo(p,area,names.size(),searchIndex,53,0.54);
       for(int i=layout.first;i<qMin(layout.first+layout.visible,names.size());++i){
