@@ -256,7 +256,7 @@ public:
     require(hint(window,READER_OK)=="Post details" &&
             hint(window,READER_SHOOT)=="Download" &&
             hint(window,READER_PLAY)=="Favorite" &&
-            hint(window,READER_OPTIONS)=="Search",
+            hint(window,READER_OPTIONS)=="Edit search",
             "Results Guide has one clear action per button");
     require(hint(window,READER_VIEW_TOGGLE).isEmpty() &&
             hint(window,READER_FAVORITES).isEmpty(),
@@ -265,7 +265,7 @@ public:
     require(hint(window,READER_OK)=="Open image" &&
             hint(window,READER_SHOOT)=="Download" &&
             hint(window,READER_PLAY)=="Favorite" &&
-            hint(window,READER_OPTIONS)=="Search / tags",
+            hint(window,READER_OPTIONS)=="Edit search",
             "Post Guide is consistent and exposes search/tags");
     require(hint(window,READER_VIEW_TOGGLE).isEmpty() &&
             hint(window,READER_FAVORITES).isEmpty(),
@@ -280,7 +280,7 @@ public:
     window.searchTimer.stop();
     window.chrome();
     require(hint(window,READER_BACK)=="Results" &&
-            hint(window,READER_OPTIONS)=="Results",
+            hint(window,READER_OPTIONS)=="Return to Results",
             "Editor Guide matches its actual return target");
     window.page=Booru::LOOKUP;window.lookupMode=0;window.lookupResultsFocus=false;
     window.chrome();
