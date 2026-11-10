@@ -108,9 +108,11 @@ class Launcher : public Screen {
                   ? QString::fromUtf8(audio.readAll()).trimmed() : "Use the volume buttons");
     } else if (page == "power") {
       title = "Settings / Power";
-      labels << "Auto sleep after" << "Sleep now" << "Restart" << "Shut down";
+      labels << "Auto sleep after" << "Auto sleep on" << "Sleep now" << "Restart" << "Shut down";
       details << duration(readJson("/etc/reader/display.json")
                               .value("auto_suspend_seconds").toInt(0)) + " · without button activity"
+              << (readJson("/etc/reader/display.json").value("auto_suspend_battery_only").toBool(false)
+                      ? "Battery only" : "Battery and external power")
               << "Wake with the power button" << "Restart ReRead" << "Turn the Reader off";
       controls = {{READER_OK,"Select"},{READER_BACK,"Settings"}};
     } else if (page == "connections") {
@@ -308,13 +310,20 @@ class Launcher : public Screen {
     else if (page == "power") {
       if (selected == 0) return;
       if (selected == 1) {
+        auto config = readJson("/etc/reader/display.json");
+        config["auto_suspend_battery_only"] = !config.value("auto_suspend_battery_only").toBool(false);
+        writeJson("/etc/reader/display.json", config);
+        refresh();
+        return;
+      }
+      if (selected == 2) {
         command("/usr/local/sbin/reader-power", {"suspend"});
       } else {
-        title = selected == 2 ? "Rebooting…" : "Shutting down…";
+        title = selected == 3 ? "Rebooting…" : "Shutting down…";
         labels.clear();
         update();
         QProcess::startDetached("/sbin/shutdown",
-                                {selected == 2 ? "-r" : "-h", "now"});
+                                {selected == 3 ? "-r" : "-h", "now"});
       }
     }
   }

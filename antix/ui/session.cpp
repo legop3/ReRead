@@ -29,6 +29,7 @@ class Session : public QObject {
   HomeProcess home;
   QDBusInterface manager;
   QString sessionPath, policy;
+  QDBusUnixFileDescriptor externalPowerInhibitor;
   bool dimmed = false, locked = false, sleeping = false;
   QString volume;
   int noticeSequence = 0;
@@ -56,6 +57,22 @@ class Session : public QObject {
     int seconds = readJson("/etc/reader/display.json").value("idle_dim_seconds").toInt(120);
     if (seconds > 0) dim.start(qMin(seconds,86400)*1000); else dim.stop();
   }
+  void updatePowerInhibitor() {
+    auto config = readJson("/etc/reader/display.json");
+    bool block = config.value("auto_suspend_battery_only").toBool(false) &&
+                 config.value("auto_suspend_seconds").toInt(0) > 0 &&
+                 readJson("/run/reader-battery.json").value("external_power").toBool(false);
+    if (block && !externalPowerInhibitor.isValid()) {
+      // An idle-only lock leaves the Power button and explicit sleep available.
+      QDBusReply<QDBusUnixFileDescriptor> reply = manager.call("Inhibit",
+          "idle", "ReRead", "Automatic sleep is battery-only", "block");
+      if (reply.isValid()) externalPowerInhibitor = reply.value();
+      else qWarning() << "Cannot inhibit automatic sleep:" << reply.error().message();
+    } else if (!block && externalPowerInhibitor.isValid()) {
+      activity(); // Start a fresh idle interval when unplugged.
+      externalPowerInhibitor = QDBusUnixFileDescriptor();
+    }
+  }
   void configure() {
     if (sleeping) return;
     // Clear a stale tty idle timestamp before enabling/changing idle actions.
@@ -80,6 +97,7 @@ class Session : public QObject {
       }
       policy = next;
     }
+    updatePowerInhibitor();
   }
 
   void discover() {
@@ -155,6 +173,11 @@ public:
         QString next=QString::fromUtf8(file.readAll()).trimmed();
         if (next != volume) { volume=next; ++noticeSequence; publish(); }
       }
+    });
+    auto power = new QFileSystemWatcher(this);
+    power->addPath("/run/reader-battery.json");
+    connect(power,&QFileSystemWatcher::fileChanged,this,[this,power]{
+      power->addPath("/run/reader-battery.json"); updatePowerInhibitor();
     });
     discover(); publish(); configure();
     connect(&discovery,&QTimer::timeout,this,[this]{discover();}); discovery.start(5000);

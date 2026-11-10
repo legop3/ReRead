@@ -135,3 +135,9 @@ The 0.7.0 split uses device SONAME 1 and optional UI SONAME 3. Upgrade core and
 Camera 0.3.0 together when moving from the earlier combined helper. The core package declares a conflict
 with the old Camera binary instead of letting it start with an incompatible
 SDK. Future apps should declare the minimum core version for their SDK.
+
+Settings / Power / Auto sleep on selects Battery only or Battery and external
+power. `auto_suspend_battery_only` defaults to false for compatibility. Battery-only
+mode holds an elogind idle inhibitor while UPower reports external power through
+the existing battery status adapter. Unplugging starts a fresh idle interval;
+manual sleep and the Power button remain available.
