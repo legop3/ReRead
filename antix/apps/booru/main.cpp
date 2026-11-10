@@ -39,7 +39,7 @@ QString safeName(QString name) {
 
 class Booru : public Screen {
   friend class BooruTest;
-  enum Page { HOME, GALLERY, POST, CONFIRM, DOWNLOADING, SETTINGS, SEARCH, LOOKUP };
+  enum Page { HOME, GALLERY, POST, DOWNLOADING, SEARCH, LOOKUP };
   Page page=HOME;
   Page downloadReturnPage=POST;
   QNetworkAccessManager net;
@@ -67,7 +67,6 @@ class Booru : public Screen {
   bool tagHasMore=true,tagLoading=false;
 
   int searchIndex=0;
-  bool searchFromGallery=false, galleryFromExplore=false;
   QStringList postTagSnapshot;
   QMap<int,QStringList> postCategorySnapshot;
   QString prefix;
@@ -75,9 +74,9 @@ class Booru : public Screen {
   bool lookupResultsFocus=false;
   int keyIndex=0,suggestionIndex=0;
   QString keyboardLetters="abcdefghijklmnopqrstuvwxyz0123456789_";
-  int settingIndex=0, hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
+  int hostIndex=0, homeIndex=0, selected=0, first=0, pageNumber=1;
   qint64 received=0,total=0;
-  bool autoOpenImages=false, more=false, loadingMore=false, favoritePending=false;
+  bool more=false, loadingMore=false, favoritePending=false;
   bool hasResults=false;
   bool apiRetryPending=false;
   int apiRetries=0;
@@ -152,11 +151,11 @@ class Booru : public Screen {
   QStringList sections() const {
     QStringList items={"Search editor","Recent posts","My favorites"};
     for(const auto &q:bookmarks())items<<"★ "+q.left(80);
+    items<<"Switch server: "+host().name;
     return items;
   }
   void savePreferences(){
     auto data=readJson(preferencesPath());
-    data["auto_open_images"]=autoOpenImages;
     QJsonObject map;
     for(auto it=bookmarksByHost.cbegin();it!=bookmarksByHost.cend();++it)
       map[it.key()]=QJsonArray::fromStringList(it.value());
@@ -468,7 +467,7 @@ class Booru : public Screen {
     }
     if(page==GALLERY||page==POST||page==DOWNLOADING)
       searchFromGallery=true;
-    else if(page==HOME||page==SETTINGS)
+    else if(page==HOME)
       searchFromGallery=false;
     page=SEARCH;
     searchIndex=qBound(0,searchIndex,editorRows().size()-1);
@@ -862,7 +861,7 @@ class Booru : public Screen {
       const int next=qBound(0,selected+dx,posts.size()-1);
       if(next!=selected){
         selected=next;stop(imageJob);status.clear();requestThumbs();
-        if(autoOpenImages)loadFull();
+        
         maybeLoadMore();
       }
     }
@@ -1153,7 +1152,6 @@ public:
     lookupTimer.setSingleShot(true);
     connect(&lookupTimer,&QTimer::timeout,this,[this]{if(page==LOOKUP)fetchSuggestions();});
     const auto prefs=readJson(preferencesPath());
-    autoOpenImages=prefs.value("auto_open_images").toBool(false);
     const auto saved=prefs.value("bookmarks").toObject();
     for(auto it=saved.begin();it!=saved.end();++it){
       QStringList searches;
