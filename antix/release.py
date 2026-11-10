@@ -170,7 +170,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: graphics
 Priority: optional
-Depends: reread (>= 0.9.0), libqt5network5t64
+Depends: reread (>= 0.16.0), libqt5network5t64
 Description: ReRead camera
  Native button-operated camera with live preview and full-resolution photos.
 """)
@@ -202,7 +202,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: admin
 Priority: optional
-Depends: reread (>= 0.13.0)
+Depends: reread (>= 0.16.0)
 Description: ReRead Software manager
  Check and install system updates, browse applications, and install or remove apps.
 """)
@@ -234,7 +234,7 @@ Architecture: i386
 Maintainer: ReRead contributors
 Section: utils
 Priority: optional
-Depends: reread (>= 0.9.0)
+Depends: reread (>= 0.16.0)
 Description: ReRead Files
  Browse shared folders, view photos and text, inspect and delete files.
 """)

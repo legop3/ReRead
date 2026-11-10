@@ -69,8 +69,9 @@ and info rectangles, the visible row range and row geometry. `listInfoRow` paint
 selection; `label` supplies consistent typography and elision. Files and Software
 use these helpers while supplying their own icons, columns and detail content.
 Keep `list` for short action menus and confirmations. The helpers are optional
-and add no model, application lifecycle or background service. New helper symbols
-are additive to UI SONAME 3; apps using them need a matching core library.
+and add no model, application lifecycle or background service. These helper symbols
+are additive to UI SONAME 3 and first ship in ReRead 0.16.0; apps using them must
+depend on `reread (>= 0.16.0)`.
 
 ## App packaging and SDK
 

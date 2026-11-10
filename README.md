@@ -13,7 +13,7 @@ You need an Intel Reader, a **1 GB or larger USB stick**, and a **powered USB hu
 3. Connect the stick to the Reader through the powered hub and select USB boot in its BIOS boot menu, using a USB keyboard if needed.
 4. Installation runs automatically and reboots. Keep the stick connected until **INSTALLATION COMPLETE**, then remove it during the reboot countdown.
 
-No source checkout, Docker, stock disk dump or registered USB drive is required. The published 0.14.0 installer includes **Camera** and **Software**; update ReRead to get the independent **Files** app. New source builds include all three.
+No source checkout, Docker, stock disk dump or registered USB drive is required. The published 0.14.0 installer includes **Camera** and **Software**; update ReRead and its apps through Software to get the current interface and independent **Files** app. New source builds include all three.
 
 ### Linux command line
 
@@ -43,7 +43,7 @@ Existing installations can update in place through the [signed APT repository](r
 
 ## The platform
 
-Home uses a button-operated icon grid; system settings are grouped into categories. Apps are separately packaged Linux programs with their own UI and standard desktop-entry icons; device and drawing helpers are optional. There is no desktop or browser on the device. Large text and a fixed safe inset on every side account for the overlapping bezel.
+ReRead 0.16 uses a high-contrast black interface with bright icons, clear focus marks and white selection labels. Files and Software share a collection/details view; each app supplies its own content. Home uses a button-operated icon grid; system settings are grouped into categories. Apps are separately packaged Linux programs with their own UI and standard desktop-entry icons; device and drawing helpers are optional. There is no desktop or browser on the device. Large text and a fixed safe inset on every side account for the overlapping bezel.
 
 Default apps are **Camera**, **Files** and **Software**. [Files](antix/apps/files/README.md) browses folders, previews photos/text and deletes files or folders with confirmation; it is a separately managed app. Software manages system updates and application installs/removal directly with the Reader’s buttons, without a USB connection. Camera provides live preview, full-resolution JPEGs, Photo/Document modes and optional flash. Preview and saved photos default to 180° rotation for holding the bottom-facing camera forward. **OK/Select or Shoot** takes a photo; Options changes camera settings, View shows the last photo, and Back returns Home.
 
