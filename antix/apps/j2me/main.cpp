@@ -77,7 +77,10 @@ class J2ME : public Screen {
     QDir().mkpath(state+"/data/"+identity());
     child.setWorkingDirectory(state+"/data/"+identity());
     child.setProgram("/usr/bin/java");
-    child.setArguments({"-Xms16m","-Xmx128m","-jar",runtime,
+    child.setArguments({"-Xms16m","-Xmx128m",
+        "-Dreread.freej2me.jar="+runtime,
+        "-cp","/usr/lib/reread/apps/j2me/classes:"+runtime,
+        "ReReadJ2ME",
         QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
         "1",QString::number(land?h:w),QString::number(land?w:h),
         "1",QString::number(setting("layout",0)),QString::number(setting("fps",60))});
