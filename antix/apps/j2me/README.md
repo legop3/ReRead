@@ -16,7 +16,7 @@ docker run --rm -v "$PWD:/work:z" reread-builder \
   python3 /work/antix/apps/j2me/package.py
 ```
 
-Output: `out/antix/reread-app-j2me_0.3.2_i386.deb`.
+Output: `out/antix/reread-app-j2me_0.3.3_i386.deb`.
 
 This **single command** compiles the i386 Qt app, fetches pinned upstream
 FreeJ2ME-Plus source, builds its `freej2me_plus-lr.jar` headless core with
