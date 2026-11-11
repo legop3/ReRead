@@ -85,7 +85,10 @@ def prepare(args, version, tag, commit, catalog):
     builder = Builder(args)
     if args.kind == 'app':
         builder.run('python3', '/work/antix/apps/package.py', args.app)
-        paths = [BASE / f'out/antix/reread-app-{args.app}_{version}_i386.deb']
+        paths = [BASE / f'out/antix/reread-app-{args.app}_{version}_{arch}.deb' for arch in ('i386', 'all')]
+        paths = [path for path in paths if path.is_file()]
+        if len(paths) != 1:
+            raise RuntimeError('Expected exactly one i386/all app package')
     else:
         packages = BASE / 'build/releases' / tag / 'packages'
         packages.mkdir(parents=True, exist_ok=True)

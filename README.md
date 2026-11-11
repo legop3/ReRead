@@ -37,6 +37,8 @@ The helper lists USB drives by name and size, lets you choose one, and asks befo
 ./make-usb.sh --build        # Build, then choose a USB drive and flash
 ```
 
+Maintainers: [build and publish platform or app releases](RELEASING.md) with one shared command.
+
 For repeated development flashes to a known drive, use `./make-usb.sh --device /dev/sdX --yes` (replace `/dev/sdX` with the actual whole USB drive). The Reader-side installation remains automatic.
 
 ## Updates and apps

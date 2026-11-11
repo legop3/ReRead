@@ -2,6 +2,7 @@
 from pathlib import Path
 import argparse
 import shutil
+import runpy
 import subprocess
 
 DEFAULT_APPS = ('camera', 'software', 'files', 'images', 'text', 'audio')
@@ -19,15 +20,20 @@ def build(name, base, build_dir, output):
     packager = source / 'package.py'
     if packager.exists():
         # Existing app recipes can keep their specific build dependencies/assets.
-        subprocess.run(['python3', str(packager)], check=True)
+        recipe = runpy.run_path(str(packager))
+        if callable(recipe.get('build')):
+            recipe['build'](base, build_dir, output)
+        else:
+            subprocess.run(['python3', str(packager)], check=True)
     else:
         subprocess.run([str(source / 'build.sh'), str(build_dir / 'ui')], check=True)
         recipes = {'camera': camera, 'software': software, 'files': files}
         recipes[name](base, build_dir, output)
-    package = output / f'reread-app-{name}_{version}_i386.deb'
-    if not package.is_file():
-        raise RuntimeError('Packager did not produce ' + str(package))
-    return package
+    packages = [output / f'reread-app-{name}_{version}_{arch}.deb' for arch in ('i386', 'all')]
+    packages = [path for path in packages if path.is_file()]
+    if len(packages) != 1:
+        raise RuntimeError('Packager must produce exactly one i386/all package for ' + name + ' ' + version)
+    return packages[0]
 
 
 def camera(base, build_dir, output):

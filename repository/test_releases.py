@@ -12,6 +12,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'repository'))
 from install_page import latest_installer, build
+sys.path.insert(0, str(ROOT / 'antix'))
+from apps.package import build as build_app
 spec = importlib.util.spec_from_file_location('releasing', ROOT / 'release.py')
 releasing = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(releasing)
@@ -66,6 +68,19 @@ class ReleasePolicy(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'different bytes'):
                 releasing.publish(SimpleNamespace(repo='owner/repo'), Path('/unused'), metadata, catalog)
             command.assert_not_called()
+
+    def test_app_recipe_preserves_custom_output_and_all_architecture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source = base / 'antix/apps/example';source.mkdir(parents=True)
+            (source / 'VERSION').write_text('1.0')
+            sdk = base / 'build/ui';sdk.mkdir(parents=True)
+            (sdk / 'libreader-ui.so').touch()
+            (source / 'package.py').write_text("def build(base, build_dir, output):\n    (output / 'reread-app-example_1.0_all.deb').write_bytes(b'package')\n")
+            with patch('apps.package.subprocess.run'):
+                package = build_app('example', base, base / 'build', base / 'custom-output')
+            self.assertEqual(package.parent, base / 'custom-output')
+            self.assertEqual(package.read_bytes(), b'package')
 
     def test_app_publication_keeps_latest_for_platform_and_waits_for_its_tag(self):
         with tempfile.TemporaryDirectory() as temporary:
