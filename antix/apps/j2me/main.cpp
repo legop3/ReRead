@@ -114,7 +114,8 @@ class J2ME : public Screen {
     // already verified on actual Reader hardware. The reflective bootstrap
     // previously exited successfully without ever presenting the game.
     child.setProgram("/usr/bin/java");
-    child.setArguments({"-Xms16m","-Xmx128m","-jar",runtime,
+    child.setArguments({"-Xms16m","-Xmx128m",
+        "-Dreread.rotation="+QString::number(rotation),"-jar",runtime,
         QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
         QString::number(setting("fullscreen",1)),QString::number(w),QString::number(h),
         QString::number(setting("scale",1)),QString::number(setting("layout",0)),QString::number(setting("fps",60))});
