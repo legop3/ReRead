@@ -110,12 +110,11 @@ class J2ME : public Screen {
     const int rotation=setting("orientation",0)*90,w=setting("width",240),h=setting("height",320);
     QDir().mkpath(state+"/data/"+identity());
     child.setWorkingDirectory(state+"/data/"+identity());
+    // Run the original AWT entry point: the direct -jar invocation was
+    // already verified on actual Reader hardware. The reflective bootstrap
+    // previously exited successfully without ever presenting the game.
     child.setProgram("/usr/bin/java");
-    child.setArguments({"-Xms16m","-Xmx128m",
-        "-Dreread.freej2me.jar="+runtime,
-        "-Dreread.rotation="+QString::number(rotation),
-        "-cp","/usr/lib/reread/apps/j2me/classes:"+runtime,
-        "ReReadJ2ME",
+    child.setArguments({"-Xms16m","-Xmx128m","-jar",runtime,
         QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
         QString::number(setting("fullscreen",1)),QString::number(w),QString::number(h),
         QString::number(setting("scale",1)),QString::number(setting("layout",0)),QString::number(setting("fps",60))});
@@ -126,7 +125,12 @@ class J2ME : public Screen {
     save();
     errorPage=false;errorText.clear();
     message="Starting "+QFileInfo(game()).fileName();
-    running=true;child.start();chrome();
+    running=true;
+    child.start();
+    // One visible app experience: the game owns the screen while running.
+    // Do not leave a competing ReRead "running" status window onscreen.
+    if(child.waitForStarted(2000)) hide();
+    chrome();
   }
 protected:
   void button(reader_button id,int value) override {
@@ -162,9 +166,7 @@ protected:
     }
   }
   void draw(QPainter &p,const QRect &r) override {
-    if(running){text(p,r,"Running "+QFileInfo(game()).fileName()+"\n\n"
-                    "The Java ME game is in a separate window.\n"
-                    "Hold ? and press Back to exit.",25);return;}
+    if(running){text(p,r,"Starting "+QFileInfo(game()).fileName()+"...",25);return;}
     if(errorPage) {
       text(p,r,errorText,20);
     } else if(confirmDelete) {
@@ -202,12 +204,13 @@ public:
   J2ME():Screen("Java ME") {
     connect(&watcher,&QFileSystemWatcher::directoryChanged,this,[this]{if(!running&&!options)scan();});
     connect(&child,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
-      if(e==QProcess::FailedToStart){running=false;errorPage=true;
+      if(e==QProcess::FailedToStart){running=false;show();raise();activateWindow();errorPage=true;
         errorText="Unable to launch Java:\n"+child.errorString();chrome();}
     });
     connect(&child,static_cast<void(QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus){
       running=false;
+      show();raise();activateWindow();
       if(code==0) {
         message="Game closed.";
       } else {
