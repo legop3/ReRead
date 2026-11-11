@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import argparse
+import base64
 
 BASE = Path(__file__).resolve().parents[3]
 SOURCE = Path(__file__).resolve().parent
@@ -98,6 +99,10 @@ Terminal=false
     shutil.copy(binary,target)
     target.chmod(0o755)
     shutil.copy(args.emulator,target.parent/"freej2me_plus.jar")
+    classes=target.parent/"classes"
+    classes.mkdir(parents=True,exist_ok=True)
+    for name in ("ReReadJ2ME.class","ReReadJ2ME$1.class"):
+        (classes/name).write_bytes(base64.b64decode((SOURCE/(name+".b64")).read_text()))
     OUTPUT.mkdir(parents=True,exist_ok=True)
     package=OUTPUT/f"reread-app-j2me_{version}_i386.deb"
     subprocess.run(["dpkg-deb","--root-owner-group","-Zgzip","--build",str(stage),str(package)],check=True)
