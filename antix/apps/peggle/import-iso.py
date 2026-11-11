@@ -16,6 +16,7 @@ import tempfile
 
 GAME_FILES = (
     "Peggle.exe",
+    "cdprops.xml",
     "main.pak",
     "bass.dll",
     "j2k-codec.dll",
@@ -26,6 +27,7 @@ GAME_FILES = (
 # These are conservative minimum byte sizes, not expected exact hashes.
 MIN_SIZES = {"Peggle.exe": 1_000_000, "main.pak": 5_000_000}
 SETUP_PATH = "installers/PeggleSetup.exe"
+CDPROPS_PATH = "installers/cdprops.xml"
 GAME_FOLDER = "files/Peggle Deluxe"
 
 
@@ -69,12 +71,17 @@ def import_game(iso, dest, delete_iso):
         unpack.mkdir()
         sevenzip("x", "-y", "-bd", "-bso0", "-bsp0", f"-o{unpack}", setup, f"{GAME_FOLDER}/*")
         source = unpack / GAME_FOLDER
+        # PopCap retail builds look for cdprops.xml beside Peggle.exe.
+        # It lives on the disc, outside the setup archive.
+        print("Extracting retail CD properties", flush=True)
+        sevenzip("e", "-y", "-bd", "-bso0", "-bsp0",
+                 f"-o{source}", iso, CDPROPS_PATH)
         size = verify(source)
         if size > 40 * 1024 * 1024:
             raise RuntimeError("Unexpected game payload size")
         # Don't include uninstaller, bundled trial games or setup artifacts.
         for item in source.iterdir():
-            if item.name not in {"Peggle.exe", "main.pak", "bass.dll",
+            if item.name not in {"Peggle.exe", "cdprops.xml", "main.pak", "bass.dll",
                                  "j2k-codec.dll", "music", "properties"}:
                 if item.is_dir():
                     shutil.rmtree(item)
