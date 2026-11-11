@@ -1,11 +1,12 @@
 # Java ME for ReRead
 
-A general-purpose game and application library for classic J2ME/MIDlet JARs.
-This is not a Peggle-specific app: any compatible J2ME game can live alongside
-the others in one folder. The emulator is FreeJ2ME-Plus, built from its pinned
-source revision as part of this app's independent package build.
+ReRead's Java ME app is a game library and an **embedded renderer**, not
+a launcher for a second graphical Java window. It uses FreeJ2ME-Plus's
+existing headless/libretro core: the Java process receives phone-key packets
+and sends decoded RGB LCD frames to this app. The **only** visible window is
+the shared ReRead `Screen`.
 
-## Build the standalone ReRead package
+## Build
 
 From the ReRead checkout on Fedora:
 
@@ -15,89 +16,79 @@ docker run --rm -v "$PWD:/work:z" reread-builder \
   python3 /work/antix/apps/j2me/package.py
 ```
 
-Output: `out/antix/reread-app-j2me_0.2.2_i386.deb`.
+Output: `out/antix/reread-app-j2me_0.3.0_i386.deb`.
 
-One command performs everything: compiles ReRead's i386/Qt launcher, installs
-any missing Java compilation tools **inside the disposable builder**, checks
-out a pinned upstream FreeJ2ME-Plus revision, runs Ant with modern Java 8
-source compatibility, integrates Reader keypad mappings and rotation into FreeJ2ME itself, includes licenses, and
-assembles the .deb. No game JARs, external --emulator flag, or separate build
-mount are required. Internet access is required on the first build.
+This **single command** compiles the i386 Qt app, fetches pinned upstream
+FreeJ2ME-Plus source, builds its `freej2me_plus-lr.jar` headless core with
+Ant, and bundles it in the app package. No game JAR, external emulator JAR,
+local Java build, second Docker mount, or extra OS image build is required.
+The Reader uses the existing `openjdk-21-jre` package and never needs
+compiler tools or Ant. The builder installs its own temporary build tools
+when needed.
 
-The launcher sets Java's `file.encoding` to `ISO_8859_1` (the default MIDP encoding expected by FreeJ2ME). Without this, upstream restarts itself in a separate JVM and exits with status 0, which causes the ReRead launcher to incorrectly say the game closed. This is handled at startup without a second process.\n\nThe installed app depends on Debian's `openjdk-21-jre` **runtime only**. The
-Reader does not receive Ant, Git, Java compiler tools, or source checkouts.
+## Game library
 
-## Normal use
+Put any compatible Java ME `.jar` files in **Files/J2ME**, or upload them
+through the web file manager to `/var/lib/reader/files/J2ME/`.
 
-1. Put mobile Java `.jar` files in the **J2ME** folder in ReRead Files
-   (`/var/lib/reader/files/J2ME/`). This is the *only* game library.
-2. Open **Java ME** on the Home screen.
-3. Browse the games using the D-pad. Titles, vendors and versions are read
-   from MIDlet JAR manifests (without executing the JAR).
-4. Press **OK** to start the selected game directly in FreeJ2ME-Plus, normally
-   fullscreen. Games are not installed individually.
-5. Press **Options** on a selected game to customize it, or toggle the
-   settings page closed to return to the library.
+Open **Java ME** from Home. Browse the games by D-pad; press OK to play.
+JAR manifests provide game title/vendor/version; the library updates when
+files change. No installation or compilation of game JARs is required.
+The app saves per-game preferences and emulator progress separately under
+`/var/lib/reader/apps/j2me/`. Games and saves survive app upgrades.
 
-The game folder is watched for changes; the list refreshes when JARs are
-added or removed. Additional game-specific state lives under
-`/var/lib/reader/apps/j2me/`, not in the uploaded JAR folder.
+Each game has button-adjustable options: virtual phone screen width/height,
+actual 0°/90°/180°/270° rotation, phone type/key mapping, frame cap,
+reset settings, and confirmed erasure of saved progress.
 
-### Per-game settings
+## In-game controls
 
-- LCD rotation: 0°, 90°, 180°, 270° via FreeJ2ME's actual renderer
-- Emulated LCD width and height (independent of device orientation)
-- Frame-rate limit
-- Phone keypad layout: Standard, LG, Motorola, Moto Triplets, Moto V8,
-  Moto A1000, Nokia, Sagem, Siemens, SKT or KDDI
-- Fullscreen on/off and windowed scaling
-- Reset game settings to defaults
-- Delete a game's emulated save/data files, behind an explicit confirmation
-
-Settings are persistent, stored atomically, and separated by game. Game saves
-and configuration live in isolated per-game working directories. The library
-tracks launches/last-played time. Runtime stdout/stderr is written to each
-game's `last-run.log`; a failed launch presents the captured output on the
-device rather than hiding it behind an exit code.
-
-### Physical button controls
-
-| Reader | J2ME |
+| Reader control | In game |
 | --- | --- |
-| D-pad | Phone directions / 2,4,6,8 under Standard layout |
-| OK | Fire / 5 |
-| Back | Right softkey |
-| Options | Left softkey |
-| Zoom + | * |
-| Zoom - | # |
-| Hold Guide (?) + Back | Exit the running game |
+| D-pad | Phone directions |
+| OK | Phone Fire / Select |
+| Back | Right phone softkey |
+| Options | Left phone softkey |
+| Zoom + / - | * / # |
+| View | Open the ReRead game menu |
+| Favorites | Close the game, return to the library |
+| Guide (hold) | Standard ReRead contextual help overlay |
 
-The mapping is compiled **into the FreeJ2ME Java frontend** during the package build. FreeJ2ME runs through its standard manifest entrypoint (the same path as the hardware-tested direct launch). ReRead's
-system-wide keyboard mappings, power, volume and Hold handling are unchanged.
-Gamepad/key compatibility varies with the phone profile selected.
+The game menu has **Resume** and **Exit to Java ME**. It is painted by the
+ReRead app itself. Guide is never overloaded with another function; it
+remains hold-for-help, release-to-hide, with standard icons and context labels.
+Other hardware keys such as Power, Hold and volume remain system-owned.
+Keys held during menu entry are released to prevent stuck game input.
 
-### Storage / maintenance
+The Java process is controlled with nonblocking stdin/stdout packets. ReRead
+alone owns input focus, Game and Menu screen painting, Guide/Help overlay,
+and normal window management. Rendering stays in the standard
+`Screen::content()` area with 14-pixel safe insets, black background and
+aspect-preserving scaling. No AWT frame, X11 embedding, alternate window,
+raw evdev input, framebuffer writes, or second GUI window is used.
 
-Removing a game JAR from the Files/J2ME folder removes it from the library
-without deleting its saves. A game's saved data can be explicitly erased from
-its settings. Uninstalling the ReRead package does not automatically erase
-user game files or saves. If manually removing the old early hardware test,
-`/opt/peggle-test` is separate from this app and isn't used by it.
+## Java encoding, storage and failures
 
-### Java runtime size
+The headless core starts with `-Dfile.encoding=ISO_8859_1` to avoid the
+unexpected subprocess restart seen with the previous AWT frontend.
+A 30-second startup watchdog reports a failure if no frame arrives.
+Recent Java stderr is bounded to 16 KiB for UI errors and written to each
+game's `last-run.log`.
 
-A custom i386 `jlink` runtime limited to `java.base`, `java.desktop` and
-other actually used modules is possible. It must be built using **i386 Java
-modules** and tested for native font/audio/X11 dependencies. This release
-still depends on the already-working packaged OpenJDK 21 runtime, rather than
-silently replacing it with an unverified cross-architecture bundle.
-Disk savings will be quantified before changing that dependency.
+When the game exits or fails, the same ReRead screen returns to the
+library or displays an error. Its process is stopped and reaped.
+Uninstalling/updating the Debian package does not erase uploaded game JARs
+or private saves. A smaller bundled i386 Java runtime is possible in the
+future, but this package retains the proven installed JRE.
 
-## Release validation
+## Validation
 
-FreeJ2ME-Plus and Peggle J2ME **have** run successfully on the actual Reader.
-The full library package, compiled keypad adapter, and rotation/exit mapping
-**have not** yet been verified in an end-to-end device install. Do not treat
-that separate hardware validation as completed. Test build, install, JAR
-discovery, fullscreen, physical softkeys, rotation, saves and safe game exit
-before calling the entire app production-tested.
+The original *AWT* FreeJ2ME frontend and Peggle JAR have been verified
+on actual Reader hardware. The new **headless frame-pipe integration**
+has not yet completed an end-to-end package build/hardware test.
+Treat it as a new integration until the on-Reader test confirms rendering,
+input, audio, rotation, saves, Guide, pause/resume, and exit. Do not
+mistake the earlier working AWT experiment for validation of this path.
+
+Implementation follows `APP_DEVELOPMENT.md`, the project's definitive
+ReRead app contract.
