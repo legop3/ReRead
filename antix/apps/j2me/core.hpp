@@ -168,9 +168,9 @@ public:
     width=w;height=h;rotation=angle;phone=layout;fps=qBound(10,cap,60);
     image=QImage();pending.clear();frames=0;ready=false;awaitingFrame=false;
     encodingIndex=0;restartCount=0;
+    QDir().mkpath(storage);
     recentErrors.clear();stderrPath=storage+"last-run.log";
     QFile log(stderrPath);if(log.open(QIODevice::WriteOnly|QIODevice::Truncate))log.close();
-    QDir().mkpath(storage);
     restartJava();
   }
   void key(int index,bool press) {
