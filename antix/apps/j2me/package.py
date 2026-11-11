@@ -45,6 +45,17 @@ def main():
                                     if (n < 0) throw new java.io.EOFException("Input stream closed");
                                     bytesRead += n;
                                 }""")
+    # Upstream processes Run JAR on its binary I/O thread. A synchronous
+    # MIDlet.startApp() blocks further key packets and frame requests, leaving
+    # one still image and no responsive controls. Keep protocol I/O dedicated.
+    run_command = "Mobile.getPlatform().runJar();"
+    if source.count(run_command) != 1:
+        raise RuntimeError("FreeJ2ME Run JAR protocol changed")
+    source = source.replace(run_command, """new Thread(new Runnable() {
+                                    @Override public void run() {
+                                        Mobile.getPlatform().runJar();
+                                    }
+                                }, "ReRead-MIDlet-Startup").start();""")
     frontend.write_text(source)
     # This upstream build targets Java 5 by default; modern javac requires >= 8.
     subprocess.run(["ant", "-Dsource.version=8", "-Dtarget.version=8"],
