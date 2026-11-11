@@ -31,7 +31,7 @@ def gh_json(*args):
 
 
 def releases(repo):
-    return [release for page in gh_json('api', '--paginate', '--slurp', f'repos/{repo}/releases')
+    return [release for page in gh_json('api', '--paginate', '--slurp', f'repos/{repo}/releases?per_page=100&fresh={time.time_ns()}')
             for release in page]
 
 
