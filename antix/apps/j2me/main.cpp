@@ -1,4 +1,5 @@
 #include "reader-ui.hpp"
+#include "core.hpp"
 #include <QApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -22,10 +23,11 @@ class J2ME : public Screen {
   QMap<QString,QJsonObject> metadata;
   QFileSystemWatcher watcher;
   int selected=0, field=0;
-  bool options=false, running=false, confirmDelete=false, errorPage=false;
+  bool options=false, running=false, confirmDelete=false, errorPage=false, gameMenu=false;
+  int gameAction=0;
   QString errorText;
   QString message;
-  QProcess child;
+  JavaMECore core;
   QElapsedTimer playClock;
   QJsonObject profile;
   const QString state="/var/lib/reader/apps/j2me";
@@ -79,9 +81,11 @@ class J2ME : public Screen {
   }
   void chrome() {
     showHeader=true;
+    showHeader=!running;
     title=errorPage?"Game failed":confirmDelete?"Erase game data?":options?"Game settings":"Java ME";
     subtitle=(options||confirmDelete||errorPage)?metadata.value(game()).value("title").toString(QFileInfo(game()).fileName()):QString::number(games.size())+" games in Files/J2ME";
-    controls=running?QList<Control>{{READER_GUIDE,"Hold + Back: Exit"}}:
+    controls=running?(gameMenu?QList<Control>{{READER_UP,"Select"},{READER_OK,"Choose"},{READER_BACK,"Resume"},{READER_FAVORITES,"Quit"}}:
+      QList<Control>{{READER_UP,"Move"},{READER_OK,"Fire"},{READER_OPTIONS,"Left softkey"},{READER_BACK,"Right softkey"},{READER_ZOOM_IN,"*"},{READER_ZOOM_OUT,"#"},{READER_VIEW_TOGGLE,"Menu"},{READER_FAVORITES,"Quit"}}):
       errorPage?QList<Control>{{READER_BACK,"Games"}}:
       confirmDelete?QList<Control>{{READER_OK,"Erase"},{READER_BACK,"Cancel"}}:
       options?QList<Control>{{READER_UP,"Setting"},{READER_LEFT,"Change"},{READER_BACK,"Games"},{READER_OK,"Change"}}:
@@ -107,42 +111,68 @@ class J2ME : public Screen {
   }
   void start() {
     if(game().isEmpty()||running)return;
-    QString runtime="/usr/lib/reread/apps/j2me/freej2me_plus.jar";
-    if(!QFileInfo::exists(runtime)){message="FreeJ2ME-Plus is not installed.";update();return;}
-    const int rotation=setting("orientation",0)*90,w=setting("width",240),h=setting("height",320);
-    QDir().mkpath(state+"/data/"+identity());
-    child.setWorkingDirectory(state+"/data/"+identity());
-    // Run the original AWT entry point: the direct -jar invocation was
-    // already verified on actual Reader hardware. The reflective bootstrap
-    // previously exited successfully without ever presenting the game.
-    child.setProgram("/usr/bin/java");
-    // FreeJ2ME defaults to ISO_8859_1. If Java starts in UTF-8,
-    // FreeJ2ME spawns a replacement process and exits with code 0,
-    // leaving QProcess watching the wrong process and losing the game.
-    child.setArguments({"-Xms16m","-Xmx128m","-Dfile.encoding=ISO_8859_1",
-        "-Dreread.rotation="+QString::number(rotation),"-jar",runtime,
-        QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
-        QString::number(setting("fullscreen",1)),QString::number(w),QString::number(h),
-        QString::number(setting("scale",1)),QString::number(setting("layout",0)),QString::number(setting("fps",60))});
-    child.setProcessChannelMode(QProcess::MergedChannels);
-    child.setStandardOutputFile(state+"/data/"+identity()+"/last-run.log",QIODevice::Truncate);
+    const QString emulator="/usr/lib/reread/apps/j2me/freej2me_plus-lr.jar";
+    if(!QFileInfo::exists(emulator)){message="Java ME core is missing.";chrome();return;}
+    const QString data=state+"/data/"+identity()+"/";
+    QDir().mkpath(data);
+    const int w=setting("width",240),h=setting("height",320);
+    const int angle=setting("orientation",0);
+    const int layout=setting("layout",0),fps=setting("fps",60);
     profile["plays"]=setting("plays",0)+1;
     profile["lastPlayed"]=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     save();
-    errorPage=false;errorText.clear();
+    errorPage=false;errorText.clear();gameMenu=false;gameAction=0;
     message="Starting "+QFileInfo(game()).fileName();
-    running=true;
-    playClock.start();
-    child.start();
+    running=true;playClock.start();
+    // No AWT window. Java ME frames are rendered by this ReRead Screen.
+    core.launch(QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
+                data,emulator,w,h,angle,layout,fps);
     chrome();
+  }
+  void finishGame() {
+    core.stop();running=false;gameMenu=false;
+    message="Returned to Java ME library.";
+    chrome();
+  }
+  static int phoneKey(reader_button id) {
+    switch(id) {
+      case READER_UP:return 2;
+      case READER_LEFT:return 3;
+      case READER_OK:return 4;
+      case READER_RIGHT:return 5;
+      case READER_DOWN:return 6;
+      case READER_OPTIONS:return 0;
+      case READER_BACK:return 1;
+      case READER_ZOOM_IN:return 16;
+      case READER_ZOOM_OUT:return 18;
+      default:return -1;
+    }
   }
 protected:
   void button(reader_button id,int value) override {
-    if(value!=1 && !(value==2 && (id==READER_UP||id==READER_DOWN||id==READER_LEFT||id==READER_RIGHT)))return;
     if(running) {
-      if(id==READER_FAVORITES){child.terminate();if(!child.waitForFinished(1500))child.kill();}
+      if(gameMenu) {
+        if(value!=1)return;
+        if(id==READER_FAVORITES){finishGame();return;}
+        if(id==READER_BACK||id==READER_VIEW_TOGGLE){gameMenu=false;core.pause(false);chrome();return;}
+        if(id==READER_UP||id==READER_DOWN){
+          gameAction=qBound(0,gameAction+(id==READER_DOWN?1:-1),1);
+          update();return;
+        }
+        if(id==READER_OK){
+          if(gameAction==0){gameMenu=false;core.pause(false);chrome();}
+          else finishGame();
+        }
+        return;
+      }
+      if(id==READER_FAVORITES && value==1){finishGame();return;}
+      if(id==READER_VIEW_TOGGLE && value==1){gameMenu=true;gameAction=0;core.pause(true);chrome();return;}
+      if(value==2)return; // The emulator produces its own key repeats per frame.
+      const int key=phoneKey(id);
+      if(key>=0)core.key(key,value==1);
       return;
     }
+    if(value!=1 && !(value==2 && (id==READER_UP||id==READER_DOWN||id==READER_LEFT||id==READER_RIGHT)))return;
     if(id==READER_FAVORITES){close();return;}
     if(errorPage){errorPage=false;chrome();return;}
     if(confirmDelete) {
@@ -170,7 +200,32 @@ protected:
     }
   }
   void draw(QPainter &p,const QRect &r) override {
-    if(running){text(p,r,"Starting "+QFileInfo(game()).fileName()+"...",25);return;}
+    if(running) {
+      p.fillRect(rect(),Qt::black);
+      if(core.hasFrame()) {
+        QImage frame=core.frame();
+        const int angle=core.frameRotation()*90;
+        if(angle) {
+          QTransform transform;transform.rotate(angle);
+          frame=frame.transformed(transform,Qt::FastTransformation);
+        }
+        const QSize scaled=frame.size().scaled(rect().size(),Qt::KeepAspectRatio);
+        const QRect dest((width()-scaled.width())/2,
+                         (height()-scaled.height())/2,scaled.width(),scaled.height());
+        p.setRenderHint(QPainter::SmoothPixmapTransform,false);
+        p.drawImage(dest,frame);
+      } else {
+        text(p,safeArea(),message,25);
+      }
+      if(gameMenu) {
+        p.fillRect(rect(),QColor(0,0,0,235));
+        const QRect menu=safeArea().adjusted(70,40,-70,-40);
+        label(p,QRect(menu.x(),menu.y(),menu.width(),50),"Game menu",32,true);
+        list(p,menu.adjusted(0,65,0,0),{"Resume","Exit to Java ME"},
+             {"Continue playing","Close the game; keep its saves"},gameAction);
+      }
+      return;
+    }
     if(errorPage) {
       text(p,r,errorText,20);
     } else if(confirmDelete) {
@@ -205,45 +260,25 @@ protected:
     if(!message.isEmpty())label(p,QRect(r.x(),r.bottom()-32,r.width(),30),message,18);
   }
 public:
-  J2ME():Screen("Java ME") {
-    connect(&watcher,&QFileSystemWatcher::directoryChanged,this,[this]{if(!running&&!options)scan();});
-    connect(&child,&QProcess::started,this,[this] {
-      QTimer::singleShot(800,this,[this] {
-        if(running && child.state()==QProcess::Running)hide();
-      });
-    });
-    connect(&child,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
-      if(e==QProcess::FailedToStart){running=false;show();raise();activateWindow();errorPage=true;
-        errorText="Unable to launch Java:\n"+child.errorString();chrome();}
-    });
-    connect(&child,static_cast<void(QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
-            this,[this](int code,QProcess::ExitStatus){
-      running=false;
-      show();raise();activateWindow();
-      if(code==0 && playClock.isValid() && playClock.elapsed()>=5000) {
-        message="Game closed.";
-      } else {
-        errorPage=true;
-        const QString log=state+"/data/"+identity()+"/last-run.log";
-        QFile f(log);
-        if(f.open(QIODevice::ReadOnly)) {
-          const qint64 pos=qMax<qint64>(0,f.size()-3000);
-          f.seek(pos);
-          errorText=QString::fromLocal8Bit(f.readAll());
-        }
-        errorText=QString("Emulator exited with code %1 after %2 seconds.\n\n").arg(code).arg(playClock.isValid()?playClock.elapsed()/1000.0:0,0,'f',1)+
-          (errorText.isEmpty()?"No output captured.":errorText)+
-          "\n\nLog: "+log;
-      }
+  J2ME():Screen("Java ME"),core(this) {
+    core.onFrame=[this]{if(running&&!gameMenu)update();};
+    core.onFailure=[this](const QString &what) {
+      if(!running)return;
+      errorText="Java ME failed:\n"+what+"\n\n"+core.errors();
+      errorPage=true;running=false;gameMenu=false;core.stop();chrome();
+    };
+    core.onExited=[this](int code){
+      if(!running)return;
+      errorPage=true;running=false;gameMenu=false;
+      errorText=QString("Java ME core exited (%1).\n\n").arg(code)+core.errors();
       chrome();
-    });
+    };
+    connect(&watcher,&QFileSystemWatcher::directoryChanged,this,
+            [this]{if(!running&&!options)scan();});
     scan();
   }
-  ~J2ME() override {
-    if(child.state()!=QProcess::NotRunning){
-      child.terminate();if(!child.waitForFinished(1500)){child.kill();child.waitForFinished(1500);}
-    }
-  }
+  ~J2ME() override {core.stop();}
+
 };
 int main(int argc,char **argv){
   QApplication app(argc,argv);
