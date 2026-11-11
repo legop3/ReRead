@@ -2,6 +2,7 @@
 from pathlib import Path
 import shutil
 import subprocess
+from web_build import render as render_web
 
 
 def build_module(root, base, build, kernel):
@@ -63,7 +64,10 @@ def stage(root, base):
                            ('web.html', 'usr/share/reader/web.html')]:
         p = root / target
         p.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(base / 'antix' / source, p)
+        if source == 'web.html':
+            render_web(root, base)
+        else:
+            shutil.copy(base / 'antix' / source, p)
         p.chmod(0o644 if source.endswith('.html') else 0o755)
     write('/etc/reader/udhcpd.conf', '''start 192.168.7.2
 end 192.168.7.2

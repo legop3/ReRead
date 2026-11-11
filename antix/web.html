@@ -2,51 +2,40 @@
 <html lang="en">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ReRead</title>
-<style>
-:root{font:16px system-ui,sans-serif;color:#202b36;background:#f3f5f7;color-scheme:light}
-*{box-sizing:border-box}body{margin:0}header{background:#172c38;color:white;padding:22px max(20px,calc((100% - 900px)/2))}
-header h1{font-size:25px;margin:0 0 5px}header p{margin:0;color:#b9ccd6;font-size:14px}
-nav{display:flex;gap:5px;margin:22px 0;flex-wrap:wrap}nav a{color:#3e5361;text-decoration:none;padding:10px 18px;border-radius:7px}
-nav a[aria-current=page]{background:#172c38;color:white}main{max-width:940px;margin:auto;padding:0 20px 32px}
-section{background:white;border:1px solid #dce3e8;border-radius:10px;padding:24px;margin:16px 0}
-h2{font-size:21px;margin:0 0 16px}p{line-height:1.5}.muted{color:#5b6f7d}
-input,select,textarea,button{font:inherit;padding:10px 12px;border:1px solid #bfcbd3;border-radius:6px;max-width:100%}
-input:not([type=checkbox]),select{width:100%;max-width:440px}input[type=file]{max-width:100%;padding:8px}
-textarea{display:block;width:100%;font:14px monospace;resize:vertical}summary{cursor:pointer}article+article{border-top:1px solid #e5e9ed;margin-top:20px;padding-top:12px}
-label{display:block;margin:16px 0 6px}button{cursor:pointer;background:#176b64;color:white;border-color:#176b64;margin:16px 8px 0 0}
-button.secondary{background:white;color:#344a58;border-color:#bfcbd3}button:disabled{opacity:.55;cursor:wait}
-button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #63b3aa;outline-offset:3px}
-dl{display:grid;grid-template-columns:140px 1fr;gap:14px;margin:0}dt{color:#5b6f7d}dd{margin:0;overflow-wrap:anywhere}
-ul{padding:0;list-style:none}li{display:flex;justify-content:space-between;gap:14px;border-top:1px solid #e5e9ed;padding:13px 0}
-a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{color:#a52626}[hidden]{display:none!important}
-.check{display:flex;align-items:center;gap:9px}.inline{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.inline button{margin:0}
-@media(max-width:480px){nav a{padding:10px 12px}section{padding:18px}dl{grid-template-columns:100px 1fr}}
-#page-files{margin:0 min(0px,calc((940px - 100vw)/2))}#page-files .file-manager-heading{margin-bottom:0;border-radius:10px 10px 0 0}#page-files h2{margin:0}#page-files .inline{justify-content:space-between}#page-files p{margin-bottom:0}
-#file-manager{display:block;width:100%;height:75vh;min-height:480px;border:1px solid #dce3e8;border-top:0;background:white;border-radius:0 0 10px 10px}
-#app-settings-fields fieldset{border:1px solid #dce3e8;margin:12px 0;padding:12px}#app-settings-fields h3{margin:12px 0}#app-settings-fields button{font-size:14px;padding:7px 10px}#app-settings-errors{color:#a52626;white-space:pre-wrap}
-</style>
-<header><h1>ReRead management</h1><p id="summary">Connecting…</p></header>
-<main>
+<!-- TABLER_CSS -->
+<style>/* REREAD_LAYOUT_CSS */</style>
+<body>
+<aside id="navigation" class="rr-sidebar offcanvas-md offcanvas-start" tabindex="-1" aria-label="Main navigation">
+<button class="rr-menu-close" data-bs-dismiss="offcanvas" data-bs-target="#navigation" aria-label="Close navigation">✕</button>
+<div class="rr-brand"><a href="#overview"><span class="rr-mark" aria-hidden="true">R</span>ReRead</a></div>
+<nav aria-label="Main menu"><a href="#overview" data-page="overview"><svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Overview</span></a><a href="#files" data-page="files"><svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5h7l2 3h9v12H3Z"/></svg><span>Files</span></a><a href="#apps" data-page="apps"><svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5v9l-9 5-9-5V8Z M3 8l9 5 9-5 M12 13v9"/></svg><span>Apps</span></a><a href="#updates" data-page="updates"><svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5 M4 16v5h16v-5"/></svg><span>Updates</span></a><a href="#repositories" data-page="repositories"><svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5 M4 12c0 4 16 4 16 0"/></svg><span>Repositories</span></a><a href="#wifi" data-page="wifi"><svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8a16 16 0 0 1 20 0 M5 12a11 11 0 0 1 14 0 M8 16a6 6 0 0 1 8 0"/><circle cx="12" cy="20" r="1"/></svg><span>Wi-Fi</span></a><a href="#settings" data-page="settings"><svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16 M4 12h16 M4 18h16"/><circle cx="8" cy="6" r="2" fill="white"/><circle cx="16" cy="12" r="2" fill="white"/><circle cx="10" cy="18" r="2" fill="white"/></svg><span>Device &amp; SSH</span></a></nav>
+<div class="rr-sidebar-footer"><strong id="sidebar-device">Reader</strong><div id="summary">Connecting…</div>USB address: 192.168.7.1</div>
+</aside>
+<div class="rr-workspace">
+<header class="rr-topbar">
+<button class="rr-menu-button" data-bs-toggle="offcanvas" data-bs-target="#navigation" aria-controls="navigation" aria-label="Open navigation">☰</button>
+<div><h1 id="page-title">Overview</h1></div>
+<span class="rr-top-status">192.168.7.1 · USB</span>
+</header>
+<main class="rr-content">
 <p id="battery-warning" role="status" hidden></p>
-<nav aria-label="Main menu">
- <a href="#overview" data-page="overview">Overview</a><a href="#files" data-page="files">Files</a>
- <a href="#apps" data-page="apps">Apps</a><a href="#updates" data-page="updates">Updates</a>
- <a href="#repositories" data-page="repositories">Repositories</a><a href="#wifi" data-page="wifi">Wi-Fi</a><a href="#settings" data-page="settings">Settings</a>
-</nav>
 <div id="page-overview">
- <section><h2>Your ReRead</h2><dl><dt>Device</dt><dd id="device">—</dd><dt>Storage</dt><dd id="storage">—</dd>
- <dt>Battery</dt><dd id="battery">Checking…</dd><dt>Wi-Fi</dt><dd id="overview-wifi">Checking…</dd><dt>USB address</dt><dd>192.168.7.1</dd><dt>Kernel</dt><dd id="kernel">—</dd></dl></section>
- <p class="muted">Use <a href="#wifi">Wi-Fi</a> to get online, <a href="#files">Files</a> to transfer files, or <a href="#settings">Settings</a> for device and SSH settings.</p>
+
+<div class="rr-stats">
+<div class="card rr-stat"><div class="rr-stat-head">Battery<svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="17" height="12" rx="2"/><path d="M22 10v4 M6 10v4 M10 10v4"/></svg></div><div class="rr-stat-value" id="battery-value">—</div><div class="rr-stat-detail" id="battery">Checking…</div><div class="rr-meter"><span id="battery-meter"></span></div></div>
+<div class="card rr-stat"><div class="rr-stat-head">Storage<svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5 M4 12c0 4 16 4 16 0"/></svg></div><div class="rr-stat-value" id="storage-value">—</div><div class="rr-stat-detail" id="storage">Checking…</div><div class="rr-meter"><span id="storage-meter"></span></div></div>
+<div class="card rr-stat"><div class="rr-stat-head">Wi-Fi<svg class="rr-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8a16 16 0 0 1 20 0 M5 12a11 11 0 0 1 14 0 M8 16a6 6 0 0 1 8 0"/><circle cx="12" cy="20" r="1"/></svg></div><div class="rr-stat-value" id="wifi-value">—</div><div class="rr-stat-detail" id="overview-wifi">Checking…</div></div>
 </div>
+<div class="rr-overview-grid">
+<div class="card rr-details"><h2 class="rr-panel-title">Device information</h2><dl><dt>Device name</dt><dd id="device">—</dd><dt>ReRead version</dt><dd id="device-version">—</dd><dt>Kernel</dt><dd id="kernel">—</dd><dt>USB address</dt><dd>192.168.7.1</dd></dl></div>
+</div></div>
 <div id="page-files" hidden>
- <section class="file-manager-heading"><div class="inline"><h2>Files</h2><a id="open-files" target="_blank" rel="noopener">Open full screen ↗</a></div>
- <p class="muted">Browse shared files, app data, caches and configuration. Installed programs and assets are also available to inspect and download.</p>
- <p class="muted">On the Reader: <code id="files-root">/var/lib/reader/files</code> · <span id="files-space"></span></p></section>
- <p id="files-starting" class="muted" hidden>Starting the file manager…</p>
- <iframe id="file-manager" title="ReRead file manager" hidden></iframe>
+<section class="file-manager-heading"><div><h2>Reader storage</h2><p class="muted"><span id="files-space"></span> on the shared SSD</p></div><a id="open-files" class="btn btn-sm" target="_blank" rel="noopener">Open full screen ↗</a></section>
+<p id="files-starting" class="muted" hidden>Starting the file manager…</p>
+<iframe id="file-manager" title="ReRead file manager" hidden></iframe>
 </div>
 <div id="page-wifi" hidden>
- <section><h2>Wi-Fi</h2><p id="wifi-status" role="status">Checking adapter…</p><h3>Saved networks</h3><div id="wifi-profiles"></div><button id="new-network" class="secondary">Add network</button></section>
+ <section><h2>Wi-Fi</h2><p id="wifi-status" role="status">Checking adapter…</p><h3>Saved networks</h3><div class="rr-table-wrap"><table class="rr-table"><thead><tr><th scope="col">Network</th><th scope="col">Connection</th><th scope="col">Actions</th></tr></thead><tbody id="wifi-profiles"></tbody></table></div><button id="new-network" class="secondary">Add network</button></section>
  <section><h2 id="wifi-form-title">Add network</h2>
  <div class="inline"><button id="scan" class="secondary">Scan for networks</button><span id="scan-status" class="muted"></span></div>
  <form id="wifi-form">
@@ -56,33 +45,34 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  <div id="wifi-password-field"><label for="wifi-password">Wi-Fi password</label><input id="wifi-password" type="password" autocomplete="off" minlength="8" maxlength="64" required></div>
  <label class="check"><input id="hidden-network" type="checkbox"> Hidden network</label>
  <label class="check"><input id="wifi-enabled" type="checkbox" checked> Connect automatically</label>
- <label for="wifi-priority">Priority (higher is preferred)</label><input id="wifi-priority" type="number" min="-100" max="100" value="0" required>
+ <label for="wifi-priority">Priority</label><input id="wifi-priority" type="number" min="-100" max="100" value="0" required>
  <button id="save-network">Save network</button><button id="save-connect" class="secondary">Save and connect now</button>
- </form><p class="muted">Enabled networks reconnect automatically after boot. Use priority to prefer one network over another. When editing, leave the password blank to keep it. WPA3-only and enterprise profiles cannot be created here yet.</p>
+ </form><p class="muted">Higher priority networks are preferred. Leave the password blank when editing to keep it. WPA3-only and enterprise setup are not supported.</p>
  </section>
 </div>
 <div id="page-apps" hidden>
- <section><h2>Available apps</h2><p class="muted">Get apps from the ReRead repository. Removing an app keeps its saved data.</p>
- <button id="check-apps" class="secondary">Check for apps and updates</button><p class="catalog-status muted"></p><div id="available-apps"></div></section>
- <section><details><summary>Install a local app package</summary><form id="install-app"><label for="app-package">App package (.deb)</label><input id="app-package" type="file" accept=".deb" required><br><button>Install app</button></form></details></section>
- <section><h2>Installed apps</h2><div id="apps-list"></div></section>
+ <section class="rr-installed"><h2>Installed applications</h2><label class="rr-search">Filter installed applications<input type="search" id="apps-list-filter" autocomplete="off"></label><div class="rr-table-wrap"><table class="rr-table"><thead><tr><th scope="col">Application / version</th><th scope="col">Description</th><th scope="col">Service</th><th scope="col">Actions</th></tr></thead><tbody id="apps-list"></tbody></table></div></section>
+ <section class="rr-available"><h2>Available packages</h2>
+ <button id="check-apps" class="secondary">Check for apps and updates</button><p class="catalog-status muted"></p><label class="rr-search">Filter available packages<input type="search" id="available-apps-filter" autocomplete="off"></label><div class="rr-table-wrap"><table class="rr-table"><thead><tr><th scope="col">Package</th><th scope="col">Description / version</th><th scope="col">Actions</th></tr></thead><tbody id="available-apps"></tbody></table></div></section>
+ <section class="rr-local-package"><h2>Install a local app package</h2><form id="install-app"><label for="app-package">App package (.deb)</label><input id="app-package" type="file" accept=".deb" required><br><button>Install app</button></form></section>
+
  <section id="app-settings-panel" hidden><h2 id="app-settings-title">App settings</h2>
  <p class="muted">Configuration: <code id="app-settings-path"></code></p>
  <form id="app-settings-form"><div id="app-settings-fields"></div><p id="app-settings-errors" class="error" role="status"></p>
  <button id="app-settings-save" type="submit">Save settings</button><button id="app-settings-close" type="button" class="secondary">Close</button></form></section>
 </div>
 <div id="page-updates" hidden>
- <section><h2>ReRead updates</h2><p>Installed version: <strong id="release-version">—</strong></p>
- <p class="muted">Update ReRead without resetting your files, apps, Wi-Fi settings or credentials.</p>
+ <section><h2>Repository update</h2><p>Installed version: <strong id="release-version">—</strong></p>
+
  <button id="check-updates" class="secondary">Check for updates</button><p class="catalog-status muted"></p>
  <p id="online-version">Check the repository to see available updates.</p><button id="update-online" hidden>Install update</button>
- <details><summary>Install a local update package</summary>
- <form id="install-platform"><label for="platform-package">ReRead package (.deb)</label><input id="platform-package" type="file" accept=".deb" required><br><button>Install update</button></form></details>
+ </section><section><h2>Install a local update package</h2>
+ <form id="install-platform"><label for="platform-package">ReRead package (.deb)</label><input id="platform-package" type="file" accept=".deb" required><br><button>Install update</button></form>
  <p id="reboot-notice" hidden>Reboot to apply all background-service and driver changes.</p></section>
 </div>
 <div id="page-repositories" hidden>
- <section><h2>App repositories</h2><p class="muted">These APT sources supply ReRead updates and apps. Disabling or removing a source keeps its installed packages. Check for apps and updates after changes.</p><div id="app-repos"></div></section>
- <section><details id="add-repo"><summary>Add an app repository</summary><form id="repo-add">
+ <section class="rr-sources"><h2>App repositories</h2><p class="muted">APT sources for ReRead and applications.</p><div class="rr-table-wrap"><table class="rr-table"><thead><tr><th scope="col">Source</th><th scope="col">State</th><th scope="col">Path</th><th scope="col">Actions</th></tr></thead><tbody id="app-repos"></tbody></table></div></section>
+ <section><h2>Add an app repository</h2><form id="repo-add">
  <label for="repo-name">Short name</label><input id="repo-name" pattern="[a-z0-9]([a-z0-9]|-){0,47}" placeholder="my-apps" required>
  <label for="repo-uri">Repository URL</label><input id="repo-uri" type="url" placeholder="https://example.org/apt" required>
  <label for="repo-suite">Suite</label><input id="repo-suite" value="stable" required>
@@ -90,24 +80,26 @@ a{color:#176b64}#message{white-space:pre-wrap;min-height:24px}#message.error{col
  <label for="repo-key-file">Load a public key (.asc)</label><input id="repo-key-file" type="file" accept=".asc">
  <label for="repo-key">Public signing key (ASCII armored)</label><textarea id="repo-key" rows="5" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----"></textarea>
  <label for="repo-signed-by">Or an existing keyring path on the Reader</label><input id="repo-signed-by" placeholder="/usr/share/keyrings/example.asc">
- <button>Add repository</button></form></details></section>
+ <button>Add repository</button></form></section>
  <section id="repo-editor" hidden><h2 id="repo-editor-title">Edit repository</h2><form id="repo-edit">
  <p class="muted">This is the normal APT source file. You can edit URLs, suites, components and Signed-By here.</p>
  <label for="repo-content">Source file</label><textarea id="repo-content" rows="12" required></textarea>
  <div id="repo-edit-key-field"><label for="repo-edit-key">Replacement public signing key (optional)</label><textarea id="repo-edit-key" rows="5"></textarea></div>
  <button>Save changes</button><button type="button" id="repo-cancel" class="secondary">Cancel</button></form></section>
- <section><details><summary>System APT sources (advanced)</summary><p class="muted">antiX and Debian supply Linux system packages and app dependencies. These sources are managed by APT; changing them can affect dependency availability.</p><div id="system-repos"></div></details></section>
+ <section class="rr-system-sources"><h2>System APT sources (advanced)</h2><p class="muted">antiX and Debian supply Linux system packages and app dependencies. These sources are managed by APT; changing them can affect dependency availability.</p><div class="rr-table-wrap"><table class="rr-table"><thead><tr><th scope="col">Source</th><th scope="col">State</th><th scope="col">Path</th><th scope="col">Actions</th></tr></thead><tbody id="system-repos"></tbody></table></div></section>
 </div>
-<div id="package-operation" hidden><section><h2>Package operation</h2><p id="package-status" role="status"></p><pre id="package-log" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px"></pre></section></div>
+<div id="package-operation" hidden><section><h2>Package operation</h2><p id="package-status" role="status"></p><h2>Operation log</h2><pre id="package-log" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px"></pre></section></div>
 <div id="page-settings" hidden>
- <section><h2>Device settings</h2><form id="settings">
+ <section><h2>Device identity and SSH access</h2><form id="settings">
  <label for="hostname">Device name</label><input id="hostname" maxlength="32" required>
- <label for="password">SSH password</label><input id="password" type="password" autocomplete="new-password" minlength="8">
- <p class="muted">Leave the password blank to keep the current password.</p><button>Save settings</button></form>
+ <label for="ssh-user">SSH user</label><input id="ssh-user" value="root" readonly>
+ <label for="password">Root password</label><input id="password" type="password" autocomplete="new-password" minlength="8">
+ <button>Save</button></form><p class="muted">Leave the password blank to keep the current root password.</p>
  <p>SSH over USB: <code>ssh root@192.168.7.1</code></p></section>
 </div>
 <p id="message" role="status" aria-live="polite"></p>
-</main>
+</main></div>
+<!-- TABLER_JS -->
 <script src="/assets/app-settings.js"></script>
 <script>
 const $=id=>document.getElementById(id),size=n=>(n/1048576).toFixed(1)+' MiB';
@@ -130,13 +122,14 @@ function message(text,error=false){$('message').textContent=text;$('message').cl
 async function get(url){const r=await fetch(url);if(!r.ok)throw Error(await r.text());return r.json();}
 async function post(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();if(!r.ok)throw Error(t);return t;}
 async function refreshSystem(){const s=await get('/api/status');
- $('summary').textContent='ReRead '+s.version+' · '+s.hostname+' · '+size(s.free)+' free';$('device').textContent=s.hostname;
- $('storage').textContent=size(s.free)+' free of '+size(s.total);$('kernel').textContent=s.kernel;
+ $('summary').textContent='ReRead '+s.version;$('sidebar-device').textContent=s.hostname;$('device-version').textContent=s.version;$('device').textContent=s.hostname;
+ $('storage-value').textContent=(s.free/1073741824).toFixed(2)+' GiB free';$('storage-meter').style.width=Math.round(100*(s.total-s.free)/s.total)+'%';$('storage').textContent=size(s.total)+' total · '+Math.round(100*(s.total-s.free)/s.total)+'% used';$('kernel').textContent=s.kernel;
  if(!$('hostname').dataset.loaded){$('hostname').value=s.hostname;$('hostname').dataset.loaded='true';}
- $('files-root').textContent=s.files_root||'/var/lib/reader/files';$('files-space').textContent=size(s.free)+' free';
+ $('files-space').textContent=size(s.free)+' free';
 }
 async function refreshBattery(){const s=await get('/api/battery');
  const level=s.capacity_percent===null?s.status:s.capacity_percent+'%';
+ $('battery-value').textContent=level;$('battery-meter').style.width=(s.capacity_percent||0)+'%';
  $('battery').textContent=level+(s.external_power===true?' · External power · '+s.status:s.external_power===false&&s.present?' · On battery':'');
  const warning=$('battery-warning');warning.hidden=true;
  if(s.level==='critical'){warning.textContent='Battery critically low ('+level+'). '+(s.action_pending?'Shutting down soon. ':'')+'Connect power.';warning.hidden=false;}
@@ -147,14 +140,14 @@ function wifiDescription(s){if(!s.interface)return 'No Wi-Fi adapter detected.';
  if(s.state==='COMPLETED')return s.address?'Connected to '+s.ssid+' · '+s.address:'Connected to '+s.ssid+' · Waiting for an IP address…';
  const states={SCANNING:'Scanning…',ASSOCIATING:'Connecting…',ASSOCIATED:'Authenticating…','4WAY_HANDSHAKE':'Authenticating…',GROUP_HANDSHAKE:'Authenticating…',INACTIVE:'Not connected.',DISCONNECTED:'Not connected.',INTERFACE_DISABLED:'Wi-Fi interface is disabled.'};
  return states[s.state]||s.state;}
-async function refreshWifi(){const s=await get('/api/wifi'),text=wifiDescription(s);$('wifi-status').textContent=text;$('overview-wifi').textContent=text;
+async function refreshWifi(){const s=await get('/api/wifi'),text=wifiDescription(s);$('wifi-status').textContent=text;$('overview-wifi').textContent=text;$('wifi-value').textContent=s.state==='COMPLETED'?'Connected':s.interface?'Offline':'No adapter';
   $('scan').disabled=!s.interface;
  $('save-network').disabled=$('save-connect').disabled=!s.interface||!!s.error;
  const profileSignature=JSON.stringify([s.interface,s.profiles||[]]);
  if(profileSignature!==lastProfiles){lastProfiles=profileSignature;$('wifi-profiles').replaceChildren();
- if(!(s.profiles||[]).length){const p=document.createElement('p');p.className='muted';p.textContent=s.interface?'No networks saved.':'Plug in a Wi-Fi adapter to manage saved networks.';$('wifi-profiles').append(p);}
- for(const saved of s.profiles||[]){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=saved.ssid;p.textContent=(saved.current?'Connected · ':'')+(saved.enabled?'Automatic connection enabled':'Automatic connection disabled');row.append(h,p);
- for(const [label,action] of [['Connect','connect'],['Edit','edit'],[saved.enabled?'Disable':'Enable',saved.enabled?'disable':'enable'],['Forget','forget']]){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.onclick=async()=>{b.disabled=true;try{if(action==='edit'){await editWifi(saved.id);}else{if(action==='forget'&&!confirm('Forget '+saved.ssid+'?'))return;message(await post('/api/wifi/action',{id:saved.id,action}));await refreshWifi();}}catch(e){message(e.message,true);}finally{b.disabled=false;}};row.append(b);}$('wifi-profiles').append(row);}}
+ if(!(s.profiles||[]).length){emptyRow('wifi-profiles',s.interface?'No networks saved.':'No Wi-Fi adapter detected.');}
+ for(const saved of s.profiles||[]){const {row,h,p,actionsCell}=recordRow();h.textContent=saved.ssid;p.textContent=(saved.current?'Connected · ':'')+(saved.enabled?'Automatic connection enabled':'Automatic connection disabled');
+ for(const [label,action] of [['Connect','connect'],['Edit','edit'],[saved.enabled?'Disable':'Enable',saved.enabled?'disable':'enable'],['Forget','forget']]){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.onclick=async()=>{b.disabled=true;try{if(action==='edit'){await editWifi(saved.id);}else{if(action==='forget'&&!confirm('Forget '+saved.ssid+'?'))return;message(await post('/api/wifi/action',{id:saved.id,action}));await refreshWifi();}}catch(e){message(e.message,true);}finally{b.disabled=false;}};actionsCell.append(b);}$('wifi-profiles').append(row);}}
 
  if(document.activeElement===$('networks'))return;
  const selected=$('networks').value,selectedName=selected!==''&&networks[Number(selected)]?networks[Number(selected)].ssid:'';
@@ -162,7 +155,9 @@ async function refreshWifi(){const s=await get('/api/wifi'),text=wifiDescription
  networks.forEach((n,i)=>{const label={personal:'secured',open:'open',wpa3:'WPA3 only',unsupported:'unsupported security'}[n.security];const o=new Option(n.ssid+' · '+label+' · '+(n.signal<0?n.signal+' dBm':'signal '+n.signal),String(i));o.disabled=!['personal','open'].includes(n.security);if(n.ssid===selectedName)o.selected=true;$('networks').append(o);});
 }
 async function navigate(){const next=location.hash.slice(1)||'overview';page=['overview','files','wifi','settings','apps','updates','repositories'].includes(next)?next:'overview';
- for(const a of document.querySelectorAll('nav a')){const active=a.dataset.page===page;if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');$('page-'+a.dataset.page).hidden=!active;}
+ for(const a of document.querySelectorAll('nav a[data-page]')){const active=a.dataset.page===page;if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');$('page-'+a.dataset.page).hidden=!active;}
+ $('page-title').textContent=document.querySelector('nav [aria-current] span').textContent;
+ if(window.tabler && innerWidth<768)tabler.Offcanvas.getInstance($('navigation'))?.hide();
  if(page==='files')openFiles();
  message('');try{await refreshSystem();await refreshBattery();if(page==='wifi'||page==='overview')await refreshWifi();if(['apps','updates','repositories'].includes(page))await refreshPlatform();if(page==='repositories')await refreshRepos();$('package-operation').hidden=!['apps','updates','repositories'].includes(page);}catch(e){message(e.message,true);}}
 $('networks').onchange=()=>{const n=networks[Number($('networks').value)];if($('networks').value===''||!n)return;resetWifi();$('ssid').value=n.ssid;$('security').value=n.security;updateSecurity();$('wifi-password').focus();};
@@ -180,6 +175,21 @@ let packageBusy=false,lastApps='',reconnecting=false;
 async function packageRequest(url,body={}){if(packageBusy)return;packageBusy=true;try{await post(url,body);message('');await refreshPlatform();}catch(e){packageBusy=false;message(e.message,true);}}
 $('check-apps').onclick=$('check-updates').onclick=()=>packageRequest('/api/packages/check');
 $('update-online').onclick=()=>packageRequest('/api/packages/install',{package:'reread'});
+function recordRow(){
+ const row=document.createElement('tr'),h=document.createElement('th'),p=document.createElement('td'),actionsCell=document.createElement('td');
+ h.scope='row';actionsCell.className='rr-row-actions';row.append(h,p,actionsCell);
+ return {row,h,p,actionsCell};
+}
+function emptyRow(parent,text){
+ const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=$(parent).closest('table').rows[0].cells.length;cell.className='muted';cell.textContent=text;row.append(cell);$(parent).append(row);
+}
+function applyAppFilters(){
+ for(const id of ['apps-list','available-apps']){
+  const query=$(id+'-filter').value.toLowerCase();
+  for(const row of $(id).rows)row.hidden=!row.textContent.toLowerCase().includes(query);
+ }
+}
+for(const id of ['apps-list','available-apps'])$(id+'-filter').addEventListener('input',applyAppFilters);
 function packageButton(label,packageName){const b=document.createElement('button');b.textContent=label;b.disabled=packageBusy;b.onclick=()=>packageRequest('/api/packages/install',{package:packageName});return b;}
 async function refreshPlatform(){const s=await get('/api/platform');if(reconnecting){message('');reconnecting=false;}packageBusy=s.job.state==='running';
  $('release-version').textContent=s.version;$('reboot-notice').hidden=!s.reboot_required;
@@ -193,30 +203,31 @@ async function refreshPlatform(){const s=await get('/api/platform');if(reconnect
  const signature=JSON.stringify([s.apps,catalog.packages]);if(signature===lastApps)return;lastApps=signature;
  $('available-apps').replaceChildren();
  const available=catalog.packages.filter(p=>p.package!=='reread'&&!s.apps.some(a=>a.package===p.package));
- if(!available.length){const p=document.createElement('p');p.className='muted';p.textContent=catalog.checked?'No additional apps available.':'Check the repository to browse apps.';$('available-apps').append(p);}
- for(const app of available){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=app.package.replace(/^reread-app-/,'');p.textContent=app.description+' · '+app.version;row.append(h,p,packageButton('Install',app.package));$('available-apps').append(row);}
- $('apps-list').replaceChildren();if(!s.apps.length){const p=document.createElement('p');p.className='muted';p.textContent='No apps installed yet.';$('apps-list').append(p);}
- for(const app of s.apps){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p'),state=document.createElement('p');
- h.textContent=app.name+' · '+app.version;p.textContent=app.description;state.textContent=app.state;state.className='muted';row.append(h,p,state);
- if(app.settings){const settings=document.createElement('button');settings.textContent='Settings';settings.className='secondary';settings.onclick=()=>openAppSettings(app.package);row.append(settings);}
- const candidate=catalog.packages.find(p=>p.package===app.package);if(candidate&&candidate.upgrade)row.append(packageButton('Update to '+candidate.version,app.package));
+ if(!available.length){emptyRow('available-apps',catalog.checked?'No additional apps available.':'Check the repository to browse apps.');}
+ for(const app of available){const {row,h,p,actionsCell}=recordRow();h.textContent=app.package.replace(/^reread-app-/,'');p.textContent=app.description+' · '+app.version;actionsCell.append(packageButton('Install',app.package));$('available-apps').append(row);}
+ $('apps-list').replaceChildren();if(!s.apps.length){emptyRow('apps-list','No apps installed.');}
+ for(const app of s.apps){const {row,h,p,actionsCell}=recordRow(),state=document.createElement('td');
+ h.textContent=app.name+' · '+app.version;p.textContent=app.description;state.textContent=app.service?app.state:'—';state.className='muted';row.insertBefore(state,actionsCell);
+ if(app.settings){const settings=document.createElement('button');settings.textContent='Settings';settings.className='secondary';settings.onclick=()=>openAppSettings(app.package);actionsCell.append(settings);}
+ const candidate=catalog.packages.find(p=>p.package===app.package);if(candidate&&candidate.upgrade)actionsCell.append(packageButton('Update to '+candidate.version,app.package));
  const actions=app.service?[[app.enabled?'Disable':'Enable',app.enabled?'disable':'enable'],['Remove','remove']]:[['Remove','remove']];
- for(const [label,action] of actions){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.disabled=packageBusy;b.onclick=async()=>{try{await post('/api/apps/action',{package:app.package,action});await refreshPlatform();}catch(e){message(e.message,true);}};row.append(b);}
- $('apps-list').append(row);}}
+ for(const [label,action] of actions){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.disabled=packageBusy;b.onclick=async()=>{try{await post('/api/apps/action',{package:app.package,action});await refreshPlatform();}catch(e){message(e.message,true);}};actionsCell.append(b);}
+ $('apps-list').append(row);}applyAppFilters();}
 async function installPackage(input,url){if(packageBusy)return message('A package operation is already running.',true);const file=$(input).files[0];if(!file)return;
  message('Uploading '+file.name+'…');const r=await fetch(url,{method:'POST',body:file});if(!r.ok)throw Error(await r.text());message('Package received. Installing…');await refreshPlatform();}
 $('install-app').onsubmit=async e=>{e.preventDefault();try{await installPackage('app-package','/api/apps/install');}catch(e){message(e.message,true);}};
 $('install-platform').onsubmit=async e=>{e.preventDefault();try{await installPackage('platform-package','/api/updates/install');}catch(e){message(e.message,true);}};
 async function repoAction(data){message(await post('/api/repositories',data));await refreshRepos();await refreshPlatform();}
 async function refreshRepos(){const repos=await get('/api/repositories');$('app-repos').replaceChildren();$('system-repos').replaceChildren();
- if(!repos.some(r=>r.apps)){$('app-repos').textContent='No app repositories configured. Add one below.';}
- for(const repo of repos){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=repo.id==='reread.sources'?'ReRead':repo.id;p.textContent=repo.enabled?'Enabled':'Disabled';row.append(h,p);
- for(const [label,action] of [[repo.enabled?'Disable':'Enable','toggle'],['Edit','edit'],['Remove','remove']]){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.disabled=packageBusy;b.onclick=async()=>{try{if(action==='edit'){editingRepo=repo;$('repo-content').value=repo.content;$('repo-edit-key').value='';$('repo-edit-key-field').hidden=!repo.apps||!repo.id.endsWith('.sources');$('repo-editor-title').textContent='Edit '+repo.id;$('repo-editor').hidden=false;$('repo-editor').scrollIntoView({behavior:'smooth'});}else{if(action==='remove'&&!confirm('Remove '+repo.id+'? Installed packages will be kept.'))return;await repoAction({action,id:repo.id,enabled:!repo.enabled});}}catch(e){message(e.message,true);}};row.append(b);}
- const path=document.createElement('p');path.textContent=repo.path;path.className='muted';row.append(path);$(repo.apps?'app-repos':'system-repos').append(row);}}
+ if(!repos.some(r=>r.apps)){emptyRow('app-repos','No app repositories configured.');}
+ for(const repo of repos){const {row,h,p,actionsCell}=recordRow();h.textContent=repo.id==='reread.sources'?'ReRead':repo.id;p.textContent=repo.enabled?'Enabled':'Disabled';
+ for(const [label,action] of [[repo.enabled?'Disable':'Enable','toggle'],['Edit','edit'],['Remove','remove']]){const b=document.createElement('button');b.textContent=label;b.className='secondary';b.disabled=packageBusy;b.onclick=async()=>{try{if(action==='edit'){editingRepo=repo;$('repo-content').value=repo.content;$('repo-edit-key').value='';$('repo-edit-key-field').hidden=!repo.apps||!repo.id.endsWith('.sources');$('repo-editor-title').textContent='Edit '+repo.id;$('repo-editor').hidden=false;$('repo-editor').scrollIntoView({behavior:'smooth'});}else{if(action==='remove'&&!confirm('Remove '+repo.id+'? Installed packages will be kept.'))return;await repoAction({action,id:repo.id,enabled:!repo.enabled});}}catch(e){message(e.message,true);}};actionsCell.append(b);}
+ const path=document.createElement('td');path.textContent=repo.path;path.className='rr-path';row.insertBefore(path,actionsCell);$(repo.apps?'app-repos':'system-repos').append(row);}}
 $('repo-key-file').onchange=async()=>{const f=$('repo-key-file').files[0];if(f)$('repo-key').value=await f.text();};
-$('repo-add').onsubmit=async e=>{e.preventDefault();try{await repoAction({action:'add',name:$('repo-name').value,uri:$('repo-uri').value,suite:$('repo-suite').value,components:$('repo-components').value,key:$('repo-key').value,signed_by:$('repo-signed-by').value});$('repo-add').reset();$('add-repo').open=false;}catch(e){message(e.message,true);}};
+$('repo-add').onsubmit=async e=>{e.preventDefault();try{await repoAction({action:'add',name:$('repo-name').value,uri:$('repo-uri').value,suite:$('repo-suite').value,components:$('repo-components').value,key:$('repo-key').value,signed_by:$('repo-signed-by').value});$('repo-add').reset();}catch(e){message(e.message,true);}};
 $('repo-edit').onsubmit=async e=>{e.preventDefault();if(!editingRepo)return;try{await repoAction({action:'save',id:editingRepo.id,content:$('repo-content').value,key:$('repo-edit-key').value});$('repo-editor').hidden=true;editingRepo=null;}catch(e){message(e.message,true);}};
 $('repo-cancel').onclick=()=>{$('repo-editor').hidden=true;editingRepo=null;};
+emptyRow('apps-list','Loading installed applications…');emptyRow('available-apps','Loading package catalog…');emptyRow('app-repos','Loading APT sources…');
 window.addEventListener('hashchange',navigate);navigate();
 setInterval(()=>{refreshBattery().catch(()=>{});if(page==='wifi'||page==='overview')refreshWifi().catch(e=>message(e.message,true));if(['apps','updates','repositories'].includes(page))refreshPlatform().catch(()=>{reconnecting=true;message('Reconnecting to ReRead…');});},4000);
 </script></html>

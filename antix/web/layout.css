@@ -1,0 +1,66 @@
+:root{--tblr-font-sans-serif:system-ui,-apple-system,"Segoe UI",sans-serif;--tblr-primary:#285a75;--tblr-primary-rgb:40,90,117;--tblr-body-bg:#f2f3f4;--rr-border:#bfc7cd;--rr-muted:#53616b;color-scheme:light}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;color:#1d2830;background:var(--tblr-body-bg);font-family:var(--tblr-font-sans-serif);font-size:13px;line-height:1.4}
+.rr-sidebar{position:fixed;inset:0 auto 0 0;width:184px;background:#e9edf0!important;border-right:1px solid #aeb9c1;display:flex;flex-direction:column;z-index:1045}
+.rr-brand{padding:12px 14px;border-bottom:1px solid var(--rr-border)}.rr-brand a{display:flex;align-items:center;gap:8px;color:#162d3c;text-decoration:none;font-size:19px;font-weight:650}
+.rr-mark{display:grid;place-items:center;width:25px;height:25px;font-size:18px;font-weight:650;border:1px solid #647e90;background:#fff}
+.rr-sidebar nav{padding:7px 0;display:flex;flex-direction:column;gap:0}.rr-sidebar nav a{display:flex;align-items:center;gap:9px;padding:8px 12px;border-left:3px solid transparent;color:#344956;text-decoration:none}
+.rr-sidebar nav a:hover{background:#dce4e9}.rr-sidebar nav a[aria-current]{background:#d3e1e9;border-left-color:#285a75;color:#16384d;font-weight:650}
+.rr-icon{width:17px;height:17px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.rr-sidebar-footer{margin-top:auto;padding:10px 12px;border-top:1px solid var(--rr-border);font-size:11px;color:#53616b;line-height:1.7}
+.rr-sidebar-footer strong{font-size:12px;color:#283d4a}.rr-workspace{margin-left:184px;min-height:100vh}
+.rr-topbar{height:46px;padding:8px 12px;display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid var(--rr-border)}
+.rr-topbar h1{font-size:18px;line-height:1;margin:0;font-weight:650}.rr-top-status{margin-left:auto;color:#53616b;font:12px ui-monospace,monospace}
+.rr-content{padding:12px;width:100%;max-width:none;margin:0}
+section,.card{border:1px solid var(--rr-border);border-radius:0;box-shadow:none;background:#fff}
+section{padding:12px;margin:0 0 12px;min-width:0}h2,.rr-panel-title{font-size:14px;font-weight:650;margin:0 0 10px}h3{font-size:13px;margin:0}p{margin:6px 0 10px;line-height:1.45}.muted{color:var(--rr-muted)}
+.rr-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.rr-stat{padding:10px 12px;min-height:0}.rr-stat-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#53616b}
+.rr-stat-value{font-size:22px;font-weight:650;line-height:1.2;margin:5px 0}.rr-stat-detail{font-size:12px;color:#53616b;line-height:1.4}
+.rr-meter{height:3px;background:#e1e6e9;margin-top:8px}.rr-meter span{display:block;background:#376b89;height:100%;width:0}
+.rr-panel-title{padding:8px 12px;background:#e9edf0;border-bottom:1px solid var(--rr-border);margin:0}
+.rr-details dl{display:grid;grid-template-columns:110px minmax(0,1fr) 110px minmax(0,1fr);gap:9px 12px;margin:0;padding:12px}
+.rr-details dt{font-weight:400;color:#53616b}.rr-details dd{margin:0;font:12px ui-monospace,monospace;overflow-wrap:anywhere}
+button,.btn{font:inherit;border:1px solid #7d949f;border-radius:2px;padding:5px 9px;line-height:1.35;background:#285a75;color:#fff;cursor:pointer;margin:0;box-shadow:none}
+button.secondary,.btn{background:#f4f6f7;color:#294657;border-color:#b0bec7}button:hover,.btn:hover{filter:brightness(.95)}button:disabled{opacity:.5;cursor:default}
+input,select,textarea{font:inherit;background:#fff;color:#182b37;border:1px solid #aab8c2;border-radius:1px;padding:5px 7px;max-width:100%;min-width:0}
+input:not([type=checkbox]),select{width:100%;max-width:none}input[readonly]{background:#edf0f2;color:#53616b}textarea{display:block;width:100%;font:12px ui-monospace,monospace;resize:vertical}
+label{display:block;font-weight:400;margin:0}a{color:#235c7d}.check,.inline{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.check input{width:auto}
+.rr-table-wrap{overflow-x:auto}.rr-table{border-collapse:collapse;width:100%;font-size:12px}
+.rr-table th,.rr-table td{padding:7px 9px;border:1px solid #d3dbe0;text-align:left;vertical-align:top}
+.rr-table thead th{font-weight:600;background:#e9edf0;color:#334956;white-space:nowrap}.rr-table tbody th{font-weight:550;min-width:120px}
+.rr-table tbody tr:nth-child(even){background:#f6f8f9}.rr-table td{overflow-wrap:anywhere}.rr-table .rr-row-actions{white-space:nowrap;min-width:130px}.rr-row-actions button{font-size:12px;padding:3px 7px;margin:0 4px 3px 0}
+.rr-path{font:11px ui-monospace,monospace}.rr-menu-button,.rr-menu-close{display:none}
+#page-wifi,#page-apps,#page-updates,#page-repositories{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+#page-apps .rr-installed{grid-column:1;grid-row:1}#page-apps .rr-available{grid-column:2;grid-row:1}
+#page-apps .rr-local-package,#app-settings-panel,.rr-sources,.rr-system-sources{grid-column:1/-1}
+#page-apps section,#page-wifi section,#page-updates section,#page-repositories section{margin-bottom:0}
+#wifi-form,#repo-add,#repo-edit,#settings{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 10px;align-items:center}
+#wifi-password-field{grid-column:1/-1;display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center}
+#wifi-form .check{grid-column:1/-1}#wifi-form button{justify-self:start}#settings p,#repo-add button,#repo-edit p{grid-column:1/-1}
+#settings button{grid-column:2;justify-self:start}#page-settings section{max-width:none}
+#page-settings form{grid-template-columns:145px minmax(150px,1fr) 145px minmax(150px,1fr)}
+#page-settings h2{margin-bottom:14px}#settings p{margin:0}#settings button{grid-column:4}
+#repo-add textarea,#repo-edit textarea{min-height:110px}#repo-editor{grid-column:2}#repo-edit label[for=repo-content],#repo-edit-key-field{grid-column:1/-1}#repo-edit-key-field label{margin-bottom:6px}
+#repo-edit button{justify-self:start}#repo-content{grid-column:1/-1;min-height:260px}
+#repo-add{margin-top:12px}
+#install-app,#install-platform{display:flex;align-items:center;gap:10px;flex-wrap:wrap}#install-app label,#install-platform label{min-width:130px}
+#install-app input,#install-platform input{flex:1;width:auto}#page-apps .catalog-status,#page-updates .catalog-status{font-size:12px;margin:8px 0}
+#package-operation{margin-top:12px}#package-operation section{padding:10px}#package-operation h2{font-size:13px}
+#package-status{margin:0 0 6px}#package-log{height:55vh;min-height:320px;max-height:none;resize:vertical;overflow:auto;padding:8px;margin:0;border:1px solid #c4cdd3;background:#f2f4f5}
+#app-settings-fields fieldset{border:1px solid #c6d0d6;padding:9px;margin:8px 0}#app-settings-fields label{margin-bottom:4px}#app-settings-fields button{margin:4px 5px 0 0}
+#app-settings-errors{color:#a12626;white-space:pre-wrap}
+#battery-warning{padding:8px 10px;margin:0 0 10px;border:1px solid #c79b42;background:#fff4d7}
+#message{position:fixed;bottom:12px;right:12px;max-width:min(480px,calc(100vw - 24px));padding:9px 12px;border:1px solid #99acb7;background:#fff;white-space:pre-wrap;z-index:1090;margin:0}
+#message:empty{display:none}#message.error{border-color:#b74747;color:#8d2929}
+#page-files .file-manager-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 9px;margin:0;border:0;background:none}
+#page-files h2{font-size:13px;margin:0}#page-files .muted{font-size:12px;margin:2px 0 0}#page-files #open-files{font-size:12px}
+#file-manager{display:block;width:100%;height:calc(100dvh - 110px);min-height:400px;border:1px solid var(--rr-border);border-radius:0;background:#fff}
+:focus-visible{outline:2px solid #337ba5;outline-offset:2px}
+@media(min-width:1600px){#page-apps{grid-template-columns:1.3fr 1fr}#page-wifi{grid-template-columns:1.1fr 1fr}#page-settings form{grid-template-columns:145px minmax(180px,1fr) 145px minmax(180px,1fr) 145px minmax(180px,1fr)}#settings button{grid-column:6}}
+@media(max-width:1100px){#page-wifi,#page-apps,#page-updates,#page-repositories{grid-template-columns:1fr}#page-apps .rr-installed,#page-apps .rr-available{grid-column:1;grid-row:auto}#page-apps .rr-installed{order:-1}#repo-editor{grid-column:1}#page-settings form{grid-template-columns:130px minmax(0,1fr)}#settings button{grid-column:2}.rr-details dl{grid-template-columns:100px minmax(0,1fr)}}
+@media(max-width:767px){.rr-sidebar.offcanvas-md{width:210px}.rr-workspace{margin-left:0}.rr-menu-button,.rr-menu-close{display:block}.rr-menu-close{position:absolute;right:8px;top:8px;background:#fff;color:#182433;border-color:#bfc7cd}.rr-topbar{height:44px}.rr-top-status{font-size:10px}.rr-content{padding:8px}.rr-topbar h1{font-size:16px}.rr-stats{grid-template-columns:1fr;gap:8px}.rr-stat{display:grid;grid-template-columns:100px minmax(0,1fr);gap:4px 8px;padding:9px}.rr-stat-value{font-size:18px;margin:0}.rr-stat-detail,.rr-stat .rr-meter{grid-column:2}.rr-stat .rr-meter{margin:0}.rr-stat-head .rr-icon{display:none}.rr-table-wrap{width:100%}section{padding:9px}#wifi-form,#repo-add,#repo-edit,#settings,#wifi-password-field{grid-template-columns:110px minmax(0,1fr);gap:7px}#file-manager{height:calc(100dvh - 105px);min-height:390px}.rr-row-actions{white-space:normal!important}#settings button{grid-column:2}}
+
+.rr-search{display:flex;align-items:center;gap:10px;font-size:12px;color:#53616b;margin-bottom:9px}.rr-search input{flex:1;width:auto;max-width:300px}
+
+#package-log{color:#263d4b}#page-settings #settings button{align-self:start}

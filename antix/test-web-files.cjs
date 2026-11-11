@@ -45,7 +45,8 @@ const assert=require('node:assert/strict');
   await page.locator('nav a[href="#files"]').click();
   assert.equal(await page.locator('#file-manager').getAttribute('src'),source);
   assert.equal(await page.locator('#open-files').getAttribute('href'),storage);
-  assert.equal(await page.locator('#files-root').textContent(),'/var/lib/reader/files');
+  assert.equal(await page.locator('#files-root').count(),0);
+  assert.match(await page.locator('#files-space').textContent(),/free/);
   // Exercise the upstream editor, not a replacement upload under a different name.
   const embedded=page.frames().find(f=>f.url().startsWith(files));
   await embedded.goto(files+folder+'/hello.txt?edit');

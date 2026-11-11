@@ -32,3 +32,14 @@ CDN or runtime download is required on the Reader. Installed notices are
 `/usr/share/doc/reread/json-editor-LICENSE.txt` and
 `json-editor-dependencies-LICENSE.txt`. Server validation uses Debian's
 `python3-jsonschema`, rather than a custom schema validator.
+
+## Web management layout
+
+The management page bundles Tabler Core 1.7.4 CSS/JavaScript (MIT), including its
+Bootstrap/Popper UI components. The npm archive is pinned with SHA-256
+`ccb1631d26cec2589d357556c8fe86bbba75ef0bcf672a4939a7ed5d4ab7319c`.
+`web_build.py` assembles static HTML with these assets, the system font and
+ReRead layout styles. No CDN, Node runtime or additional server route is needed.
+License notices are shipped under `/usr/share/doc/reread/`; source copies live in
+`antix/web/`. Upstream bundles are unchanged apart from removing external
+stylesheet imports and source-map links.

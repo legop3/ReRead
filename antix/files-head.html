@@ -2,9 +2,9 @@
 <!-- Copyparty's supported html-head customization; upstream assets stay unmodified. -->
 <style>
 body{font-family:system-ui,sans-serif}
-#ops{display:flex;flex-wrap:wrap;gap:5px;padding:8px}
-#ops a{font-size:17px;padding:8px 12px;border-radius:6px}
-#ops a:after{font-size:14px;margin-left:6px}
+#ops{display:flex;flex-wrap:wrap;gap:3px;padding:4px}
+#ops a{font-size:13px;padding:4px 7px;border-radius:2px}
+#ops a:after{font-size:12px;margin-left:4px}
 #opa_x:after{content:'Close'}
 #opa_up:after{content:'Upload'}
 #opa_bup:after{content:'Basic upload'}
@@ -19,20 +19,22 @@ body{font-family:system-ui,sans-serif}
 
 <style>
 body.rr-overview #ops,body.rr-overview #tree,body.rr-overview #path,body.rr-overview #wrap{display:none!important}
-#rr-storage{font-family:system-ui,sans-serif;margin:16px;padding:18px;background:#fff;color:#172c38;border:1px solid #bfcbd3;border-top:4px solid #176b64}
-#rr-storage h1{margin:0 0 8px;font-size:24px}
-#rr-storage p{margin:8px 0;line-height:1.5}
-#rr-storage nav{display:flex;flex-wrap:wrap;gap:7px}
-#rr-storage nav a{padding:8px 12px;border:1px solid #bfcbd3;color:#172c38;text-decoration:none}
-#rr-storage nav a[aria-current]{background:#176b64;color:#fff;border-color:#176b64}
-#rr-storage .rr-path{font:13px monospace;overflow-wrap:anywhere}
-#rr-storage .rr-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:18px}
-#rr-storage .rr-card{display:block;padding:15px;border:1px solid #bfcbd3;color:#172c38;text-decoration:none}
-#rr-storage .rr-card:hover,#rr-storage .rr-card:focus-visible{border-color:#176b64;background:#f1f7f5}
-#rr-storage .rr-card strong{display:block;font-size:19px;margin-bottom:7px}
-#rr-storage .rr-card span{display:block;line-height:1.5}
-#rr-storage .rr-card code{display:block;margin-top:10px;font-size:12px;overflow-wrap:anywhere}
-#rr-storage small{display:block;margin-top:8px;color:#526471}
+#rr-storage{font-family:system-ui,sans-serif;background:white;color:#182b37;border:1px solid #bfc7cd}
+#rr-storage nav{display:flex;flex-wrap:wrap}
+#rr-storage nav a{color:#294657;border:1px solid #bfc7cd;text-decoration:none}
+#rr-storage .rr-path{font:12px ui-monospace,monospace;overflow-wrap:anywhere}
+#rr-storage{margin:8px;padding:10px;border-top:1px solid #bfc7cd;font-size:13px}
+#rr-storage h1{font-size:17px;margin-bottom:8px}
+#rr-storage nav{gap:4px}#rr-storage nav a{padding:4px 8px;border-radius:0;font-size:12px}
+#rr-storage nav a[aria-current]{background:#285a75;border-color:#285a75}
+#rr-storage p{margin:8px 0;font-size:12px}
+#rr-storage .rr-areas{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+#rr-storage .rr-areas th,#rr-storage .rr-areas td{padding:7px 9px;border:1px solid #c8d1d8;text-align:left;vertical-align:top}
+#rr-storage .rr-areas th{background:#e9edf0;color:#334956;font-weight:600}
+#rr-storage .rr-areas tr:nth-child(even){background:#f6f8f9}
+#rr-storage .rr-card{padding:0;border:0;font-size:12px;font-weight:600;white-space:nowrap;color:#235c7d;text-decoration:underline}
+#rr-storage .rr-areas code{font-size:11px;overflow-wrap:anywhere}
+@media(max-width:600px){ #rr-storage .rr-areas th:last-child,#rr-storage .rr-areas td:last-child{display:none}#rr-storage .rr-areas td{padding:6px}}
 </style>
 <script nonce="{{ js_nonce }}">
 document.addEventListener('DOMContentLoaded',function(){
@@ -65,13 +67,17 @@ document.addEventListener('DOMContentLoaded',function(){
   const real=document.createElement('div');real.className='rr-path';real.textContent=area[2];panel.append(real);
  }else{
   const intro=document.createElement('p');intro.textContent='One SSD, organized by purpose. These are the real folders on your Reader, with no import or synchronization step.';panel.append(intro);
-  const cards=document.createElement('div');cards.className='rr-cards';
+  const cards=document.createElement('table');cards.className='rr-areas';
+  const head=document.createElement('thead'),headRow=document.createElement('tr');
+  for(const title of ['Area','Linux location','Contents']){const cell=document.createElement('th');cell.textContent=title;headRow.append(cell);}head.append(headRow);cards.append(head);
+  const body=document.createElement('tbody');
   for(const a of areas){
-   const card=document.createElement('a');card.className='rr-card';card.href='/'+a[0]+'/';
-   const name=document.createElement('strong');name.textContent=a[1];
-   const text=document.createElement('span');text.textContent=a[3];
-   const code=document.createElement('code');code.textContent=a[2];card.append(name,text,code);cards.append(card);
+   const row=document.createElement('tr'),name=document.createElement('td'),path=document.createElement('td'),description=document.createElement('td');
+   const link=document.createElement('a');link.className='rr-card';link.href='/'+a[0]+'/';link.textContent=a[1];name.append(link);
+   const code=document.createElement('code');code.textContent=a[2];path.append(code);description.textContent=a[3];
+   row.append(name,path,description);body.append(row);
   }
+  cards.append(body);
   panel.append(cards);
  }
  document.body.prepend(panel);
