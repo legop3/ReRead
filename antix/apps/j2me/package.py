@@ -122,6 +122,7 @@ Terminal=false
     shutil.copy(binary,target)
     target.chmod(0o755)
     shutil.copy(emulator,target.parent/"freej2me_plus.jar")
+    shutil.copy(SOURCE/"catalog.py",target.parent/"catalog.py")
     dest_classes=target.parent/"classes"
     shutil.copytree(classes,dest_classes)
     OUTPUT.mkdir(parents=True,exist_ok=True)
