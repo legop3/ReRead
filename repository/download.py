@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--repo', required=True)
@@ -11,7 +12,7 @@ parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 pages = json.loads(subprocess.check_output(
-    ['gh', 'api', '--paginate', '--slurp', f'repos/{args.repo}/releases'], text=True))
+    ['gh', 'api', '--paginate', '--slurp', f'repos/{args.repo}/releases?per_page=100&fresh={time.time_ns()}'], text=True))
 (args.output.parent / 'releases.json').write_text(json.dumps([release for page in pages for release in page], indent=2) + '\n')
 count = 0
 for releases in pages:
