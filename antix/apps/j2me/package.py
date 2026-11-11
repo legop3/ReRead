@@ -93,13 +93,13 @@ Terminal=false
     docs=stage/"usr/share/doc/reread-app-j2me"
     docs.mkdir(parents=True,exist_ok=True)
     shutil.copy(SOURCE/"README.md",docs/"README.md")
-    target=stage/"usr/lib/reread/apps/booru/reader-booru-app"
+    target=stage/"usr/lib/reread/apps/j2me/reader-j2me-app"
     target.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy(binary,target)
     target.chmod(0o755)
     shutil.copy(args.emulator,target.parent/"freej2me_plus.jar")
     OUTPUT.mkdir(parents=True,exist_ok=True)
-    package=OUTPUT/f"reread-app-booru_{version}_i386.deb"
+    package=OUTPUT/f"reread-app-j2me_{version}_i386.deb"
     subprocess.run(["dpkg-deb","--root-owner-group","-Zgzip","--build",str(stage),str(package)],check=True)
     print(package)
 if __name__ == "__main__":
