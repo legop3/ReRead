@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 (async()=>{
  const base=process.argv[2]||'http://192.168.7.1';
  const address=new URL(base);address.port='8080';address.pathname='/';
- const files=address.href,folder='reread-browser-test-'+Date.now();
+ const storage=address.href,files=storage+'files/',folder='reread-browser-test-'+Date.now();
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium-browser',args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:1280,height:900}});
  try{
@@ -16,6 +16,7 @@ const assert=require('node:assert/strict');
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+'/#files');
   const frame=page.frameLocator('#file-manager');
+  await frame.locator('#rr-storage a.rr-card[href="/files/"]').click();
   await frame.locator('#files').waitFor();
   await frame.locator('#files a').filter({hasText:folder}).click();
   await frame.locator('#files a').filter({hasText:'hello.txt'}).waitFor();
@@ -43,7 +44,7 @@ const assert=require('node:assert/strict');
   await page.locator('nav a[href="#overview"]').click();
   await page.locator('nav a[href="#files"]').click();
   assert.equal(await page.locator('#file-manager').getAttribute('src'),source);
-  assert.equal(await page.locator('#open-files').getAttribute('href'),files);
+  assert.equal(await page.locator('#open-files').getAttribute('href'),storage);
   assert.equal(await page.locator('#files-root').textContent(),'/var/lib/reader/files');
   // Exercise the upstream editor, not a replacement upload under a different name.
   const embedded=page.frames().find(f=>f.url().startsWith(files));

@@ -1,3 +1,4 @@
+%
 <!-- Copyparty's supported html-head customization; upstream assets stay unmodified. -->
 <style>
 body{font-family:system-ui,sans-serif}
@@ -15,3 +16,68 @@ body{font-family:system-ui,sans-serif}
 #opa_srch:after{content:'Search'}
 #opa_msg{display:none!important}
 </style>
+
+<style>
+body.rr-overview #ops,body.rr-overview #tree,body.rr-overview #path,body.rr-overview #wrap{display:none!important}
+#rr-storage{font-family:system-ui,sans-serif;margin:16px;padding:18px;background:#fff;color:#172c38;border:1px solid #bfcbd3;border-top:4px solid #176b64}
+#rr-storage h1{margin:0 0 8px;font-size:24px}
+#rr-storage p{margin:8px 0;line-height:1.5}
+#rr-storage nav{display:flex;flex-wrap:wrap;gap:7px}
+#rr-storage nav a{padding:8px 12px;border:1px solid #bfcbd3;color:#172c38;text-decoration:none}
+#rr-storage nav a[aria-current]{background:#176b64;color:#fff;border-color:#176b64}
+#rr-storage .rr-path{font:13px monospace;overflow-wrap:anywhere}
+#rr-storage .rr-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:18px}
+#rr-storage .rr-card{display:block;padding:15px;border:1px solid #bfcbd3;color:#172c38;text-decoration:none}
+#rr-storage .rr-card:hover,#rr-storage .rr-card:focus-visible{border-color:#176b64;background:#f1f7f5}
+#rr-storage .rr-card strong{display:block;font-size:19px;margin-bottom:7px}
+#rr-storage .rr-card span{display:block;line-height:1.5}
+#rr-storage .rr-card code{display:block;margin-top:10px;font-size:12px;overflow-wrap:anywhere}
+#rr-storage small{display:block;margin-top:8px;color:#526471}
+</style>
+<script nonce="{{ js_nonce }}">
+document.addEventListener('DOMContentLoaded',function(){
+ const areas=[
+  ['files','Shared files','/var/lib/reader/files','Photos, music, documents and downloads. The same folders used by Reader apps.'],
+  ['app-data','App data','/var/lib/reader/apps','Preferences, databases and history. Close an app before editing or restoring its data.'],
+  ['cache','Caches','/root/.cache','Disposable downloads and thumbnails. Close the app before clearing its cache.'],
+  ['configuration','App configuration','/etc/reread/apps','API keys, server URLs and saved searches. Web Apps → Settings offers guided editing.'],
+  ['preferences','XDG preferences','/root/.config','Configuration used by apps following the standard XDG config location.'],
+  ['programs','Installed programs','/usr/lib/reread/apps','Browse and download installed app code. Managed by APT; read-only here.'],
+  ['assets','Installed assets','/usr/share/reread/apps','Browse packaged schemas and other app resources. Managed by APT; read-only here.']
+ ];
+ let previousArea=null;
+ function render(){
+ const currentArea=location.pathname.split('/')[1];
+ if(previousArea===currentArea)return;previousArea=currentArea;
+ const old=document.getElementById('rr-storage');if(old)old.remove();
+ const panel=document.createElement('header');panel.id='rr-storage';
+ const title=document.createElement('h1');title.textContent='ReRead storage';panel.append(title);
+ const nav=document.createElement('nav');nav.setAttribute('aria-label','Storage areas');
+ const path=decodeURIComponent(location.pathname).split('/')[1];
+ for(const a of [['','Overview'],...areas.map(a=>[a[0],a[1]])]){
+  const link=document.createElement('a');link.href='/'+(a[0]?a[0]+'/':'');link.textContent=a[1];if(path===a[0])link.setAttribute('aria-current','page');nav.append(link);
+ }
+ panel.append(nav);
+ const area=areas.find(a=>a[0]===path);
+ document.body.classList.toggle('rr-overview',!area && location.pathname==='/');
+ if(area){
+  const note=document.createElement('p');note.textContent=area[3];panel.append(note);
+  const real=document.createElement('div');real.className='rr-path';real.textContent=area[2];panel.append(real);
+ }else{
+  const intro=document.createElement('p');intro.textContent='One SSD, organized by purpose. These are the real folders on your Reader, with no import or synchronization step.';panel.append(intro);
+  const cards=document.createElement('div');cards.className='rr-cards';
+  for(const a of areas){
+   const card=document.createElement('a');card.className='rr-card';card.href='/'+a[0]+'/';
+   const name=document.createElement('strong');name.textContent=a[1];
+   const text=document.createElement('span');text.textContent=a[3];
+   const code=document.createElement('code');code.textContent=a[2];card.append(name,text,code);cards.append(card);
+  }
+  panel.append(cards);
+ }
+ document.body.prepend(panel);
+ }
+ render();
+ new MutationObserver(render).observe(document.body,{childList:true,subtree:true});
+ window.addEventListener('popstate',render);
+});
+</script>

@@ -44,7 +44,7 @@ def exercise(address, prefix):
 if __name__ == '__main__':
     if len(sys.argv) == 2:
         # Creates and removes only this uniquely named test directory on a Reader.
-        exercise(sys.argv[1].rstrip('/'), '/reread-transfer-test-' + str(time.time_ns()) + '/')
+        exercise(sys.argv[1].rstrip('/'), '/files/reread-transfer-test-' + str(time.time_ns()) + '/')
     else:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -53,6 +53,10 @@ if __name__ == '__main__':
             with socket.socket() as listener:
                 listener.bind(('127.0.0.1', 0)); port = listener.getsockname()[1]
             config = (BASE / 'antix/files.conf').read_text().replace('[global]', '[global]\n  wram').replace('@/usr/share/reader/files-head.html', '@' + str(BASE / 'antix/files-head.html')).replace('192.168.7.1', '127.0.0.1').replace('p: 8080', f'p: {port}').replace('/var/lib/reader/files', str(shared)).replace('/var/lib/reader/file-manager', str(root / 'state'))
+            for original, name in [('/var/lib/reader/apps','app-data'),('/root/.cache','cache'),('/root/.config','preferences'),('/etc/reread/apps','configuration'),('/usr/lib/reread/apps','programs'),('/usr/share/reread/apps','assets')]:
+                directory = root / name; directory.mkdir()
+                config = config.replace(original, str(directory))
+            (root / 'state/home').mkdir(parents=True)
             (root / 'files.conf').write_text(config)
             environment = dict(os.environ, PYTHONPATH=str(root / 'usr/lib/reread/vendor'),
                                XDG_CONFIG_HOME=str(root / 'config'), PYTHONDONTWRITEBYTECODE='1')
@@ -67,7 +71,7 @@ if __name__ == '__main__':
                             urlopen(address, timeout=1).close(); break
                         except OSError:
                             time.sleep(.1)
-                    exercise(address, '/folder/')
+                    exercise(address, '/files/folder/')
                     assert not list(shared.iterdir()), list(shared.iterdir())
                     print('PASS: public storage contains no file-manager metadata or leftover test files')
                 except Exception:

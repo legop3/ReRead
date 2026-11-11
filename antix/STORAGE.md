@@ -8,8 +8,8 @@ reserved transfer volume, disk image, import step or synchronization copy.
 The launcher exports `REREAD_FILES_DIR=/var/lib/reader/files` to applications.
 Programs may read that environment variable or use the documented absolute path;
 no SDK or file service is required. Use normal Linux file and directory operations.
-The web file manager and the independent `reread-app-files` application access
-this exact directory. Files can be updated or removed without changing storage.
+The web file manager exposes this directory at `/files/`; the independent
+`reread-app-files` application accesses the same directory. Files can be updated or removed without changing storage.
 Its Delete action permanently removes the selected file or folder after a
 confirmation with Cancel selected by default.
 
@@ -98,3 +98,26 @@ filesystem, display and recovery keyboard modules. This leaves space on the
 small FAT boot partition for the current initramfs and its replacement during
 updates. The full distro module tree and firmware remain available after the
 root filesystem mounts. The USB installer has its own initramfs.
+
+## Copyparty storage hub
+
+The web Files page opens a storage overview with named native Copyparty volumes:
+
+| Browser path | Real location | Use |
+| --- | --- | --- |
+| `/files/` | `/var/lib/reader/files` | Shared documents and media |
+| `/app-data/` | `/var/lib/reader/apps` | Persistent app data and state |
+| `/cache/` | `/root/.cache` | Disposable app caches |
+| `/configuration/` | `/etc/reread/apps` | Web-editable JSON configuration |
+| `/preferences/` | `/root/.config` | Standard XDG configuration |
+| `/programs/` | `/usr/lib/reread/apps` | Installed executables; read-only |
+| `/assets/` | `/usr/share/reread/apps` | Packaged resources; read-only |
+
+The overview is an empty private directory with virtual volume entries, not
+a new shared-files location. Nothing is copied, imported or repartitioned.
+The navigation and descriptive cards use Copyparty's supported Jinja html-head
+hook; upstream resources are unchanged. Navigation follows its normal AJAX
+browsing and remains available when editing text. Close apps before changing
+live databases or clearing caches. Guided Apps → Settings remains the preferred
+editor for app text configuration; direct JSON editing uses the same file.
+Installed programs and assets are changed through normal APT app updates.

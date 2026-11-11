@@ -249,7 +249,7 @@ The shared user-files root is **`/var/lib/reader/files`**, also exported as
 `REREAD_FILES_DIR`. Read it from the environment when available. Use ordinary
 filesystem operations and create meaningful subfolders as needed, such as
 `Pictures/MyApp/`, `Documents/`, `Music/` or `Downloads/`. This is the exact folder
-used by Files and the web interface; it shares free space with the OS.
+used by Files and the web interface (Copyparty `/files/`); it shares free space with the OS.
 
 | Kind of data | Location / ownership |
 | --- | --- |
@@ -272,6 +272,11 @@ interface. Bound cache size and memory use: the Reader has about 512 MB RAM and
 a 4 GB SSD. Removal and upgrades must retain user documents and private data;
 never ship or wipe runtime data in a package maintainer script. See the full
 [storage policy](antix/STORAGE.md).
+
+The web storage hub also exposes app data, XDG configuration and bounded caches
+for inspection and maintenance. These are direct filesystem views, so apps must
+handle external changes. Packaged code/assets are browsable there as read-only
+volumes; APT owns their updates. See [the volume map](antix/STORAGE.md#copyparty-storage-hub).
 
 ## Web configuration for text entry
 
