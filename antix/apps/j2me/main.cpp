@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
+#include <QSaveFile>
+#include <QDateTime>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -19,7 +21,7 @@ class J2ME : public Screen {
   QMap<QString,QJsonObject> metadata;
   QFileSystemWatcher watcher;
   int selected=0, field=0;
-  bool options=false, running=false;
+  bool options=false, running=false, confirmDelete=false;
   QString message;
   QProcess child;
   QJsonObject profile;
@@ -37,9 +39,11 @@ class J2ME : public Screen {
   }
   void save() {
     QDir().mkpath(state+"/profiles");
-    QFile f(profilePath());
-    if(f.open(QIODevice::WriteOnly|QIODevice::Truncate))
+    QSaveFile f(profilePath());
+    if(f.open(QIODevice::WriteOnly)) {
       f.write(QJsonDocument(profile).toJson(QJsonDocument::Indented));
+      f.commit();
+    }
   }
   void scan() {
     QString keep=game();
@@ -69,15 +73,20 @@ class J2ME : public Screen {
   }
   void chrome() {
     showHeader=true;
-    title=options?"J2ME game settings":"Java ME";
-    subtitle=options?QFileInfo(game()).fileName():QString::number(games.size())+" games in Files/J2ME";
+    title=confirmDelete?"Erase game data?":options?"Game settings":"Java ME";
+    subtitle=(options||confirmDelete)?metadata.value(game()).value("title").toString(QFileInfo(game()).fileName()):QString::number(games.size())+" games in Files/J2ME";
     controls=running?QList<Control>{{READER_FAVORITES,"Stop"}}:
+      confirmDelete?QList<Control>{{READER_OK,"Erase"},{READER_BACK,"Cancel"}}:
       options?QList<Control>{{READER_UP,"Setting"},{READER_LEFT,"Change"},{READER_BACK,"Games"},{READER_OK,"Change"}}:
       QList<Control>{{READER_UP,"Select"},{READER_OK,"Play"},{READER_OPTIONS,"Settings"},{READER_BACK,"Home"}};
     update();
   }
   void change(int amount) {
     if(game().isEmpty())return;
+    if(field==7) {
+      profile=QJsonObject{};save();message="Game settings reset.";update();return;
+    }
+    if(field==8) {confirmDelete=true;chrome();return;}
     static const char* keys[]={"orientation","width","height","fps","layout","fullscreen","scale"};
     const char *k=keys[field];
     if(field==0)profile[k]=(setting(k,0)+4+amount%4)%4;
@@ -107,6 +116,9 @@ class J2ME : public Screen {
         QString::number(setting("scale",1)),QString::number(setting("layout",0)),QString::number(setting("fps",60))});
     child.setProcessChannelMode(QProcess::MergedChannels);
     child.setStandardOutputFile(state+"/data/"+identity()+"/last-run.log",QIODevice::Truncate);
+    profile["plays"]=setting("plays",0)+1;
+    profile["lastPlayed"]=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    save();
     message="Starting "+QFileInfo(game()).fileName();
     running=true;child.start();chrome();
   }
@@ -118,9 +130,20 @@ protected:
       return;
     }
     if(id==READER_FAVORITES){close();return;}
+    if(confirmDelete) {
+      if(id==READER_BACK || id==READER_OPTIONS){confirmDelete=false;chrome();return;}
+      if(id==READER_OK) {
+        const QString data=state+"/data/"+identity();
+        const bool cleared=!QFileInfo::exists(data)||QDir(data).removeRecursively();
+        confirmDelete=false;
+        message=cleared?"Game data erased.":"Unable to erase game data.";
+        chrome();return;
+      }
+      return;
+    }
     if(options) {
       if(id==READER_BACK||id==READER_OPTIONS){options=false;chrome();return;}
-      if(id==READER_UP||id==READER_DOWN){field=qBound(0,field+(id==READER_DOWN?1:-1),6);update();return;}
+      if(id==READER_UP||id==READER_DOWN){field=qBound(0,field+(id==READER_DOWN?1:-1),8);update();return;}
       if(id==READER_LEFT||id==READER_RIGHT||id==READER_OK){change(id==READER_LEFT?-1:1);return;}
       return;
     }
@@ -135,14 +158,19 @@ protected:
     if(running){text(p,r,"Running "+QFileInfo(game()).fileName()+"\n\n"
                     "The Java ME game is in a separate window.\n"
                     "Press Favorites to stop it.",25);return;}
-    if(options){
-      QStringList labels={"Rotation","Virtual width","Virtual height","Frame cap","Phone layout","Fullscreen","Window scale"};
+    if(confirmDelete) {
+      text(p,r,"Erase the saved progress and emulator data for this game?\n\n"
+          "The JAR file and game settings will be kept.\n\n"
+          "Press OK to ERASE or Back to cancel.",26);
+    } else if(options){
+      QStringList labels={"Rotation","Virtual width","Virtual height","Frame cap","Phone layout","Fullscreen","Window scale","Reset settings","Erase saved data…"};
       const QStringList layouts={"Standard","LG","Motorola","Moto Triplets","Moto V8","Moto A1000","Nokia","Sagem","Siemens","SKT","KDDI"};
       QStringList detail={QString::number(setting("orientation",0)*90)+QString::fromUtf8("°"),
           QString::number(setting("width",240))+" px",QString::number(setting("height",320))+" px",
           QString::number(setting("fps",60))+" FPS",
           layouts.value(setting("layout",0),"Standard"),
-          setting("fullscreen",1)?"On":"Off",QString::number(setting("scale",1))+"×"};
+          setting("fullscreen",1)?"On":"Off",QString::number(setting("scale",1))+"×",
+          "Use standard defaults","Keep JAR; clear game progress"};
       list(p,r,labels,detail,field);
     }else if(games.isEmpty()){
       text(p,r,"No Java ME games found.\n\nUpload .jar games to Files/J2ME.\n"
@@ -153,7 +181,9 @@ protected:
         const auto m=metadata.value(g);
         names<<m.value("title").toString(QFileInfo(g).completeBaseName());
         const QString vendor=m.value("vendor").toString();
-        descriptions<<(vendor.isEmpty()?QString::number(QFileInfo(g).size()/1024)+" KiB":vendor);
+        const QString version=m.value("version").toString();
+        descriptions<<(vendor.isEmpty()?QString::number(QFileInfo(g).size()/1024)+" KiB":vendor+
+                      (version.isEmpty()?"":" · "+version));
       }
       list(p,r,names,descriptions,selected);
     }
