@@ -11,6 +11,7 @@ import java.util.jar.JarFile;
  * physical keys to the desktop keys FreeJ2ME already understands.
  */
 public final class ReReadJ2ME {
+    private static boolean guideHeld = false;
     private ReReadJ2ME() {}
 
     public static void main(String[] args) throws Exception {
@@ -18,6 +19,15 @@ public final class ReReadJ2ME {
             @Override public boolean dispatchKeyEvent(KeyEvent event) {
                 if (event.getID() != KeyEvent.KEY_PRESSED && event.getID() != KeyEvent.KEY_RELEASED)
                     return false;
+                // ? + Back quits even while FreeJ2ME owns focus.
+                if (event.getKeyCode() == KeyEvent.VK_F1) {
+                    guideHeld = event.getID() == KeyEvent.KEY_PRESSED;
+                    return true;
+                }
+                if (guideHeld && event.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    if (event.getID() == KeyEvent.KEY_PRESSED) System.exit(0);
+                    return true;
+                }
                 int to = 0;
                 switch (event.getKeyCode()) {
                     case KeyEvent.VK_ESCAPE: to = KeyEvent.VK_W; break;      // Back -> right softkey
