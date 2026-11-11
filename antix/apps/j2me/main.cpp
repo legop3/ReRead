@@ -17,6 +17,7 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QUrl>
+#include <QSet>
 using namespace ReRead;
 class J2ME : public Screen {
   QStringList games;
@@ -25,6 +26,7 @@ class J2ME : public Screen {
   int selected=0, field=0;
   bool options=false, running=false, confirmDelete=false, errorPage=false, gameMenu=false;
   int gameAction=0;
+  QSet<int> heldKeys;
   QString errorText;
   QString message;
   JavaMECore core;
@@ -119,7 +121,7 @@ class J2ME : public Screen {
     profile["plays"]=setting("plays",0)+1;
     profile["lastPlayed"]=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     save();
-    errorPage=false;errorText.clear();gameMenu=false;gameAction=0;
+    errorPage=false;errorText.clear();gameMenu=false;gameAction=0;heldKeys.clear();
     message="Starting "+QFileInfo(game()).fileName();
     running=true;playClock.start();
     // No AWT window. Java ME frames are rendered by this ReRead Screen.
@@ -128,6 +130,7 @@ class J2ME : public Screen {
     chrome();
   }
   void finishGame() {
+    heldKeys.clear();
     core.stop();running=false;gameMenu=false;
     message="Returned to Java ME library.";
     chrome();
@@ -164,10 +167,17 @@ protected:
         return;
       }
       if(id==READER_FAVORITES && value==1){finishGame();return;}
-      if(id==READER_VIEW_TOGGLE && value==1){gameMenu=true;gameAction=0;core.pause(true);chrome();return;}
+      if(id==READER_VIEW_TOGGLE && value==1){
+        for(int key:heldKeys)core.key(key,false);
+        heldKeys.clear();
+        gameMenu=true;gameAction=0;core.pause(true);chrome();return;
+      }
       if(value==2)return; // The emulator produces its own key repeats per frame.
       const int key=phoneKey(id);
-      if(key>=0)core.key(key,value==1);
+      if(key>=0){
+        if(value==1){heldKeys.insert(key);core.key(key,true);}
+        else if(heldKeys.remove(key))core.key(key,false);
+      }
       return;
     }
     if(value!=1 && !(value==2 && (id==READER_UP||id==READER_DOWN||id==READER_LEFT||id==READER_RIGHT)))return;
