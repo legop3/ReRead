@@ -68,6 +68,9 @@ class J2ME : public Screen {
     }
     if(!watcher.directories().isEmpty())watcher.removePaths(watcher.directories());
     watcher.addPath(jarFolder);
+    QDirIterator dirs(jarFolder,QDir::Dirs|QDir::NoDotAndDotDot|QDir::NoSymLinks,
+                      QDirIterator::Subdirectories);
+    while(dirs.hasNext())watcher.addPath(dirs.next());
     selected=games.indexOf(keep);
     if(selected<0)selected=0;
     load();chrome();
@@ -76,7 +79,7 @@ class J2ME : public Screen {
     showHeader=true;
     title=errorPage?"Game failed":confirmDelete?"Erase game data?":options?"Game settings":"Java ME";
     subtitle=(options||confirmDelete||errorPage)?metadata.value(game()).value("title").toString(QFileInfo(game()).fileName()):QString::number(games.size())+" games in Files/J2ME";
-    controls=running?QList<Control>{{READER_FAVORITES,"Stop"}}:
+    controls=running?QList<Control>{{READER_GUIDE,"Hold + Back: Exit"}}:
       errorPage?QList<Control>{{READER_BACK,"Games"}}:
       confirmDelete?QList<Control>{{READER_OK,"Erase"},{READER_BACK,"Cancel"}}:
       options?QList<Control>{{READER_UP,"Setting"},{READER_LEFT,"Change"},{READER_BACK,"Games"},{READER_OK,"Change"}}:
@@ -161,7 +164,7 @@ protected:
   void draw(QPainter &p,const QRect &r) override {
     if(running){text(p,r,"Running "+QFileInfo(game()).fileName()+"\n\n"
                     "The Java ME game is in a separate window.\n"
-                    "Press Favorites to stop it.",25);return;}
+                    "Hold ? and press Back to exit.",25);return;}
     if(errorPage) {
       text(p,r,errorText,20);
     } else if(confirmDelete) {
