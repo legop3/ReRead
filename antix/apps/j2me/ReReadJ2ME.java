@@ -55,7 +55,7 @@ public final class ReReadJ2ME {
         entry.invoke(null, (Object) args);
         // Apply actual LCD rotation through FreeJ2ME's own settings.
         String rotation = System.getProperty("reread.rotation", "0");
-        if (!rotation.equals("0")) {
+        {
             Mobile.config.settings.put("rotate", rotation);
             Class<?> frontend = Class.forName(mainClass);
             Object app = frontend.getField("app").get(null);
