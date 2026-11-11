@@ -82,7 +82,6 @@ class J2ME : public Screen {
     load();chrome();
   }
   void chrome() {
-    showHeader=true;
     showHeader=!running;
     title=errorPage?"Game failed":confirmDelete?"Erase game data?":options?"Game settings":"Java ME";
     subtitle=(options||confirmDelete||errorPage)?metadata.value(game()).value("title").toString(QFileInfo(game()).fileName()):QString::number(games.size())+" games in Files/J2ME";
@@ -253,16 +252,38 @@ protected:
       text(p,r,"No Java ME games found.\n\nUpload .jar games to Files/J2ME.\n"
           "Return here to browse your games.",26);
     }else {
-      QStringList names,descriptions;
-      for(const QString &g:games){
-        const auto m=metadata.value(g);
-        names<<m.value("title").toString(QFileInfo(g).completeBaseName());
-        const QString vendor=m.value("vendor").toString();
-        const QString version=m.value("version").toString();
-        descriptions<<(vendor.isEmpty()?QString::number(QFileInfo(g).size()/1024)+" KiB":vendor+
-                      (version.isEmpty()?"":" · "+version));
+      // The standard ReRead collection/details layout; no custom grid.
+      const auto layout=listInfo(p,r,games.size(),selected,62,0.62);
+      for(int i=layout.first;i<qMin(layout.first+layout.visible,games.size());++i){
+        const QRect row=listInfoRow(p,layout,i,selected);
+        const QString path=games.at(i);
+        const auto m=metadata.value(path);
+        const bool current=i==selected;
+        const auto color=palette().color(current?QPalette::HighlightedText:QPalette::Text);
+        label(p,row.adjusted(13,0,-14,0),
+              m.value("title").toString(QFileInfo(path).completeBaseName()),
+              25,current,color);
       }
-      list(p,r,names,descriptions,selected);
+      const QString path=game();
+      const auto m=metadata.value(path);
+      const QRect side=layout.info.adjusted(5,0,-5,0);
+      label(p,QRect(side.x(),side.y(),side.width(),52),
+            m.value("title").toString(QFileInfo(path).completeBaseName()),28,true);
+      QString details;
+      const QString vendor=m.value("vendor").toString();
+      const QString version=m.value("version").toString();
+      if(!vendor.isEmpty())details+="By "+vendor+"\n";
+      if(!version.isEmpty())details+="Version "+version+"\n";
+      details+="JAR · "+QString::number(QFileInfo(path).size()/1024)+" KiB";
+      details+="\n\n"+QString::number(setting("width",240))+
+        " × "+QString::number(setting("height",320))+
+        " · "+QString::number(setting("orientation",0)*90)+"°";
+      details+="\n\nPlays: "+QString::number(setting("plays",0));
+      const QString last=profile.value("lastPlayed").toString();
+      if(!last.isEmpty())details+="\nLast played: "+last.left(10);
+      details+="\n\nOK: Play\nOptions: Game settings";
+      text(p,side.adjusted(0,62,0,0),details,21);
+
     }
     if(!message.isEmpty())label(p,QRect(r.x(),r.bottom()-32,r.width(),30),message,18);
   }
