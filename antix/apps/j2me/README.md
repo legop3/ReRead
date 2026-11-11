@@ -16,7 +16,7 @@ docker run --rm -v "$PWD:/work:z" reread-builder \
   python3 /work/antix/apps/j2me/package.py
 ```
 
-Output: `out/antix/reread-app-j2me_0.3.0_i386.deb`.
+Output: `out/antix/reread-app-j2me_0.3.1_i386.deb`.
 
 This **single command** compiles the i386 Qt app, fetches pinned upstream
 FreeJ2ME-Plus source, builds its `freej2me_plus-lr.jar` headless core with
@@ -60,7 +60,7 @@ remains hold-for-help, release-to-hide, with standard icons and context labels.
 Other hardware keys such as Power, Hold and volume remain system-owned.
 Keys held during menu entry are released to prevent stuck game input.
 
-The Java process is controlled with nonblocking stdin/stdout packets. ReRead
+The build patches the upstream headless core so MIDlet startup runs on a separate thread rather than blocking its input/frame protocol reader. The host uses the actual libretro key indices (0–3 directions, 7 fire, 8/9 softkeys, 12/13 star/pound), not the standalone AWT key indices. These address the observed one-frame/ignored-buttons regression.\n\nThe Java process is controlled with nonblocking stdin/stdout packets. ReRead
 alone owns input focus, Game and Menu screen painting, Guide/Help overlay,
 and normal window management. Rendering stays in the standard
 `Screen::content()` area with 14-pixel safe insets, black background and
@@ -84,7 +84,7 @@ future, but this package retains the proven installed JRE.
 ## Validation
 
 The original *AWT* FreeJ2ME frontend and Peggle JAR have been verified
-on actual Reader hardware. The new **headless frame-pipe integration**
+on actual Reader hardware. The revised **headless frame-pipe integration**
 has not yet completed an end-to-end package build/hardware test.
 Treat it as a new integration until the on-Reader test confirms rendering,
 input, audio, rotation, saves, Guide, pause/resume, and exit. Do not
