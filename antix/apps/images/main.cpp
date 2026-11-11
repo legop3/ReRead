@@ -1,5 +1,7 @@
 #include "reader-ui.hpp"
 #include <QCommandLineParser>
+#include <QMovie>
+#include <memory>
 using namespace ReRead;
 
 class Images : public Screen {
@@ -9,7 +11,19 @@ class Images : public Screen {
   double zoom=1;
   QPointF pan;
   QString error;
-  bool info=false;
+  bool info=false, userPaused=false, idlePaused=false, finished=false;
+  std::unique_ptr<QMovie> movie;
+  void playback() {
+    if(!movie || finished || !error.isEmpty())return;
+    if(userPaused || idlePaused || info)movie->setPaused(true);
+    else movie->start();
+  }
+  void idleChanged(bool idle) override {idlePaused=idle;playback();}
+  void frame() {
+    original=movie->currentImage();
+    image=turns?original.transformed(QTransform().rotate(turns*90)):original;
+    clampPan();update();
+  }
   double fit() const {
     if(image.isNull())return 1;
     return qMin(1.0,qMin(double(content().width())/image.width(),double(content().height())/image.height()));
@@ -25,9 +39,12 @@ class Images : public Screen {
     title="Image information";subtitle=QFileInfo(files.value(index)).fileName();
     controls=!error.isEmpty()?QList<Control>{{READER_BACK,"Close"}}:info?QList<Control>{{READER_BACK,"Image"}}:
       QList<Control>{{READER_ZOOM_IN,"Zoom ±"},{READER_UP,"Pan / Browse"},{READER_OK,"Fit / 1:1"},{READER_VIEW_TOGGLE,"Rotate"},{READER_OPTIONS,"Info"},{READER_BACK,"Close"}};
-    update();
+    if(movie && !info && error.isEmpty())
+      controls.prepend({READER_PLAY,finished?"Replay":userPaused?"Play":"Pause"});
+    playback();update();
   }
   void load() {
+    movie.reset();userPaused=false;finished=false;
     original={};image={};error.clear();zoom=1;pan={};turns=0;
     setWindowTitle("Images — "+QFileInfo(files.value(index)).fileName());
     if(files.isEmpty())error="Open an image from Files or another application.";
@@ -39,8 +56,20 @@ class Images : public Screen {
         error="This image is too large for the Reader.";
       else {
         if(size.width()>4096 || size.height()>4096)reader.setScaledSize(size.scaled(4096,4096,Qt::KeepAspectRatio));
-        original=reader.read();image=original;
-        if(image.isNull())error="Cannot open image: "+reader.errorString();
+        if(reader.format()=="gif") {
+          movie=std::make_unique<QMovie>(files[index],QByteArray("gif"));
+          movie->setCacheMode(QMovie::CacheNone);
+          if(reader.scaledSize().isValid())movie->setScaledSize(reader.scaledSize());
+          connect(movie.get(),&QMovie::frameChanged,this,[this](int){frame();});
+          connect(movie.get(),&QMovie::finished,this,[this]{finished=true;chrome();});
+          connect(movie.get(),&QMovie::error,this,[this](QImageReader::ImageReaderError){
+            error="Cannot open image: "+movie->lastErrorString();movie->stop();chrome();
+          });
+          if(!movie->jumpToFrame(0))error="Cannot open image: "+movie->lastErrorString();
+        } else {
+          original=reader.read();image=original;
+          if(image.isNull())error="Cannot open image: "+reader.errorString();
+        }
       }
     }
     chrome();
@@ -57,6 +86,11 @@ class Images : public Screen {
     if(id==READER_BACK) {if(info){info=false;chrome();}else close();return;}
     if(id==READER_OPTIONS) {info=!info;chrome();return;}
     if(info || image.isNull())return;
+    if(id==READER_PLAY && movie) {
+      if(finished){finished=false;userPaused=false;}
+      else userPaused=!userPaused;
+      chrome();return;
+    }
     if(id==READER_ZOOM_IN || id==READER_ZOOM_OUT) {
       zoom=qBound(1.0,zoom*(id==READER_ZOOM_IN?1.414213562:0.707106781),qMax(16.0,1.0/fit()));
     } else if(id==READER_OK) {zoom=qAbs(zoom-1)<0.001?1.0/fit():1.0;pan={};}
