@@ -7,6 +7,8 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
+#include <QFileSystemWatcher>
 #include <QPainter>
 #include <QProcess>
 #include <QStandardPaths>
@@ -14,6 +16,8 @@
 using namespace ReRead;
 class J2ME : public Screen {
   QStringList games;
+  QMap<QString,QJsonObject> metadata;
+  QFileSystemWatcher watcher;
   int selected=0, field=0;
   bool options=false, running=false;
   QString message;
@@ -46,6 +50,19 @@ class J2ME : public Screen {
                     QDir::Files|QDir::NoSymLinks,QDirIterator::Subdirectories);
     while(it.hasNext() && games.size()<200)games<<it.next();
     games.sort(Qt::CaseInsensitive);
+    metadata.clear();
+    QProcess inspector;
+    inspector.start("/usr/bin/python3",{"/usr/lib/reread/apps/j2me/catalog.py",jarFolder});
+    if(inspector.waitForFinished(5000) && inspector.exitCode()==0) {
+      const QJsonArray entries=QJsonDocument::fromJson(inspector.readAllStandardOutput()).array();
+      for(const auto &entry:entries) {
+        const QJsonObject item=entry.toObject();
+        const QString path=item.value("path").toString();
+        if(games.contains(path))metadata.insert(path,item);
+      }
+    }
+    if(!watcher.directories().isEmpty())watcher.removePaths(watcher.directories());
+    watcher.addPath(jarFolder);
     selected=games.indexOf(keep);
     if(selected<0)selected=0;
     load();chrome();
@@ -128,8 +145,10 @@ protected:
     }else {
       QStringList names,descriptions;
       for(const QString &g:games){
-        names<<QFileInfo(g).completeBaseName();
-        descriptions<<QString::number(QFileInfo(g).size()/1024)+" KiB";
+        const auto m=metadata.value(g);
+        names<<m.value("title").toString(QFileInfo(g).completeBaseName());
+        const QString vendor=m.value("vendor").toString();
+        descriptions<<(vendor.isEmpty()?QString::number(QFileInfo(g).size()/1024)+" KiB":vendor);
       }
       list(p,r,names,descriptions,selected);
     }
@@ -137,6 +156,7 @@ protected:
   }
 public:
   J2ME():Screen("Java ME") {
+    connect(&watcher,&QFileSystemWatcher::directoryChanged,this,[this]{if(!running&&!options)scan();});
     connect(&child,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
       if(e==QProcess::FailedToStart){running=false;message="Java could not start.";chrome();}
     });
