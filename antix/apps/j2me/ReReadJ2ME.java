@@ -2,6 +2,7 @@ import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.event.KeyEvent;
 import java.lang.reflect.Method;
+import org.recompile.mobile.Mobile;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 
@@ -42,5 +43,15 @@ public final class ReReadJ2ME {
         if (mainClass == null) throw new IllegalArgumentException("FreeJ2ME JAR missing Main-Class");
         Method entry = Class.forName(mainClass).getMethod("main", String[].class);
         entry.invoke(null, (Object) args);
+        // Apply actual LCD rotation through FreeJ2ME's own settings.
+        String rotation = System.getProperty("reread.rotation", "0");
+        if (!rotation.equals("0")) {
+            Mobile.config.settings.put("rotate", rotation);
+            Class<?> frontend = Class.forName(mainClass);
+            Object app = frontend.getField("app").get(null);
+            Method apply = frontend.getDeclaredMethod("settingsChanged", boolean.class);
+            apply.setAccessible(true);
+            apply.invoke(app, Boolean.FALSE);
+        }
     }
 }
