@@ -6,7 +6,7 @@ A multipurpose handheld platform for the Intel Reader, built on **antiX 26.1 Cor
 
 ## Install ReRead
 
-**[Download the ReRead 0.21.1 USB installer](https://github.com/legop3/ReRead/releases/download/v0.21.1/reread-installer-usb.img)** · [SHA-256](https://github.com/legop3/ReRead/releases/download/v0.21.1/reread-installer-usb.img.sha256)
+**[Download the latest ReRead USB installer](https://legop3.github.io/ReRead/install/)** — image, checksum and installation instructions.
 
 You need an Intel Reader, a **1 GB or larger USB stick**, and a **powered USB hub**. Installation erases the Reader’s SSD; back up anything you want to keep.
 
@@ -15,7 +15,7 @@ You need an Intel Reader, a **1 GB or larger USB stick**, and a **powered USB hu
 3. Connect the stick to the Reader through the powered hub with a keyboard plugged in, press F11 as it POSTs, select your USB drive from the boot menu.
 4. Installation runs automatically and reboots. Keep the stick connected until **INSTALLATION COMPLETE**, then remove it during the reboot countdown.
 
-No source checkout, Docker, stock disk dump or registered USB drive is required. The [0.21.1 installer](https://github.com/legop3/ReRead/releases/tag/v0.21.1) includes **Camera**, **Software**, **Files**, and the **Images**, **Text** and **Audio** file handlers. Use Software to update the platform and apps or install additional applications.
+No source checkout, Docker, stock disk dump or registered USB drive is required. The installer includes **Camera**, **Software**, **Files**, and the **Images**, **Text** and **Audio** file handlers. Use Software to update the platform and apps or install additional applications.
 
 ### Linux command line
 

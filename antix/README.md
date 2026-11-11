@@ -158,12 +158,15 @@ docker run --rm -v "$PWD:/work:z" \
   reread-builder python3 /work/antix/build.py
 ```
 
-For later platform changes, bump `antix/VERSION` and rebuild just the package.
+For maintained publication, use the shared [release tool](../RELEASING.md).
+A platform release includes a current installer; an app release publishes only that app.
+
+For a local platform-only development package, bump `antix/VERSION` and rebuild just the package.
 This uses the matching kernel headers from `build/antix/base-root`, populated by the
 initial full build; it does not rebuild an SSD image or touch a device:
 
 ```sh
-docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/release.py
+docker run --rm -v "$PWD:/work:z" reread-builder python3 /work/antix/release.py --platform-only
 ```
 
 Upload the resulting `.deb` through **Updates**. This is the normal iteration

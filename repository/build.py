@@ -75,7 +75,7 @@ def build(packages, output, key, url=URL):
 <title>ReRead APT repository</title><h1>ReRead APT repository</h1>
 <p>Stable i386 packages for the Intel Reader. APT installs and updates the platform
 and apps; antiX supplies their system dependencies.</p>
-<p><a href="apt/reread.sources">APT source</a> ·
+<p><a href="install/">Install ReRead</a> · <a href="apt/reread.sources">APT source</a> ·
 <a href="apt/reread-archive-keyring.asc">Archive public key</a> ·
 <a href="https://github.com/legop3/ReRead/releases">Releases and installers</a></p>
 <ul>''' + links + '</ul></html>\n')

@@ -12,6 +12,7 @@ args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 pages = json.loads(subprocess.check_output(
     ['gh', 'api', '--paginate', '--slurp', f'repos/{args.repo}/releases'], text=True))
+(args.output.parent / 'releases.json').write_text(json.dumps([release for page in pages for release in page], indent=2) + '\n')
 count = 0
 for releases in pages:
     for release in releases:

@@ -501,13 +501,23 @@ assets while retaining data. Avoid custom updaters or downloading executables
 from the application itself. Source/app packaging is independent of installer
 creation; adding an optional app does not require rebuilding the USB image.
 
-For publication, follow [the repository release procedure](repository/README.md#publishing):
-bump the app version, build and validate, commit/push, attach the new `.deb` to a
-GitHub release targeting that commit, then publish and verify the signed APT
-workflow. Published package/version bytes are immutable: rebuilds with different
-content need a new version. Only maintainers publish to the official archive;
-other developers can distribute `.deb` files or their own APT repository. New
-app names do not need hardcoded Pages deployment rules.
+For publication, use the shared [release tool](RELEASING.md):
+
+```sh
+./release.py app images              # Build a local bundle; no publishing
+./release.py app images --publish    # Build, push, publish and verify APT
+```
+
+Replace `images` with the app directory name. Bump its `VERSION`, validate and
+commit source changes before publishing. GitHub release creation, immutable
+package checks, upload verification, latest-release policy and APT verification
+are shared; do not add per-app publishing scripts or GitHub credentials.
+An app's `package.py` owns only its specific payload/build recipe. Camera, Files
+and Software currently use recipes in `antix/apps/package.py`; every app uses
+that same build entry point. Optional apps do not rebuild the installer.
+
+Only maintainers publish to the official archive; other developers can distribute
+`.deb` files or their own APT repository. New app names need no Pages rules.
 
 ## Before publishing
 

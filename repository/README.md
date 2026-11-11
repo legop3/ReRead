@@ -48,24 +48,35 @@ their log/status across management-server restarts and inhibit automatic idle sl
 
 ## Publishing
 
-1. Increase `antix/VERSION` for a platform change, or the app's own `VERSION`
-   for an app change. Build using the normal [release process](../antix/README.md).
-2. Commit and push the source. Create a **draft GitHub release** targeting that
-   commit and attach the new `.deb` files. Only attach an app package when its
-   version changes: different bytes under the same package/version are rejected.
-   Installer images may be attached separately when rebuilt for that release.
-   Pages deployment rules allow branch `main` and all tags (`**`). App names
-   and release tag naming do not require environment configuration changes.
-3. Publish the release. The **Publish APT repository** Actions workflow collects
-   `.deb` files from all published stable releases, generates indexes with
-   `apt-ftparchive`, signs them with GnuPG, and deploys to Pages. Drafts and
-   prereleases are excluded. Check the workflow completes before announcing it.
+Use the shared [release tool](../RELEASING.md), from the repository root:
 
-The workflow can also be run manually to rebuild the archive after release
-asset changes. Retain published stable packages for existing installations.
-Concurrent deployments are serialized. Build failure leaves the existing site
-in place. Updating packages remains an ordinary APT transaction, with no
-automatic rollback. The hardware-tested kernel dependency is still pinned.
+```sh
+./release.py app images --publish    # Build and publish just Images
+./release.py platform --publish      # Build and publish platform + current installer
+```
+
+Bump the relevant `VERSION`, validate the behavior and commit changes first.
+Publishing pushes that exact commit, uploads a draft, verifies asset digests,
+publishes it and waits for the public signed APT/Pages verification. Normal
+builds omit `--publish` and do not push or upload anything. GitHub authentication
+stays on the development computer; apps and build containers never need it.
+
+The archive workflow collects stable release `.deb` assets and indexes/signs them
+using `apt-ftparchive` and GnuPG. Drafts and prereleases are excluded. Existing
+published package/version bytes are immutable. Platform installers reuse published
+default app packages rather than rebuilding their versions.
+
+The permanent [installation page](https://legop3.github.io/ReRead/install/) and
+its `latest.json` are generated during deployment from the newest stable release
+containing an installer image and checksum. An app release cannot replace this
+selection. Installer images remain in Releases, outside the Pages storage budget.
+Pages allows `main` and all tags (`**`); no per-app deployment rules are needed.
+
+Retain stable releases for installed devices. A failed archive build leaves the
+previous site in place. The workflow can be dispatched manually to recover from
+a deployment failure without rebuilding/reuploading packages. APT installation is
+an ordinary package transaction, with no automatic rollback. The tested kernel
+remains pinned.
 
 ## Signing key
 

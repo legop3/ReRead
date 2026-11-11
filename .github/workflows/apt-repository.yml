@@ -50,6 +50,8 @@ jobs:
           trap 'gpgconf --kill gpg-agent; rm -rf "$GNUPGHOME"' EXIT
           printf '%s' "$APT_SIGNING_KEY" | gpg --batch --import
           python3 repository/build.py build/repository/packages --output build/repository/site --key "$(cat repository/key-fingerprint)"
+      - name: Build current installer download page
+        run: python3 repository/install_page.py --catalog build/repository/releases.json --output build/repository/site
       - uses: actions/upload-pages-artifact@v4
         with:
           path: build/repository/site
@@ -88,6 +90,11 @@ jobs:
               time.sleep(10)
           else:
               raise SystemExit("Pages reports success but the public Packages index does NOT match the generated one")
+
+          install = Path("build/repository/site/install/latest.json")
+          with urlopen(Request("https://legop3.github.io/ReRead/install/latest.json?verify=" + os.environ["GITHUB_RUN_ID"], headers={"Cache-Control": "no-cache"}), timeout=15) as response:
+              if response.read() != install.read_bytes():
+                  raise SystemExit("Published installer download information is stale")
 
           missing = []
           for package in sorted((root / "pool/main").glob("*.deb")):

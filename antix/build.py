@@ -19,6 +19,7 @@ import image
 from gadget import configure as configure_gadget
 from package_installer import package
 from release import build as build_release
+from apps.package import DEFAULT_APPS, build as build_app
 from trim import runtime as trim_runtime, policy as storage_policy
 run=image.run
 OUT.mkdir(parents=True,exist_ok=True)
@@ -69,6 +70,8 @@ if package_dir:
     version = (BASE / 'antix/VERSION').read_text().strip()
     package_dir = Path(package_dir)
     release = package_dir / f'reread_{version}_i386.deb'
+    if not release.exists():
+        shutil.copy(build_release(BASE, BUILD, OUT, KERNEL, bundled_apps=False), release)
 else:
     release = build_release(BASE, BUILD, OUT, KERNEL)
     package_dir = OUT
@@ -76,9 +79,11 @@ local_package = root/'tmp'/release.name
 shutil.copy(release, local_package)
 run('chroot',str(root),'dpkg','--force-confdef','--force-confold','-i','/tmp/'+release.name)
 local_package.unlink()
-for name in ('camera', 'software', 'files', 'images', 'text', 'audio'):
+for name in DEFAULT_APPS:
     app_version = (BASE / f'antix/apps/{name}/VERSION').read_text().strip()
     app_package = package_dir / f'reread-app-{name}_{app_version}_i386.deb'
+    if not app_package.exists():
+        shutil.copy(build_app(name, BASE, BUILD, OUT), app_package)
     shutil.copy(app_package, root / 'tmp' / app_package.name)
     run('chroot', str(root), 'dpkg', '-i', '/tmp/' + app_package.name)
     (root / 'tmp' / app_package.name).unlink()
