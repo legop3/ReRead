@@ -40,7 +40,9 @@ class J2ME : public Screen {
   void scan() {
     QString keep=game();
     games.clear();
-    QDirIterator it("/var/lib/reader/files",QStringList()<<"*.jar"<<"*.JAR",
+    const QString jarFolder="/var/lib/reader/files/J2ME";
+    QDir().mkpath(jarFolder);
+    QDirIterator it(jarFolder,QStringList()<<"*.jar"<<"*.JAR",
                     QDir::Files|QDir::NoSymLinks,QDirIterator::Subdirectories);
     while(it.hasNext() && games.size()<200)games<<it.next();
     games.sort(Qt::CaseInsensitive);
@@ -51,7 +53,7 @@ class J2ME : public Screen {
   void chrome() {
     showHeader=true;
     title=options?"J2ME game settings":"Java ME";
-    subtitle=options?QFileInfo(game()).fileName():QString::number(games.size())+" games in Files";
+    subtitle=options?QFileInfo(game()).fileName():QString::number(games.size())+" games in Files/J2ME";
     controls=running?QList<Control>{{READER_FAVORITES,"Stop"}}:
       options?QList<Control>{{READER_UP,"Setting"},{READER_LEFT,"Change"},{READER_BACK,"Games"},{READER_OK,"Change"}}:
       QList<Control>{{READER_UP,"Select"},{READER_OK,"Play"},{READER_OPTIONS,"Settings"},{READER_BACK,"Home"}};
@@ -71,7 +73,6 @@ class J2ME : public Screen {
   void start() {
     if(game().isEmpty()||running)return;
     QString runtime="/usr/lib/reread/apps/j2me/freej2me_plus.jar";
-    if(!QFileInfo::exists(runtime))runtime="/opt/peggle-test/freej2me_plus.jar";
     if(!QFileInfo::exists(runtime)){message="FreeJ2ME-Plus is not installed.";update();return;}
     const int land=setting("orientation",0),w=setting("width",240),h=setting("height",320);
     QDir().mkpath(state+"/data/"+identity());
@@ -120,7 +121,7 @@ protected:
           QString::number(setting("layout",0))+" (0=default)"};
       list(p,r,labels,detail,field);
     }else if(games.isEmpty()){
-      text(p,r,"No Java ME games found.\n\nUpload a .jar game to Files.\n"
+      text(p,r,"No Java ME games found.\n\nUpload .jar games to Files/J2ME.\n"
           "Return here to browse your games.",26);
     }else {
       QStringList names,descriptions;
