@@ -143,15 +143,26 @@ class J2ME : public Screen {
     message="Returned to Java ME library.";
     scan();
   }
-  static int phoneKey(reader_button id) {
+  int phoneKey(reader_button id) const {
+    // Physical D-pad directions follow the rotated *displayed* image,
+    // not the unrotated MIDlet LCD. QTransform positive angles rotate
+    // clockwise in screen coordinates, so transform input inversely.
+    // Order: up, right, down, left. Libretro keys: 0, 3, 1, 2.
+    static const int directions[]={0,3,1,2};
+    int index=-1;
     switch(id) {
-      // Libretro protocol key indices (Mobile.getMobileKey), not
-      // FreeJ2ME's AWT key indices. 0..3 directions, 7 fire,
-      // 8/9 right/left softkeys, 12/13 * and #.
-      case READER_UP:return 0;
-      case READER_DOWN:return 1;
-      case READER_LEFT:return 2;
-      case READER_RIGHT:return 3;
+      case READER_UP:index=0;break;
+      case READER_RIGHT:index=1;break;
+      case READER_DOWN:index=2;break;
+      case READER_LEFT:index=3;break;
+      default:break;
+    }
+    if(index>=0) {
+      const int angle=core.frameRotation()%4;
+      return directions[(index-angle+4)%4];
+    }
+    switch(id) {
+      // Libretro protocol key indices, not AWT keycodes.
       case READER_OK:return 7;
       case READER_OPTIONS:return 9;
       case READER_BACK:return 8;
