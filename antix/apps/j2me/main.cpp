@@ -23,7 +23,7 @@ class J2ME : public Screen {
   QStringList games;
   QMap<QString,QJsonObject> metadata;
   QFileSystemWatcher watcher;
-  int selected=0, field=0;
+  int selected=0, field=0, scanGeneration=0;
   bool options=false, running=false, confirmDelete=false, errorPage=false, gameMenu=false;
   int gameAction=0;
   QSet<int> heldKeys;
@@ -61,16 +61,26 @@ class J2ME : public Screen {
     while(it.hasNext() && games.size()<200)games<<it.next();
     games.sort(Qt::CaseInsensitive);
     metadata.clear();
-    QProcess inspector;
-    inspector.start("/usr/bin/python3",{"/usr/lib/reread/apps/j2me/catalog.py",jarFolder});
-    if(inspector.waitForFinished(5000) && inspector.exitCode()==0) {
-      const QJsonArray entries=QJsonDocument::fromJson(inspector.readAllStandardOutput()).array();
-      for(const auto &entry:entries) {
-        const QJsonObject item=entry.toObject();
-        const QString path=item.value("path").toString();
-        if(games.contains(path))metadata.insert(path,item);
-      }
-    }
+    // Parse MIDlet metadata asynchronously; never stall ReRead's UI on JAR I/O.
+    const int generation=++scanGeneration;
+    auto inspector=new QProcess(this);
+    connect(inspector,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+      this,[this,inspector,generation](int code,QProcess::ExitStatus status){
+        if(generation==scanGeneration && code==0 && status==QProcess::NormalExit){
+          const QJsonArray entries=QJsonDocument::fromJson(inspector->readAllStandardOutput()).array();
+          for(const auto &entry:entries){
+            const QJsonObject item=entry.toObject();
+            const QString path=item.value("path").toString();
+            if(games.contains(path))metadata.insert(path,item);
+          }
+          update();
+        }
+        inspector->deleteLater();
+      });
+    connect(inspector,&QProcess::errorOccurred,this,[inspector](QProcess::ProcessError e){
+      if(e==QProcess::FailedToStart)inspector->deleteLater();
+    });
+    inspector->start("/usr/bin/python3",{"/usr/lib/reread/apps/j2me/catalog.py",jarFolder});
     if(!watcher.directories().isEmpty())watcher.removePaths(watcher.directories());
     watcher.addPath(jarFolder);
     QDirIterator dirs(jarFolder,QDir::Dirs|QDir::NoDotAndDotDot|QDir::NoSymLinks,
@@ -131,7 +141,7 @@ class J2ME : public Screen {
     heldKeys.clear();
     core.stop();running=false;gameMenu=false;
     message="Returned to Java ME library.";
-    chrome();
+    scan();
   }
   static int phoneKey(reader_button id) {
     switch(id) {
