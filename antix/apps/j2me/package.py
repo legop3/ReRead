@@ -40,7 +40,7 @@ def main():
         source = source.replace(old, new, 1)
 
     replace_once(
-        "private int getMobileKey(int keycode)\\n\\t{",
+        "private int getMobileKey(int keycode)\n\t{",
         """private int getMobileKey(int keycode)
 \t{
 \t\t// ReRead hardware keys become phone keys without modifying X11.
@@ -49,7 +49,7 @@ def main():
 \t\tif (keycode == KeyEvent.VK_ADD) return Mobile.convertAWTKeycode(16);
 \t\tif (keycode == KeyEvent.VK_SUBTRACT) return Mobile.convertAWTKeycode(18);""")
     replace_once(
-        "\\tprotected void pressKey(KeyEvent e, boolean ignoreModifiers)\\n\\t{",
+        "\tprotected void pressKey(KeyEvent e, boolean ignoreModifiers)\n\t{",
         """\tprivate boolean readerGuideHeld = false;
 \tprotected void pressKey(KeyEvent e, boolean ignoreModifiers)
 \t{
@@ -58,12 +58,12 @@ def main():
 \t\t\tSystem.exit(0); // Reader Guide + Back exits the game.
 \t\t}""")
     replace_once(
-        "\\tprotected void releaseKey(KeyEvent e)\\n\\t{",
+        "\tprotected void releaseKey(KeyEvent e)\n\t{",
         """\tprotected void releaseKey(KeyEvent e)
 \t{
 \t\tif (e.getKeyCode() == KeyEvent.VK_F1) { readerGuideHeld = false; return; }""")
     replace_once(
-        "\\t\t\tboolean needsResChange = settingsChanged(false);",
+        "\t\t\tboolean needsResChange = settingsChanged(false);",
         """\t\t\t// Actual renderer rotation, not just virtual width/height swap.
 \t\t\tMobile.config.settings.put("rotate",
 \t\t\t\tSystem.getProperty("reread.rotation", "0"));
