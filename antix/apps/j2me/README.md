@@ -16,7 +16,7 @@ docker run --rm -v "$PWD:/work:z" reread-builder \
   python3 /work/antix/apps/j2me/package.py
 ```
 
-Output: `out/antix/reread-app-j2me_0.3.1_i386.deb`.
+Output: `out/antix/reread-app-j2me_0.3.2_i386.deb`.
 
 This **single command** compiles the i386 Qt app, fetches pinned upstream
 FreeJ2ME-Plus source, builds its `freej2me_plus-lr.jar` headless core with
@@ -45,7 +45,7 @@ reset settings, and confirmed erasure of saved progress.
 
 | Reader control | In game |
 | --- | --- |
-| D-pad | Phone directions |
+| D-pad | Phone directions, rotated to match the game display (0°/90°/180°/270°) |
 | OK | Phone Fire / Select |
 | Back | Right phone softkey |
 | Options | Left phone softkey |
