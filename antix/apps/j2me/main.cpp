@@ -21,7 +21,8 @@ class J2ME : public Screen {
   QMap<QString,QJsonObject> metadata;
   QFileSystemWatcher watcher;
   int selected=0, field=0;
-  bool options=false, running=false, confirmDelete=false;
+  bool options=false, running=false, confirmDelete=false, errorPage=false;
+  QString errorText;
   QString message;
   QProcess child;
   QJsonObject profile;
@@ -73,9 +74,10 @@ class J2ME : public Screen {
   }
   void chrome() {
     showHeader=true;
-    title=confirmDelete?"Erase game data?":options?"Game settings":"Java ME";
-    subtitle=(options||confirmDelete)?metadata.value(game()).value("title").toString(QFileInfo(game()).fileName()):QString::number(games.size())+" games in Files/J2ME";
+    title=errorPage?"Game failed":confirmDelete?"Erase game data?":options?"Game settings":"Java ME";
+    subtitle=(options||confirmDelete||errorPage)?metadata.value(game()).value("title").toString(QFileInfo(game()).fileName()):QString::number(games.size())+" games in Files/J2ME";
     controls=running?QList<Control>{{READER_FAVORITES,"Stop"}}:
+      errorPage?QList<Control>{{READER_BACK,"Games"}}:
       confirmDelete?QList<Control>{{READER_OK,"Erase"},{READER_BACK,"Cancel"}}:
       options?QList<Control>{{READER_UP,"Setting"},{READER_LEFT,"Change"},{READER_BACK,"Games"},{READER_OK,"Change"}}:
       QList<Control>{{READER_UP,"Select"},{READER_OK,"Play"},{READER_OPTIONS,"Settings"},{READER_BACK,"Home"}};
@@ -119,6 +121,7 @@ class J2ME : public Screen {
     profile["plays"]=setting("plays",0)+1;
     profile["lastPlayed"]=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     save();
+    errorPage=false;errorText.clear();
     message="Starting "+QFileInfo(game()).fileName();
     running=true;child.start();chrome();
   }
@@ -130,6 +133,7 @@ protected:
       return;
     }
     if(id==READER_FAVORITES){close();return;}
+    if(errorPage){errorPage=false;chrome();return;}
     if(confirmDelete) {
       if(id==READER_BACK || id==READER_OPTIONS){confirmDelete=false;chrome();return;}
       if(id==READER_OK) {
@@ -158,7 +162,9 @@ protected:
     if(running){text(p,r,"Running "+QFileInfo(game()).fileName()+"\n\n"
                     "The Java ME game is in a separate window.\n"
                     "Press Favorites to stop it.",25);return;}
-    if(confirmDelete) {
+    if(errorPage) {
+      text(p,r,errorText,20);
+    } else if(confirmDelete) {
       text(p,r,"Erase the saved progress and emulator data for this game?\n\n"
           "The JAR file and game settings will be kept.\n\n"
           "Press OK to ERASE or Back to cancel.",26);
@@ -193,12 +199,27 @@ public:
   J2ME():Screen("Java ME") {
     connect(&watcher,&QFileSystemWatcher::directoryChanged,this,[this]{if(!running&&!options)scan();});
     connect(&child,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
-      if(e==QProcess::FailedToStart){running=false;message="Java could not start.";chrome();}
+      if(e==QProcess::FailedToStart){running=false;errorPage=true;
+        errorText="Unable to launch Java:\n"+child.errorString();chrome();}
     });
     connect(&child,static_cast<void(QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus){
       running=false;
-      message=code==0?"Game closed.":QString("Game exited (%1). Log saved in game data.").arg(code);
+      if(code==0) {
+        message="Game closed.";
+      } else {
+        errorPage=true;
+        const QString log=state+"/data/"+identity()+"/last-run.log";
+        QFile f(log);
+        if(f.open(QIODevice::ReadOnly)) {
+          const qint64 pos=qMax<qint64>(0,f.size()-3000);
+          f.seek(pos);
+          errorText=QString::fromLocal8Bit(f.readAll());
+        }
+        errorText=QString("Emulator exited with code %1.\n\n").arg(code)+
+          (errorText.isEmpty()?"No output captured.":errorText)+
+          "\n\nLog: "+log;
+      }
       chrome();
     });
     scan();
