@@ -52,7 +52,7 @@ class PeggleDS : public Screen {
     emulator.setProcessEnvironment(env);
     emulator.setWorkingDirectory("/var/lib/reader/apps/peggle-ds");
     emulator.setProgram("/usr/games/desmume-cli");
-    emulator.setArguments({"--horizontal","--scale=1","--3d-engine=1",roms[selected]});
+    emulator.setArguments({"--horizontal","--scale=1","--3d-render=SW",roms[selected]});
     emulator.start();
     update();
   }
