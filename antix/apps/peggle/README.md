@@ -6,16 +6,17 @@ not install Wine or any other large runtime dependency.
 
 ## Build the independent importer app
 
-On a Fedora development computer with Docker and a ReRead checkout:
+On your Fedora computer, from the checkout root:
 
 ```sh
-docker build -t reread-app-builder image-builder
-docker run --rm -v "$PWD:/work" reread-app-builder sh -c '
-  antix/ui/build.sh build/antix/ui &&
-  antix/apps/peggle/build.sh build/antix/ui &&
-  python3 antix/apps/peggle/package.py
-'
+git pull
+sh antix/apps/peggle/build-app.sh
 ```
+
+This reuses the Docker builder image if present, compiles just the two required
+shared ReRead libraries (only when needed) and the Peggle importer, and packages
+the standalone app. It does **not** build the installer, firmware, Home or other
+apps. No game ISO is needed at package build time.
 
 Output: `out/antix/reread-app-peggle-installer_0.1.0_i386.deb`.
 
