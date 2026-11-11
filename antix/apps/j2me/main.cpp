@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QSaveFile>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -25,6 +26,7 @@ class J2ME : public Screen {
   QString errorText;
   QString message;
   QProcess child;
+  QElapsedTimer playClock;
   QJsonObject profile;
   const QString state="/var/lib/reader/apps/j2me";
   QString game() const {return games.value(selected);}
@@ -127,10 +129,8 @@ class J2ME : public Screen {
     errorPage=false;errorText.clear();
     message="Starting "+QFileInfo(game()).fileName();
     running=true;
+    playClock.start();
     child.start();
-    // One visible app experience: the game owns the screen while running.
-    // Do not leave a competing ReRead "running" status window onscreen.
-    if(child.waitForStarted(2000)) hide();
     chrome();
   }
 protected:
@@ -204,6 +204,11 @@ protected:
 public:
   J2ME():Screen("Java ME") {
     connect(&watcher,&QFileSystemWatcher::directoryChanged,this,[this]{if(!running&&!options)scan();});
+    connect(&child,&QProcess::started,this,[this] {
+      QTimer::singleShot(800,this,[this] {
+        if(running && child.state()==QProcess::Running)hide();
+      });
+    });
     connect(&child,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
       if(e==QProcess::FailedToStart){running=false;show();raise();activateWindow();errorPage=true;
         errorText="Unable to launch Java:\n"+child.errorString();chrome();}
@@ -212,7 +217,7 @@ public:
             this,[this](int code,QProcess::ExitStatus){
       running=false;
       show();raise();activateWindow();
-      if(code==0) {
+      if(code==0 && playClock.isValid() && playClock.elapsed()>=5000) {
         message="Game closed.";
       } else {
         errorPage=true;
@@ -223,7 +228,7 @@ public:
           f.seek(pos);
           errorText=QString::fromLocal8Bit(f.readAll());
         }
-        errorText=QString("Emulator exited with code %1.\n\n").arg(code)+
+        errorText=QString("Emulator exited with code %1 after %2 seconds.\n\n").arg(code).arg(playClock.isValid()?playClock.elapsed()/1000.0:0,0,'f',1)+
           (errorText.isEmpty()?"No output captured.":errorText)+
           "\n\nLog: "+log;
       }
