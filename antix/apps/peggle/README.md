@@ -1,32 +1,61 @@
-# Peggle Deluxe for ReRead (experimental)
+# Peggle Deluxe ISO importer for ReRead (experimental)
 
-The original PopCap Peggle Deluxe 1.0 Rev 3 CD contains a directly extractable
-game payload. ReRead does not need to retain the ISO or run its Windows setup.
+This app imports the original Peggle Deluxe 1.0 Rev 3 retail ISO without
+executing the Windows installer. **It is not yet a playable game.** It does
+not install Wine or any other large runtime dependency.
 
-## Import from the Reader
+## Build the independent importer app
 
-Upload `peggle_retail_na.iso` into ReRead Files using its USB web UI. The
-on-device import tool can then be invoked by an app UI (not implemented yet);
-for initial testing, use a Reader terminal:
+On a Fedora development computer with Docker and a ReRead checkout:
 
 ```sh
-python3 antix/apps/peggle/import-iso.py /var/lib/reader/files/peggle_retail_na.iso --delete-iso
+docker build -t reread-app-builder image-builder
+docker run --rm -v "$PWD:/work" reread-app-builder sh -c '
+  antix/ui/build.sh build/antix/ui &&
+  antix/apps/peggle/build.sh build/antix/ui &&
+  python3 antix/apps/peggle/package.py
+'
 ```
 
-The script retains the ISO on any failed import, extracts only the installer and
-Peggle files, verifies the game executable, data pack, music and DLLs, then
-atomically moves them into `/var/lib/reader/apps/peggle/game`. It removes the
-source ISO *only when requested* and only after success. It never executes the
-installer. The installed game is expected to require about 17 MiB. In-progress
-extraction requires at least 65 MiB free in addition to the uploaded ISO.
+Output: `out/antix/reread-app-peggle-installer_0.1.0_i386.deb`.
 
-## Still needed
+Install it via the ReRead web **Apps** page. The package depends on `7zip`
+(available from Debian's i386 repository), but intentionally does **not**
+install Wine.
 
-This is the **import layer**, not a playable app. Before installing Wine, test
-its actual installed footprint on antiX i386. Debian 13's 32-bit libwine alone
-is ~609 MiB. Wine graphics, audio, input-to-mouse mapping, and a GUI install
-button still require implementation and testing on the Reader. A safe default
-is not to download or install Wine until its feasibility has been verified.
+## On-device import
 
-Game content must be supplied by the device owner; no copyrighted game binaries
-are distributed with this source.
+1. Upload `peggle_retail_na.iso` to **Files** in ReRead's USB web UI.
+2. Open **Peggle installer** from Home.
+3. Select the ISO (Up/Down if there are multiple); press OK.
+4. On success, the game files are installed under
+   `/var/lib/reader/apps/peggle/game`, and the imported ISO is removed.
+   On error, the ISO is kept so it can be retried.
+5. Options rescans Files; Back returns Home while no import is running.
+
+The program temporarily extracts only `installers/PeggleSetup.exe`, then
+the game content from `files/Peggle Deluxe/`. It verifies `Peggle.exe`,
+`main.pak`, required DLLs and music before installing. Other PopCap games,
+DirectX installation media, setup leftovers and uninstallers are not retained.
+In addition to the uploaded 344 MiB ISO, at least 65 MiB free is required for
+temporary extraction. The permanent game payload is expected to be roughly
+17 MiB. It deletes the ISO only after successful verification.
+
+For testing the extraction on a Linux computer without the UI:
+
+```sh
+python3 antix/apps/peggle/import-iso.py /path/to/peggle_retail_na.iso \
+  --dest /tmp/test-peggle-game
+```
+
+(The ISO remains unless `--delete-iso` is explicitly supplied.)
+
+## Remaining game-launch work
+
+This is **only the import layer**. Before installing Wine, measure its disk and
+RAM footprint on the actual antiX i386 image; Debian 13's `libwine` i386
+package alone occupies about 609 MiB. Investigate native DirectDraw behavior,
+fullscreen or letterboxing, ALSA audio, and ReRead button-to-mouse input while
+Wine owns the focused game window. Do not blindly install the full Wine suite.
+
+No copyrighted Peggle game binaries are committed or distributed with this app.
