@@ -6,27 +6,32 @@ without bundling proprietary game files.
 
 ## Build
 
-From the ReRead checkout on Fedora, with the user's already-built
-`~/freej2me-plus/build/freej2me_plus.jar`:
+From the ReRead checkout on Fedora, run the same single-app builder command as
+for Booru:
 
 ```sh
-docker run --rm -v "$PWD:/work:z" \
-  -v "$HOME/freej2me-plus/build:/emulator:ro" \
-  reread-builder python3 /work/antix/apps/j2me/package.py \
-  --emulator /emulator/freej2me_plus.jar
+docker run --rm -v "$PWD:/work:z" reread-builder \
+  python3 /work/antix/apps/j2me/package.py
 ```
 
-Result: `out/antix/reread-app-j2me_0.1.0_i386.deb`.
+Result: `out/antix/reread-app-j2me_0.1.1_i386.deb`.
 
-The app includes the user-supplied (locally built) FreeJ2ME-Plus standalone JAR
-inside its package. No extra helper app or system-wide configuration changes.
-It depends on `openjdk-21-jre`, currently already installed for the user's
-hardware test. No Java compiler, Ant or JDK is installed on the Reader.
+This build is **self-contained**: `package.py` installs the Java compilation
+tools in the disposable Docker build container if needed, fetches a pinned
+upstream FreeJ2ME-Plus revision, compiles its standalone AWT JAR with Ant,
+compiles the ReRead-specific keypad adapter from source, then packages them
+with the ReRead launcher. Network access is required for the first upstream
+checkout and Debian build packages. Nothing from `~/freej2me-plus` is used.
+No JDK, Ant, or Git is installed on the Reader.
+
+The app depends on the Reader's `openjdk-21-jre` package, already confirmed
+capable of running FreeJ2ME-Plus. A compact bundled i386 runtime is a
+separate optimization; it is **not** claimed to be included yet.
 
 ## Usage
 
-- Upload any supported Java ME game `.jar` into Files.
-- Open **Java ME** from Home. Choose a game, press OK to launch.
+- Upload supported Java ME game `.jar` files to **Files/J2ME**. The folder is created automatically.
+- Open **Java ME** from Home. Browse the JARs in that folder and press OK to launch.
 - On the selected game press **Options** for game-specific settings:
   orientation (portrait/landscape virtual LCD), virtual screen width/height,
   frame cap, and phone key layout.
