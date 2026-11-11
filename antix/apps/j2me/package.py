@@ -1,21 +1,44 @@
 #!/usr/bin/env python3
-"""Build the independent Java ME runner with a locally supplied FreeJ2ME-Plus JAR."""
+"""Build the independent Java ME runner, including FreeJ2ME-Plus from source."""
 from pathlib import Path
 import shutil
 import subprocess
-import argparse
-import base64
+
 
 BASE = Path(__file__).resolve().parents[3]
 SOURCE = Path(__file__).resolve().parent
 BUILD = BASE / "build/antix/ui"
 OUTPUT = BASE / "out/antix"
+UPSTREAM_REVISION = "5cf0879f460580cc39a52e6b251bcba6cda39530"
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--emulator", type=Path, required=True, help="FreeJ2ME-Plus AWT JAR built on Fedora")
-    args = parser.parse_args()
-    if not args.emulator.is_file(): parser.error("FreeJ2ME-Plus JAR not found: "+str(args.emulator))
+    # Build dependencies are installed only inside the disposable build container.
+    # The Reader itself never needs javac, Ant, Git or a JDK.
+    missing = [name for name in ("git", "ant", "javac")
+               if shutil.which(name) is None]
+    if missing:
+        subprocess.run(["apt-get", "update"], check=True)
+        subprocess.run(["apt-get", "install", "-y", "--no-install-recommends",
+                        "git", "ant", "openjdk-17-jdk-headless"], check=True)
+    upstream = BUILD / "freej2me-plus"
+    if not (upstream / ".git").is_dir():
+        if upstream.exists(): shutil.rmtree(upstream)
+        subprocess.run(["git", "clone", "--no-checkout",
+                        "https://github.com/TASEmulators/freej2me-plus.git",
+                        str(upstream)], check=True)
+    subprocess.run(["git", "-C", str(upstream), "fetch", "--depth=1", "origin",
+                    UPSTREAM_REVISION], check=True)
+    subprocess.run(["git", "-C", str(upstream), "checkout", "-f", "FETCH_HEAD"], check=True)
+    # This upstream build targets Java 5 by default; modern javac requires >= 8.
+    subprocess.run(["ant", "-Dsource.version=8", "-Dtarget.version=8"],
+                   cwd=upstream, check=True)
+    emulator = upstream / "build/freej2me_plus.jar"
+    if not emulator.is_file():
+        raise RuntimeError("FreeJ2ME-Plus build completed without standalone JAR")
+    classes = BUILD / "j2me-classes"
+    classes.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["javac", "-source", "8", "-target", "8", "-d", str(classes),
+                    str(SOURCE / "ReReadJ2ME.java")], check=True)
     version = (SOURCE / "VERSION").read_text().strip()
     subprocess.run(["dpkg", "--validate-version", version], check=True)
     BUILD.mkdir(parents=True, exist_ok=True)
@@ -98,11 +121,9 @@ Terminal=false
     target.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy(binary,target)
     target.chmod(0o755)
-    shutil.copy(args.emulator,target.parent/"freej2me_plus.jar")
-    classes=target.parent/"classes"
-    classes.mkdir(parents=True,exist_ok=True)
-    for name in ("ReReadJ2ME.class","ReReadJ2ME$1.class"):
-        (classes/name).write_bytes(base64.b64decode((SOURCE/(name+".b64")).read_text()))
+    shutil.copy(emulator,target.parent/"freej2me_plus.jar")
+    dest_classes=target.parent/"classes"
+    shutil.copytree(classes,dest_classes)
     OUTPUT.mkdir(parents=True,exist_ok=True)
     package=OUTPUT/f"reread-app-j2me_{version}_i386.deb"
     subprocess.run(["dpkg-deb","--root-owner-group","-Zgzip","--build",str(stage),str(package)],check=True)
