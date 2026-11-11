@@ -89,7 +89,7 @@ Categories=Game;
 X-ReRead=true
 Terminal=false
 """)
-    write("usr/share/reread/apps/reread-app-j2me.json", '{"name":"Java ME","description":"Run classic mobile Java games","desktop":"reread-j2me.desktop"}\\n')
+    write("usr/share/reread/apps/reread-app-j2me.json", '{"name":"Java ME","description":"Run classic mobile Java games","desktop":"reread-j2me.desktop"}\n')
     write("usr/share/icons/hicolor/scalable/apps/reread-j2me.svg", """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="11" fill="#1e293b"/><rect x="15" y="5" width="34" height="54" rx="5" fill="#f8fafc"/><rect x="19" y="10" width="26" height="31" fill="#67e8f9"/><circle cx="32" cy="49" r="4" fill="#334155"/></svg>\\n""")
     docs=stage/"usr/share/doc/reread-app-j2me"
     docs.mkdir(parents=True,exist_ok=True)
