@@ -37,7 +37,7 @@ def main():
         raise RuntimeError("FreeJ2ME-Plus build completed without standalone JAR")
     classes = BUILD / "j2me-classes"
     classes.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["javac", "-source", "8", "-target", "8", "-d", str(classes),
+    subprocess.run(["javac", "-source", "8", "-target", "8", "-cp", str(emulator), "-d", str(classes),
                     str(SOURCE / "ReReadJ2ME.java")], check=True)
     version = (SOURCE / "VERSION").read_text().strip()
     subprocess.run(["dpkg", "--validate-version", version], check=True)
@@ -117,6 +117,7 @@ Terminal=false
     docs=stage/"usr/share/doc/reread-app-j2me"
     docs.mkdir(parents=True,exist_ok=True)
     shutil.copy(SOURCE/"README.md",docs/"README.md")
+    shutil.copy(upstream/"LICENSE",docs/"FreeJ2ME-LICENSE")
     target=stage/"usr/lib/reread/apps/j2me/reader-j2me-app"
     target.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy(binary,target)
