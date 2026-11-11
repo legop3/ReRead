@@ -5,13 +5,13 @@
 #include <QTimer>
 #include <QString>
 #include <QStringList>
+#include <QDir>
 #include <functional>
 
 // FreeJ2ME-Plus already provides a headless binary libretro protocol.
 // The Java worker owns MIDP, audio and emulation; ReRead owns the *only*
 // visible window, framebuffer presentation, buttons, Guide and lifecycle.
 class JavaMECore final : public QObject {
-  Q_OBJECT
   QProcess process;
   QTimer frameClock;
   QByteArray pending;
@@ -22,6 +22,17 @@ class JavaMECore final : public QObject {
   QString jarPath, savePath, javaJar;
   int width=240, height=320, phone=0, fps=60;
   int frames=0;
+  void packet(int operation, quint32 size) {
+    if(process.state()!=QProcess::Running)return;
+    QByteArray command;
+    command.reserve(5);
+    command.append(char(operation));
+    command.append(char((size>>24)&255));
+    command.append(char((size>>16)&255));
+    command.append(char((size>>8)&255));
+    command.append(char(size&255));
+    process.write(command);
+  }
   void command(int operation, const QByteArray &payload={}) {
     if(process.state()!=QProcess::Running) return;
     const quint32 size=quint32(payload.size());
@@ -37,7 +48,8 @@ class JavaMECore final : public QObject {
   }
   void configure() {
     // Libretro.java expects 42 pipe-delimited option tokens, positions 0..41.
-    QStringList cfg(42,QStringLiteral("0"));
+    QStringList cfg;
+    for(int i=0;i<42;++i)cfg<<"0";
     cfg[0]="FJ2ME_LR_OPTS:";
     cfg[1]=QString::number(width);cfg[2]=QString::number(height);
     cfg[3]=QString::number(rotation);cfg[4]=QString::number(phone);
@@ -134,8 +146,7 @@ public:
   }
   void key(int index,bool press) {
     if(!ready || index<0 || index>23)return;
-    command(press?3:2,QByteArray::fromHex(
-      QByteArray::number(index,16).rightJustified(8,'0')));
+    packet(press?3:2,quint32(index));
   }
   void pause(bool value) {
     if(value){frameClock.stop();}
