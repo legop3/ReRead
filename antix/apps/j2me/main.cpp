@@ -63,7 +63,7 @@ class J2ME : public Screen {
     if(game().isEmpty())return;
     static const char* keys[]={"orientation","width","height","fps","layout"};
     const char *k=keys[field];
-    if(field==0)profile[k]=(setting(k,0)+2+amount%2)%2;
+    if(field==0)profile[k]=(setting(k,0)+4+amount%4)%4;
     if(field==1)profile[k]=qBound(128,setting(k,240)+amount*16,480);
     if(field==2)profile[k]=qBound(128,setting(k,320)+amount*16,480);
     if(field==3)profile[k]=qBound(10,setting(k,60)+amount*5,60);
@@ -74,16 +74,17 @@ class J2ME : public Screen {
     if(game().isEmpty()||running)return;
     QString runtime="/usr/lib/reread/apps/j2me/freej2me_plus.jar";
     if(!QFileInfo::exists(runtime)){message="FreeJ2ME-Plus is not installed.";update();return;}
-    const int land=setting("orientation",0),w=setting("width",240),h=setting("height",320);
+    const int rotation=setting("orientation",0)*90,w=setting("width",240),h=setting("height",320);
     QDir().mkpath(state+"/data/"+identity());
     child.setWorkingDirectory(state+"/data/"+identity());
     child.setProgram("/usr/bin/java");
     child.setArguments({"-Xms16m","-Xmx128m",
         "-Dreread.freej2me.jar="+runtime,
+        "-Dreread.rotation="+QString::number(rotation),
         "-cp","/usr/lib/reread/apps/j2me/classes:"+runtime,
         "ReReadJ2ME",
         QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
-        "1",QString::number(land?h:w),QString::number(land?w:h),
+        "1",QString::number(w),QString::number(h),
         "1",QString::number(setting("layout",0)),QString::number(setting("fps",60))});
     message="Starting "+QFileInfo(game()).fileName();
     running=true;child.start();chrome();
@@ -114,11 +115,12 @@ protected:
                     "The Java ME game is in a separate window.\n"
                     "Press Favorites to stop it.",25);return;}
     if(options){
-      QStringList labels={"Orientation","Virtual width","Virtual height","Frame cap","Phone layout"};
-      QStringList detail={setting("orientation",0)?"Landscape":"Portrait",
+      QStringList labels={"Rotation","Virtual width","Virtual height","Frame cap","Phone layout"};
+      const QStringList layouts={"Standard","LG","Motorola","Moto Triplets","Moto V8","Moto A1000","Nokia","Sagem","Siemens","SKT","KDDI"};
+      QStringList detail={QString::number(setting("orientation",0)*90)+QString::fromUtf8("°"),
           QString::number(setting("width",240))+" px",QString::number(setting("height",320))+" px",
           QString::number(setting("fps",60))+" FPS",
-          QString::number(setting("layout",0))+" (0=default)"};
+          layouts.value(setting("layout",0),"Standard")};
       list(p,r,labels,detail,field);
     }else if(games.isEmpty()){
       text(p,r,"No Java ME games found.\n\nUpload .jar games to Files/J2ME.\n"
