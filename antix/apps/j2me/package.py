@@ -31,6 +31,21 @@ def main():
     subprocess.run(["git", "-C", str(upstream), "checkout", "-f", "FETCH_HEAD"], check=True)
     # Use the existing headless/libretro protocol; do not launch or patch
     # the desktop AWT window. ReRead renders the frames itself.
+    # The headless protocol must read complete length-prefixed payloads.
+    # Plain InputStream.read(byte[]) may return a partial path/config; on the
+    # Reader that becomes an intermittent load or settings failure.
+    frontend = upstream / "src/org/recompile/freej2me/Libretro.java"
+    source = frontend.read_text()
+    old = "bytesRead = System.in.read(buffer);"
+    if source.count(old) != 4:
+        raise RuntimeError("Unexpected FreeJ2ME Libretro input protocol; inspect upstream")
+    source = source.replace(old, """bytesRead = 0;
+                                while (bytesRead < buffer.length) {
+                                    int n = System.in.read(buffer, bytesRead, buffer.length - bytesRead);
+                                    if (n < 0) throw new java.io.EOFException("Input stream closed");
+                                    bytesRead += n;
+                                }""")
+    frontend.write_text(source)
     # This upstream build targets Java 5 by default; modern javac requires >= 8.
     subprocess.run(["ant", "-Dsource.version=8", "-Dtarget.version=8"],
                    cwd=upstream, check=True)
