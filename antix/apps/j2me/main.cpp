@@ -94,19 +94,17 @@ class J2ME : public Screen {
   }
   void change(int amount) {
     if(game().isEmpty())return;
-    if(field==7) {
+    if(field==5) {
       profile=QJsonObject{};save();message="Game settings reset.";update();return;
     }
-    if(field==8) {confirmDelete=true;chrome();return;}
-    static const char* keys[]={"orientation","width","height","fps","layout","fullscreen","scale"};
+    if(field==6) {confirmDelete=true;chrome();return;}
+    static const char* keys[]={"orientation","width","height","fps","layout"};
     const char *k=keys[field];
     if(field==0)profile[k]=(setting(k,0)+4+amount%4)%4;
     if(field==1)profile[k]=qBound(128,setting(k,240)+amount*16,480);
     if(field==2)profile[k]=qBound(128,setting(k,320)+amount*16,480);
     if(field==3)profile[k]=qBound(10,setting(k,60)+amount*5,60);
     if(field==4)profile[k]=(setting(k,0)+11+amount%11)%11;
-    if(field==5)profile[k]=1-setting(k,1);
-    if(field==6)profile[k]=qBound(1,setting(k,1)+amount,4);
     save();update();
   }
   void start() {
@@ -188,7 +186,7 @@ protected:
     }
     if(options) {
       if(id==READER_BACK||id==READER_OPTIONS){options=false;chrome();return;}
-      if(id==READER_UP||id==READER_DOWN){field=qBound(0,field+(id==READER_DOWN?1:-1),8);update();return;}
+      if(id==READER_UP||id==READER_DOWN){field=qBound(0,field+(id==READER_DOWN?1:-1),6);update();return;}
       if(id==READER_LEFT||id==READER_RIGHT||id==READER_OK){change(id==READER_LEFT?-1:1);return;}
       return;
     }
@@ -201,7 +199,7 @@ protected:
   }
   void draw(QPainter &p,const QRect &r) override {
     if(running) {
-      p.fillRect(rect(),Qt::black);
+      p.fillRect(r,Qt::black);
       if(core.hasFrame()) {
         QImage frame=core.frame();
         const int angle=core.frameRotation()*90;
@@ -209,16 +207,16 @@ protected:
           QTransform transform;transform.rotate(angle);
           frame=frame.transformed(transform,Qt::FastTransformation);
         }
-        const QSize scaled=frame.size().scaled(rect().size(),Qt::KeepAspectRatio);
-        const QRect dest((width()-scaled.width())/2,
-                         (height()-scaled.height())/2,scaled.width(),scaled.height());
+        const QSize scaled=frame.size().scaled(r.size(),Qt::KeepAspectRatio);
+        const QRect dest(r.x()+(r.width()-scaled.width())/2,
+                         r.y()+(r.height()-scaled.height())/2,scaled.width(),scaled.height());
         p.setRenderHint(QPainter::SmoothPixmapTransform,false);
         p.drawImage(dest,frame);
       } else {
         text(p,safeArea(),message,25);
       }
       if(gameMenu) {
-        p.fillRect(rect(),QColor(0,0,0,235));
+        p.fillRect(r,QColor(0,0,0,235));
         const QRect menu=safeArea().adjusted(70,40,-70,-40);
         label(p,QRect(menu.x(),menu.y(),menu.width(),50),"Game menu",32,true);
         list(p,menu.adjusted(0,65,0,0),{"Resume","Exit to Java ME"},
@@ -233,13 +231,12 @@ protected:
           "The JAR file and game settings will be kept.\n\n"
           "Press OK to ERASE or Back to cancel.",26);
     } else if(options){
-      QStringList labels={"Rotation","Virtual width","Virtual height","Frame cap","Phone layout","Fullscreen","Window scale","Reset settings","Erase saved data…"};
+      QStringList labels={"Rotation","Virtual width","Virtual height","Frame cap","Phone layout","Reset settings","Erase saved data…"};
       const QStringList layouts={"Standard","LG","Motorola","Moto Triplets","Moto V8","Moto A1000","Nokia","Sagem","Siemens","SKT","KDDI"};
       QStringList detail={QString::number(setting("orientation",0)*90)+QString::fromUtf8("°"),
           QString::number(setting("width",240))+" px",QString::number(setting("height",320))+" px",
           QString::number(setting("fps",60))+" FPS",
           layouts.value(setting("layout",0),"Standard"),
-          setting("fullscreen",1)?"On":"Off",QString::number(setting("scale",1))+"×",
           "Use standard defaults","Keep JAR; clear game progress"};
       list(p,r,labels,detail,field);
     }else if(games.isEmpty()){
