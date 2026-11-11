@@ -6,6 +6,7 @@
 #include <QString>
 #include <QStringList>
 #include <QDir>
+#include <QFile>
 #include <functional>
 
 // FreeJ2ME-Plus already provides a headless binary libretro protocol.
@@ -14,6 +15,9 @@
 class JavaMECore final : public QObject {
   QProcess process;
   QTimer frameClock;
+  QTimer startupWatch;
+  QByteArray recentErrors;
+  QString stderrPath;
   QByteArray pending;
   bool ready=false, awaitingFrame=false, stopping=false;
   qint64 startedAt=0;
@@ -97,6 +101,7 @@ class JavaMECore final : public QObject {
       pending.remove(0,16+int(bytes));
       awaitingFrame=false;
       ++frames;
+      if(frames==1)startupWatch.stop();
       if(onFrame)onFrame();
       if(quint8(pending.isEmpty()?char(0):pending[0])==0xFE)continue;
     }
@@ -108,6 +113,20 @@ public:
   explicit JavaMECore(QObject *parent=nullptr):QObject(parent) {
     process.setProcessChannelMode(QProcess::SeparateChannels);
     frameClock.setTimerType(Qt::PreciseTimer);
+    startupWatch.setSingleShot(true);
+    connect(&startupWatch,&QTimer::timeout,this,[this]{
+      if(process.state()==QProcess::Running && frames==0){
+        fail("Java ME did not produce a frame. "+QString::fromLocal8Bit(recentErrors));
+        stop();
+      }
+    });
+    connect(&process,&QProcess::readyReadStandardError,this,[this]{
+      const QByteArray chunk=process.readAllStandardError();
+      recentErrors+=chunk;
+      if(recentErrors.size()>16384)recentErrors=recentErrors.right(16384);
+      QFile log(stderrPath);
+      if(log.open(QIODevice::WriteOnly|QIODevice::Append))log.write(chunk);
+    });
     connect(&frameClock,&QTimer::timeout,this,[this]{
       if(!ready || awaitingFrame)return;
       awaitingFrame=true;
@@ -119,7 +138,7 @@ public:
     });
     connect(&process,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
         this,[this](int code,QProcess::ExitStatus){
-          frameClock.stop();ready=false;awaitingFrame=false;
+          frameClock.stop();startupWatch.stop();ready=false;awaitingFrame=false;
           const bool wasStopped=stopping;
           stopping=false;
           if(!wasStopped && onExited)onExited(code);
@@ -130,19 +149,22 @@ public:
   const QImage &frame()const{return image;}
   int frameRotation()const{return rotation;}
   int frameCount()const{return frames;}
-  QString errors() {return QString::fromLocal8Bit(process.readAllStandardError());}
+  QString errors() const {return QString::fromLocal8Bit(recentErrors);}
   void launch(const QString &jar, const QString &storage, const QString &emulator,
               int w,int h,int angle,int layout,int cap) {
     stop();
     jarPath=jar;savePath=storage;javaJar=emulator;
     width=w;height=h;rotation=angle;phone=layout;fps=qBound(10,cap,60);
     image=QImage();pending.clear();frames=0;ready=false;awaitingFrame=false;
+    recentErrors.clear();stderrPath=storage+"last-run.log";
+    QFile log(stderrPath);if(log.open(QIODevice::WriteOnly|QIODevice::Truncate))log.close();
     QDir().mkpath(storage);
     process.setWorkingDirectory(storage);
     process.setProgram("/usr/bin/java");
     process.setArguments({"-Xms16m","-Xmx128m","-Dfile.encoding=ISO_8859_1",
                           "-jar",javaJar,QString::number(width),QString::number(height)});
     process.start();
+    startupWatch.start(30000);
   }
   void key(int index,bool press) {
     if(!ready || index<0 || index>23)return;
@@ -153,7 +175,7 @@ public:
     else if(ready)frameClock.start(qMax(16,1000/fps));
   }
   void stop() {
-    stopping=true;frameClock.stop();
+    stopping=true;frameClock.stop();startupWatch.stop();
     if(process.state()!=QProcess::NotRunning){
       process.closeWriteChannel();
       process.terminate();
