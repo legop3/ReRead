@@ -15,7 +15,7 @@ docker run --rm -v "$PWD:/work:z" reread-builder \
   python3 /work/antix/apps/j2me/package.py
 ```
 
-Output: `out/antix/reread-app-j2me_0.2.1_i386.deb`.
+Output: `out/antix/reread-app-j2me_0.2.2_i386.deb`.
 
 One command performs everything: compiles ReRead's i386/Qt launcher, installs
 any missing Java compilation tools **inside the disposable builder**, checks
@@ -24,7 +24,7 @@ source compatibility, integrates Reader keypad mappings and rotation into FreeJ2
 assembles the .deb. No game JARs, external --emulator flag, or separate build
 mount are required. Internet access is required on the first build.
 
-The installed app depends on Debian's `openjdk-21-jre` **runtime only**. The
+The launcher sets Java's `file.encoding` to `ISO_8859_1` (the default MIDP encoding expected by FreeJ2ME). Without this, upstream restarts itself in a separate JVM and exits with status 0, which causes the ReRead launcher to incorrectly say the game closed. This is handled at startup without a second process.\n\nThe installed app depends on Debian's `openjdk-21-jre` **runtime only**. The
 Reader does not receive Ant, Git, Java compiler tools, or source checkouts.
 
 ## Normal use
