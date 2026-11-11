@@ -512,9 +512,8 @@ Replace `images` with the app directory name. Bump its `VERSION`, validate and
 commit source changes before publishing. GitHub release creation, immutable
 package checks, upload verification, latest-release policy and APT verification
 are shared; do not add per-app publishing scripts or GitHub credentials.
-An app's `package.py` owns only its specific payload/build recipe. Camera, Files
-and Software currently use recipes in `antix/apps/package.py`; every app uses
-that same build entry point. Optional apps do not rebuild the installer.
+Each app's `package.py` owns only its specific payload/build recipe. Every app
+uses the same `antix/apps/package.py` build entry point. Optional apps do not rebuild the installer.
 
 Only maintainers publish to the official archive; other developers can distribute
 `.deb` files or their own APT repository. New app names need no Pages rules.
