@@ -78,13 +78,15 @@ class J2ME : public Screen {
   }
   void change(int amount) {
     if(game().isEmpty())return;
-    static const char* keys[]={"orientation","width","height","fps","layout"};
+    static const char* keys[]={"orientation","width","height","fps","layout","fullscreen","scale"};
     const char *k=keys[field];
     if(field==0)profile[k]=(setting(k,0)+4+amount%4)%4;
     if(field==1)profile[k]=qBound(128,setting(k,240)+amount*16,480);
     if(field==2)profile[k]=qBound(128,setting(k,320)+amount*16,480);
     if(field==3)profile[k]=qBound(10,setting(k,60)+amount*5,60);
     if(field==4)profile[k]=(setting(k,0)+11+amount%11)%11;
+    if(field==5)profile[k]=1-setting(k,1);
+    if(field==6)profile[k]=qBound(1,setting(k,1)+amount,4);
     save();update();
   }
   void start() {
@@ -101,8 +103,10 @@ class J2ME : public Screen {
         "-cp","/usr/lib/reread/apps/j2me/classes:"+runtime,
         "ReReadJ2ME",
         QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
-        "1",QString::number(w),QString::number(h),
-        "1",QString::number(setting("layout",0)),QString::number(setting("fps",60))});
+        QString::number(setting("fullscreen",1)),QString::number(w),QString::number(h),
+        QString::number(setting("scale",1)),QString::number(setting("layout",0)),QString::number(setting("fps",60))});
+    child.setProcessChannelMode(QProcess::MergedChannels);
+    child.setStandardOutputFile(state+"/data/"+identity()+"/last-run.log",QIODevice::Truncate);
     message="Starting "+QFileInfo(game()).fileName();
     running=true;child.start();chrome();
   }
@@ -116,7 +120,7 @@ protected:
     if(id==READER_FAVORITES){close();return;}
     if(options) {
       if(id==READER_BACK||id==READER_OPTIONS){options=false;chrome();return;}
-      if(id==READER_UP||id==READER_DOWN){field=qBound(0,field+(id==READER_DOWN?1:-1),4);update();return;}
+      if(id==READER_UP||id==READER_DOWN){field=qBound(0,field+(id==READER_DOWN?1:-1),6);update();return;}
       if(id==READER_LEFT||id==READER_RIGHT||id==READER_OK){change(id==READER_LEFT?-1:1);return;}
       return;
     }
@@ -132,12 +136,13 @@ protected:
                     "The Java ME game is in a separate window.\n"
                     "Press Favorites to stop it.",25);return;}
     if(options){
-      QStringList labels={"Rotation","Virtual width","Virtual height","Frame cap","Phone layout"};
+      QStringList labels={"Rotation","Virtual width","Virtual height","Frame cap","Phone layout","Fullscreen","Window scale"};
       const QStringList layouts={"Standard","LG","Motorola","Moto Triplets","Moto V8","Moto A1000","Nokia","Sagem","Siemens","SKT","KDDI"};
       QStringList detail={QString::number(setting("orientation",0)*90)+QString::fromUtf8("°"),
           QString::number(setting("width",240))+" px",QString::number(setting("height",320))+" px",
           QString::number(setting("fps",60))+" FPS",
-          layouts.value(setting("layout",0),"Standard")};
+          layouts.value(setting("layout",0),"Standard"),
+          setting("fullscreen",1)?"On":"Off",QString::number(setting("scale",1))+"×"};
       list(p,r,labels,detail,field);
     }else if(games.isEmpty()){
       text(p,r,"No Java ME games found.\n\nUpload .jar games to Files/J2ME.\n"
@@ -162,7 +167,9 @@ public:
     });
     connect(&child,static_cast<void(QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus){
-      running=false;message=code==0?"Game closed.":QString("Game exited (%1).").arg(code);chrome();
+      running=false;
+      message=code==0?"Game closed.":QString("Game exited (%1). Log saved in game data.").arg(code);
+      chrome();
     });
     scan();
   }
