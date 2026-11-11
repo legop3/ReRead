@@ -29,16 +29,52 @@ def main():
     subprocess.run(["git", "-C", str(upstream), "fetch", "--depth=1", "origin",
                     UPSTREAM_REVISION], check=True)
     subprocess.run(["git", "-C", str(upstream), "checkout", "-f", "FETCH_HEAD"], check=True)
+    # Integrate Reader keys and rotation directly into FreeJ2ME's established
+    # frontend; keep its native manifest Main-Class and proven java -jar path.
+    frontend = upstream / "src/org/recompile/freej2me/FreeJ2ME.java"
+    source = frontend.read_text()
+    def replace_once(old, new):
+        nonlocal source
+        if source.count(old) != 1:
+            raise RuntimeError("Pinned FreeJ2ME source changed; update integration patch")
+        source = source.replace(old, new, 1)
+
+    replace_once(
+        "private int getMobileKey(int keycode)\\n\\t{",
+        """private int getMobileKey(int keycode)
+\t{
+\t\t// ReRead hardware keys become phone keys without modifying X11.
+\t\tif (keycode == KeyEvent.VK_ESCAPE) return Mobile.convertAWTKeycode(1);
+\t\tif (keycode == KeyEvent.VK_CONTEXT_MENU) return Mobile.convertAWTKeycode(0);
+\t\tif (keycode == KeyEvent.VK_ADD) return Mobile.convertAWTKeycode(16);
+\t\tif (keycode == KeyEvent.VK_SUBTRACT) return Mobile.convertAWTKeycode(18);""")
+    replace_once(
+        "\\tprotected void pressKey(KeyEvent e, boolean ignoreModifiers)\\n\\t{",
+        """\tprivate boolean readerGuideHeld = false;
+\tprotected void pressKey(KeyEvent e, boolean ignoreModifiers)
+\t{
+\t\tif (e.getKeyCode() == KeyEvent.VK_F1) { readerGuideHeld = true; return; }
+\t\tif (readerGuideHeld && e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+\t\t\tSystem.exit(0); // Reader Guide + Back exits the game.
+\t\t}""")
+    replace_once(
+        "\\tprotected void releaseKey(KeyEvent e)\\n\\t{",
+        """\tprotected void releaseKey(KeyEvent e)
+\t{
+\t\tif (e.getKeyCode() == KeyEvent.VK_F1) { readerGuideHeld = false; return; }""")
+    replace_once(
+        "\\t\t\tboolean needsResChange = settingsChanged(false);",
+        """\t\t\t// Actual renderer rotation, not just virtual width/height swap.
+\t\t\tMobile.config.settings.put("rotate",
+\t\t\t\tSystem.getProperty("reread.rotation", "0"));
+\t\t\tboolean needsResChange = settingsChanged(false);""")
+    frontend.write_text(source)
     # This upstream build targets Java 5 by default; modern javac requires >= 8.
     subprocess.run(["ant", "-Dsource.version=8", "-Dtarget.version=8"],
                    cwd=upstream, check=True)
     emulator = upstream / "build/freej2me_plus.jar"
     if not emulator.is_file():
         raise RuntimeError("FreeJ2ME-Plus build completed without standalone JAR")
-    classes = BUILD / "j2me-classes"
-    classes.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["javac", "-source", "8", "-target", "8", "-cp", str(emulator), "-d", str(classes),
-                    str(SOURCE / "ReReadJ2ME.java")], check=True)
     version = (SOURCE / "VERSION").read_text().strip()
     subprocess.run(["dpkg", "--validate-version", version], check=True)
     BUILD.mkdir(parents=True, exist_ok=True)
@@ -124,8 +160,6 @@ Terminal=false
     target.chmod(0o755)
     shutil.copy(emulator,target.parent/"freej2me_plus.jar")
     shutil.copy(SOURCE/"catalog.py",target.parent/"catalog.py")
-    dest_classes=target.parent/"classes"
-    shutil.copytree(classes,dest_classes)
     OUTPUT.mkdir(parents=True,exist_ok=True)
     package=OUTPUT/f"reread-app-j2me_{version}_i386.deb"
     subprocess.run(["dpkg-deb","--root-owner-group","-Zgzip","--build",str(stage),str(package)],check=True)
