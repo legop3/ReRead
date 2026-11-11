@@ -7,7 +7,6 @@
 #include <QFile>
 #include <QSaveFile>
 #include <QDateTime>
-#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -17,6 +16,7 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QUrl>
+#include <QTransform>
 #include <QSet>
 using namespace ReRead;
 class J2ME : public Screen {
@@ -30,7 +30,6 @@ class J2ME : public Screen {
   QString errorText;
   QString message;
   JavaMECore core;
-  QElapsedTimer playClock;
   QJsonObject profile;
   const QString state="/var/lib/reader/apps/j2me";
   QString game() const {return games.value(selected);}
@@ -122,7 +121,7 @@ class J2ME : public Screen {
     save();
     errorPage=false;errorText.clear();gameMenu=false;gameAction=0;heldKeys.clear();
     message="Starting "+QFileInfo(game()).fileName();
-    running=true;playClock.start();
+    running=true;
     // No AWT window. Java ME frames are rendered by this ReRead Screen.
     core.launch(QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
                 data,emulator,w,h,angle,layout,fps);
@@ -292,12 +291,17 @@ public:
     core.onFrame=[this]{if(running&&!gameMenu)update();};
     core.onFailure=[this](const QString &what) {
       if(!running)return;
+      message.clear();
       errorText="Java ME failed:\n"+what+"\n\n"+core.errors();
       errorPage=true;running=false;gameMenu=false;core.stop();chrome();
     };
     core.onExited=[this](int code){
       if(!running)return;
-      errorPage=true;running=false;gameMenu=false;
+      running=false;gameMenu=false;
+      if(code==0 && core.frameCount()>0) {
+        message="Game finished.";chrome();return;
+      }
+      message.clear();errorPage=true;
       errorText=QString("Java ME core exited (%1).\n\n").arg(code)+core.errors();
       chrome();
     };
