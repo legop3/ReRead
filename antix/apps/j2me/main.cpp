@@ -145,15 +145,18 @@ class J2ME : public Screen {
   }
   static int phoneKey(reader_button id) {
     switch(id) {
-      case READER_UP:return 2;
-      case READER_LEFT:return 3;
-      case READER_OK:return 4;
-      case READER_RIGHT:return 5;
-      case READER_DOWN:return 6;
-      case READER_OPTIONS:return 0;
-      case READER_BACK:return 1;
-      case READER_ZOOM_IN:return 16;
-      case READER_ZOOM_OUT:return 18;
+      // Libretro protocol key indices (Mobile.getMobileKey), not
+      // FreeJ2ME's AWT key indices. 0..3 directions, 7 fire,
+      // 8/9 right/left softkeys, 12/13 * and #.
+      case READER_UP:return 0;
+      case READER_DOWN:return 1;
+      case READER_LEFT:return 2;
+      case READER_RIGHT:return 3;
+      case READER_OK:return 7;
+      case READER_OPTIONS:return 9;
+      case READER_BACK:return 8;
+      case READER_ZOOM_IN:return 12;
+      case READER_ZOOM_OUT:return 13;
       default:return -1;
     }
   }
