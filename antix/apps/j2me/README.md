@@ -15,12 +15,12 @@ docker run --rm -v "$PWD:/work:z" reread-builder \
   python3 /work/antix/apps/j2me/package.py
 ```
 
-Output: `out/antix/reread-app-j2me_0.2.0_i386.deb`.
+Output: `out/antix/reread-app-j2me_0.2.1_i386.deb`.
 
 One command performs everything: compiles ReRead's i386/Qt launcher, installs
 any missing Java compilation tools **inside the disposable builder**, checks
 out a pinned upstream FreeJ2ME-Plus revision, runs Ant with modern Java 8
-source compatibility, builds the Reader input adapter, includes licenses, and
+source compatibility, integrates Reader keypad mappings and rotation into FreeJ2ME itself, includes licenses, and
 assembles the .deb. No game JARs, external --emulator flag, or separate build
 mount are required. Internet access is required on the first build.
 
@@ -72,7 +72,7 @@ device rather than hiding it behind an exit code.
 | Zoom - | # |
 | Hold Guide (?) + Back | Exit the running game |
 
-The mapping is injected **inside the launched Java process**. ReRead's
+The mapping is compiled **into the FreeJ2ME Java frontend** during the package build. FreeJ2ME runs through its standard manifest entrypoint (the same path as the hardware-tested direct launch). ReRead's
 system-wide keyboard mappings, power, volume and Hold handling are unchanged.
 Gamepad/key compatibility varies with the phone profile selected.
 
