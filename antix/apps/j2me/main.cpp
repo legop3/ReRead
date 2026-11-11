@@ -116,7 +116,10 @@ class J2ME : public Screen {
     // already verified on actual Reader hardware. The reflective bootstrap
     // previously exited successfully without ever presenting the game.
     child.setProgram("/usr/bin/java");
-    child.setArguments({"-Xms16m","-Xmx128m",
+    // FreeJ2ME defaults to ISO_8859_1. If Java starts in UTF-8,
+    // FreeJ2ME spawns a replacement process and exits with code 0,
+    // leaving QProcess watching the wrong process and losing the game.
+    child.setArguments({"-Xms16m","-Xmx128m","-Dfile.encoding=ISO_8859_1",
         "-Dreread.rotation="+QString::number(rotation),"-jar",runtime,
         QUrl::fromLocalFile(game()).toString(QUrl::FullyEncoded),
         QString::number(setting("fullscreen",1)),QString::number(w),QString::number(h),
