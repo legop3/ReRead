@@ -147,6 +147,17 @@ Outputs in `out/antix/`:
 - `reread_<version>_i386.deb`: platform update package.
 - `manifest.json`: release version, image sizes and package filenames.
 
+To rebuild an installer for an existing release, use the published core and six
+bundled app packages, matching the versions in the source tree. Put the verified
+`.deb` files in a directory under the checkout and pass that directory to the
+builder. This uses the existing packages without recompiling them:
+
+```sh
+docker run --rm -v "$PWD:/work:z" \
+  -e REREAD_PACKAGE_DIR=/work/build/published-packages \
+  reread-builder python3 /work/antix/build.py
+```
+
 For later platform changes, bump `antix/VERSION` and rebuild just the package.
 This uses the matching kernel headers from `build/antix/base-root`, populated by the
 initial full build; it does not rebuild an SSD image or touch a device:

@@ -63,14 +63,22 @@ shadow.write_text('\n'.join(':'.join([parts[0],'!',*parts[2:]]) if parts[0] in (
 # The image and later updates install the same versioned ReRead package.
 storage_policy(root)
 configure_gadget(root, BASE, BUILD, KERNEL)
-release = build_release(BASE, BUILD, OUT, KERNEL)
+package_dir = os.environ.get('REREAD_PACKAGE_DIR')
+if package_dir:
+    # Release installers can use the exact already-published package bytes.
+    version = (BASE / 'antix/VERSION').read_text().strip()
+    package_dir = Path(package_dir)
+    release = package_dir / f'reread_{version}_i386.deb'
+else:
+    release = build_release(BASE, BUILD, OUT, KERNEL)
+    package_dir = OUT
 local_package = root/'tmp'/release.name
 shutil.copy(release, local_package)
 run('chroot',str(root),'dpkg','--force-confdef','--force-confold','-i','/tmp/'+release.name)
 local_package.unlink()
 for name in ('camera', 'software', 'files', 'images', 'text', 'audio'):
     app_version = (BASE / f'antix/apps/{name}/VERSION').read_text().strip()
-    app_package = OUT / f'reread-app-{name}_{app_version}_i386.deb'
+    app_package = package_dir / f'reread-app-{name}_{app_version}_i386.deb'
     shutil.copy(app_package, root / 'tmp' / app_package.name)
     run('chroot', str(root), 'dpkg', '-i', '/tmp/' + app_package.name)
     (root / 'tmp' / app_package.name).unlink()
