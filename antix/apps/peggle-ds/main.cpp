@@ -6,6 +6,8 @@
 #include <QPainter>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QFile>
+#include <QTextStream>
 using namespace ReRead;
 
 class PeggleDS : public Screen {
@@ -14,6 +16,17 @@ class PeggleDS : public Screen {
   QProcess emulator;
   QString status;
   bool running=false;
+  QString diagnostic;
+  QString logPath="/var/lib/reader/apps/peggle-ds/emulator.log";
+
+  void appendOutput(const QByteArray &bytes) {
+    if(bytes.isEmpty()) return;
+    QFile f(logPath);
+    if(f.open(QIODevice::WriteOnly|QIODevice::Append)) f.write(bytes);
+    diagnostic += QString::fromLocal8Bit(bytes);
+    if(diagnostic.size()>3000) diagnostic=diagnostic.right(3000);
+  }
+
 
   void scan() {
     roms.clear();
@@ -28,7 +41,9 @@ class PeggleDS : public Screen {
     if(running || roms.isEmpty()) return;
     running=true;
     status="Starting Nintendo DS emulator...";
+    diagnostic.clear();
     QDir().mkpath("/var/lib/reader/apps/peggle-ds");
+    QFile::remove(logPath);
     auto env=QProcessEnvironment::systemEnvironment();
     env.insert("SDL_VIDEODRIVER","x11");
     env.insert("SDL_RENDER_DRIVER","software");
@@ -37,7 +52,7 @@ class PeggleDS : public Screen {
     emulator.setProcessEnvironment(env);
     emulator.setWorkingDirectory("/var/lib/reader/apps/peggle-ds");
     emulator.setProgram("/usr/games/desmume-cli");
-    emulator.setArguments({"--horizontal","--scale=1","--3d-engine=0",roms[selected]});
+    emulator.setArguments({"--horizontal","--scale=1","--3d-engine=1",roms[selected]});
     emulator.start();
     update();
   }
@@ -74,7 +89,10 @@ protected:
                 .arg(QFileInfo(roms[selected]).fileName());
       if(roms.size()>1)info+=QString("\n\nGame %1 of %2").arg(selected+1).arg(roms.size());
     }
-    text(p,body,info,23);
+    if(!running && !diagnostic.isEmpty()) {
+      info += "\n\nLast emulator output:\n" + diagnostic.right(1000);
+    }
+    text(p,body,info,roms.isEmpty()?23:20);
     if(!status.isEmpty())
       text(p,QRect(area.x(),area.bottom()-55,area.width(),55),status,20);
   }
@@ -84,6 +102,12 @@ public:
     showHeader=false;
     controls={{READER_UP,"Select ROM"},{READER_OK,"Play"},
               {READER_OPTIONS,"Rescan"},{READER_BACK,"Home"}};
+    connect(&emulator,&QProcess::readyReadStandardError,this,[this]{
+      appendOutput(emulator.readAllStandardError());
+    });
+    connect(&emulator,&QProcess::readyReadStandardOutput,this,[this]{
+      appendOutput(emulator.readAllStandardOutput());
+    });
     connect(&emulator,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
       if(e==QProcess::FailedToStart) {
         running=false;status="Emulator could not start. Check that desmume is installed.";
@@ -92,9 +116,11 @@ public:
     });
     connect(&emulator,static_cast<void(QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus exit){
+      appendOutput(emulator.readAllStandardError());
+      appendOutput(emulator.readAllStandardOutput());
       running=false;
       status=(code==0&&exit==QProcess::NormalExit)?"Game closed.":
-          QString("Emulator exited (code %1).").arg(code);
+          QString("Emulator exited (code %1). See error below or emulator.log.").arg(code);
       scan();
     });
     scan();
