@@ -90,7 +90,7 @@ class Gopher : public Screen {
   Mode mode=Home, previous=Browsing;
   QList<Page> trail;
   int index=-1, choice=0, homeChoice=0, actionChoice=0;
-  QList<Address> marks;
+  QList<Address> marks, recent;
   QTcpSocket socket;
   QTimer timeout;
   QByteArray incoming;
@@ -137,6 +137,42 @@ class Gopher : public Screen {
     for(const auto &m:marks)if(key(m)==key(a))return true;
     return false;
   }
+  void saveRecent() {
+    QDir().mkpath(dataPath());
+    QJsonArray arr;
+    for(const auto &a:recent) {
+      QJsonObject o;
+      o["host"]=a.host;o["port"]=int(a.port);o["selector"]=a.selector;
+      o["title"]=a.title;o["type"]=QString(QChar(a.type));
+      arr.append(o);
+    }
+    QSaveFile f(dataPath()+"/history.json");
+    if(f.open(QIODevice::WriteOnly)){
+      f.write(QJsonDocument(arr).toJson(QJsonDocument::Compact));f.commit();
+    }
+  }
+  void loadRecent() {
+    QFile f(dataPath()+"/history.json");
+    if(!f.open(QIODevice::ReadOnly))return;
+    for(const auto &v:QJsonDocument::fromJson(f.readAll()).array()) {
+      const auto o=v.toObject();Address a;
+      a.host=o.value("host").toString();a.selector=o.value("selector").toString();
+      a.title=o.value("title").toString();
+      const QString t=o.value("type").toString("1");
+      a.type=t.isEmpty()?'1':t.at(0).toLatin1();
+      int port=o.value("port").toInt(70);
+      if(a.host.isEmpty()||port<1||port>65535)continue;
+      a.port=quint16(port);recent<<a;
+      if(recent.size()>=70)break;
+    }
+  }
+  void remember(const Address &a) {
+    for(int i=recent.size()-1;i>=0;--i)
+      if(key(recent[i])==key(a))recent.removeAt(i);
+    recent.prepend(a);
+    while(recent.size()>70)recent.removeLast();
+    saveRecent();
+  }
   void saveMarks() {
     QDir().mkpath(dataPath());
     QJsonArray arr;
@@ -157,7 +193,9 @@ class Gopher : public Screen {
     for(auto v:QJsonDocument::fromJson(f.readAll()).array()) {
       auto o=v.toObject();Address a;
       a.host=o.value("host").toString();a.selector=o.value("selector").toString();
-      a.title=o.value("title").toString();a.type=o.value("type").toString("1").at(0).toLatin1();
+      a.title=o.value("title").toString();
+      const QString t=o.value("type").toString("1");
+      a.type=t.isEmpty()?'1':t.at(0).toLatin1();
       int port=o.value("port").toInt(70);
       if(port<1||port>65535||a.host.isEmpty())continue;
       a.port=quint16(port);marks<<a;
@@ -223,6 +261,7 @@ class Gopher : public Screen {
   }
   void append(Page p) {
     while(trail.size()>index+1)trail.removeLast();
+    remember(p.address);
     trail<<p;index=trail.size()-1;
     while(trail.size()>70){trail.removeFirst();--index;}
     setMode(Browsing);status.clear();textOffset=0;layoutText();
@@ -302,8 +341,7 @@ class Gopher : public Screen {
     }
     if(mode==Bookmarks) {if(choice<marks.size())open(marks[choice]);return;}
     if(mode==History) {
-      int target=trail.size()-1-choice;
-      if(target>=0 && target<trail.size()){index=target;setMode(Browsing);textOffset=0;layoutText();}
+      if(choice>=0&&choice<recent.size())open(recent[choice]);
       return;
     }
     if(mode==ConfirmDownload){setMode(Browsing);request(pending,true);return;}
@@ -335,7 +373,7 @@ class Gopher : public Screen {
     if(mode==Home){homeChoice=qBound(0,homeChoice+delta,2);}
     else if(mode==Actions){actionChoice=qBound(0,actionChoice+delta,actions().size()-1);}
     else if(mode==Bookmarks){choice=qBound(0,choice+delta,qMax(0,marks.size()-1));}
-    else if(mode==History){choice=qBound(0,choice+delta,qMax(0,trail.size()-1));}
+    else if(mode==History){choice=qBound(0,choice+delta,qMax(0,recent.size()-1));}
     else if(mode==Browsing&&page()) {
       if(page()->text) {
         textOffset=qBound(0.,textOffset+delta*QFontMetrics(doc.defaultFont()).lineSpacing(),
@@ -406,7 +444,7 @@ protected:
       } else if(mode==Bookmarks) {
         for(const auto &m:marks){labels<<m.title;enabled<<true;}current=choice;
       } else if(mode==History) {
-        for(int i=trail.size()-1;i>=0;--i){labels<<trail[i].address.title;enabled<<true;}current=choice;
+        for(const auto &a:recent){labels<<a.title;enabled<<true;}current=choice;
       } else if(mode==Actions) {
         labels=actions();for(int i=0;i<labels.size();++i)enabled<<true;current=actionChoice;
       } else if(page()) {
@@ -452,8 +490,8 @@ public:
     connect(&socket,&QTcpSocket::readyRead,this,&Gopher::onReady);
     connect(&socket,&QTcpSocket::disconnected,this,[this]{onReady();onFinished();});
     connect(&socket,QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred),this,
-            [this](QAbstractSocket::SocketError){onFinished();});
-    loadMarks();controlsForMode();
+            [this](QAbstractSocket::SocketError){onReady();onFinished();});
+    loadMarks();loadRecent();controlsForMode();
   }
 };
 int main(int argc,char **argv) {
