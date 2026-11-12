@@ -16,13 +16,33 @@ struct Address {
   quint16 port=70;
   char type='1';
 };
+bool supported(char t) {
+  return t=='0'||t=='1'||t=='4'||t=='5'||t=='6'||t=='9'||
+         t=='g'||t=='I'||t=='s'||t=='d'||t=='P'||t==';';
+}
+QString kindName(char t) {
+  switch(t) {
+    case '1': return "DIRECTORY";
+    case '0': return "TEXT";
+    case '7': return "SEARCH · UNAVAILABLE";
+    case 'g': case 'I': return "IMAGE";
+    case 's': return "AUDIO";
+    case 'd': case 'P': return "DOCUMENT";
+    case ';': return "VIDEO";
+    case '3': return "SERVER MESSAGE";
+    case 'i': return "INFO";
+    case 'h': return "WEB LINK · UNAVAILABLE";
+    case '8': case 'T': return "INTERACTIVE · UNAVAILABLE";
+    default: return "DOWNLOAD";
+  }
+}
 struct Item { Address address; bool selectable=true; };
 struct Page {
   Address address;
   QList<Item> items;
   QString document;
   bool text=false;
-  int selected=0, scroll=0;
+  int selected=-1, scroll=0;
 };
 QString key(const Address &a) {
   return QString::number(uchar(a.type))+"|"+a.host+"|"+QString::number(a.port)+"|"+a.selector;
@@ -59,7 +79,7 @@ QList<Item> parseMenu(QByteArray bytes) {
     Item item;
     item.address.type=type;
     item.address.title=decode(parts.value(0));
-    item.selectable=type!='i' && type!='3';
+    item.selectable=supported(type);
     if(parts.size()>=4) {
       item.address.selector=decode(parts.at(1));
       item.address.host=decode(parts.at(2));
@@ -70,6 +90,10 @@ QList<Item> parseMenu(QByteArray bytes) {
     } else item.selectable=false;
     if(out.size()>=2000)break;
     out << item;
+  }
+  for(int i=0;i<out.size();++i)if(out[i].selectable) {
+    // The first highlight is always an actual action, never a server heading.
+    break;
   }
   return out;
 }
@@ -122,7 +146,6 @@ class Gopher : public Screen {
   }
   void setMode(Mode m) {mode=m;controlsForMode();}
   QStringList actions() const {
-    if(mode!=Actions)return {};
     QStringList a;
     if(previous==Browsing && page()) {
       a<<"Reload";
@@ -207,7 +230,7 @@ class Gopher : public Screen {
   }
   void disconnectRequest() {
     timeout.stop();
-    socket.abort();busy=false;downloading=false;
+    busy=false;downloading=false;socket.abort();
     if(transfer){transfer->cancelWriting();transfer.reset();}
     incoming.clear();transferPath.clear();
   }
@@ -245,23 +268,20 @@ class Gopher : public Screen {
     timeout.start(15000);
   }
   void open(const Address &a) {
-    if(a.type=='7'){setStatus("Search needs ReRead text entry (coming later)");return;}
+    if(a.type=='7'){setStatus("Search requires text entry");return;}
     if(a.type=='3'||a.type=='i')return;
-    if(a.type=='h') {
-      if(a.selector.startsWith("URL:")) {
-        setStatus("External web links are not supported by this browser");
-      } else setStatus("Unsupported Gopher item");
-      return;
-    }
-    if(a.type!='0'&&a.type!='1'&&a.type!='g'&&a.type!='I'&&a.type!='9'&&a.type!='5'&&a.type!='s') {
-      setStatus("Unsupported item type");return;
-    }
+    if(a.type=='h'){setStatus("Web links need an HTML browser");return;}
+    if(!supported(a.type)){setStatus("This item needs an unsupported service");return;}
     if(a.type=='0'||a.type=='1')request(a);
-    else {pending=a;previous=Browsing;setMode(ConfirmDownload);}
+    else {pending=a;previous=mode;setMode(ConfirmDownload);}
   }
   void append(Page p) {
     while(trail.size()>index+1)trail.removeLast();
     remember(p.address);
+    if(!p.text) {
+      p.selected=-1;
+      for(int i=0;i<p.items.size();++i)if(p.items[i].selectable){p.selected=i;break;}
+    }
     trail<<p;index=trail.size()-1;
     while(trail.size()>70){trail.removeFirst();--index;}
     setMode(Browsing);status.clear();textOffset=0;layoutText();
@@ -307,7 +327,7 @@ class Gopher : public Screen {
     if(downloading) {
       bool ok=transfer && transfer->commit();
       transfer.reset();downloading=false;
-      if(ok){setMode(Browsing);setStatus("Saved to Downloads/Gopher");launchFile(transferPath);}
+      if(ok){setStatus("Saved to Downloads/Gopher");launchFile(transferPath);}
       else setStatus("Could not save download");
       return;
     }
@@ -344,7 +364,7 @@ class Gopher : public Screen {
       if(choice>=0&&choice<recent.size())open(recent[choice]);
       return;
     }
-    if(mode==ConfirmDownload){setMode(Browsing);request(pending,true);return;}
+    if(mode==ConfirmDownload){setMode(previous);request(pending,true);return;}
     if(mode==Actions) {
       const QString action=actions().value(actionChoice);
       Mode source=previous;setMode(source);
@@ -367,7 +387,7 @@ class Gopher : public Screen {
     }
     Page *p=page();if(!p)return;
     if(p->text){textOffset=0;update();return;}
-    if(p->selected>=0 && p->selected<p->items.size())open(p->items[p->selected].address);
+    if(p->selected>=0 && p->selected<p->items.size() && p->items[p->selected].selectable)open(p->items[p->selected].address);
   }
   void move(int delta) {
     if(mode==Home){homeChoice=qBound(0,homeChoice+delta,2);}
@@ -380,6 +400,7 @@ class Gopher : public Screen {
                           qMax(0.,doc.size().height()-bodyRect().height()));
       } else {
         int i=page()->selected;
+        if(i<0)i=delta>0?-1:page()->items.size();
         do {i+=delta;} while(i>=0&&i<page()->items.size()&&!page()->items[i].selectable);
         if(i>=0&&i<page()->items.size())page()->selected=i;
       }
@@ -406,6 +427,7 @@ protected:
     if(busy)return;
     if(id==READER_OPTIONS) {
       if(mode==Actions){setMode(previous);return;}
+      if(mode==ConfirmDownload)return;
       previous=mode;actionChoice=0;setMode(Actions);return;
     }
     if(id==READER_ZOOM_IN||id==READER_ZOOM_OUT) {
@@ -415,6 +437,102 @@ protected:
       return;
     }
     if(id==READER_OK)openSelection();
+  }
+  int menuRowHeight(const Item &item) const {
+    if(item.address.type=='i')return item.address.title.trimmed().isEmpty()?18:34;
+    if(item.address.type=='3')return 44;
+    return 66;
+  }
+  void drawMenu(QPainter &p,const QRect &area,const Page &pg) {
+    // Informational lines are document content, not inactive-looking buttons.
+    // Only operable resources receive focus and navigation affordances.
+    const int width=area.width();
+    const int infoWidth=qMin(252,qMax(195,width/3));
+    QRect left(area.x(),area.y(),width-infoWidth-14,area.height());
+    QRect right(left.right()+14,area.y(),infoWidth,area.height());
+    int y=0, selectionY=0, selectionHeight=0;
+    for(int i=0;i<pg.items.size();++i) {
+      if(i==pg.selected){selectionY=y;selectionHeight=menuRowHeight(pg.items[i]);}
+      y+=menuRowHeight(pg.items[i]);
+    }
+    const int maxScroll=qMax(0,y-left.height());
+    int offset=qBound(0,pg.scroll,maxScroll);
+    if(pg.selected>=0) {
+      if(selectionY<offset+12)offset=qMax(0,selectionY-12);
+      if(selectionY+selectionHeight>offset+left.height()-12)
+        offset=qMin(maxScroll,selectionY+selectionHeight-left.height()+12);
+    }
+    // Display position derives from focus, but selection is preserved in Page.
+    auto &stored=const_cast<Page&>(pg);
+    stored.scroll=offset;
+    p.save();p.setClipRect(left);
+    int pos=left.y()-offset;
+    QFont font=p.font();
+    for(int i=0;i<pg.items.size();++i) {
+      const Item &item=pg.items[i];
+      const Address &a=item.address;
+      const int h=menuRowHeight(item);
+      QRect row(left.x(),pos,left.width()-6,h);
+      pos+=h;
+      if(row.bottom()<left.y()||row.top()>left.bottom())continue;
+      if(a.type=='i') {
+        if(!a.title.trimmed().isEmpty()) {
+          font.setPixelSize(21);font.setBold(false);p.setFont(font);
+          p.setPen(palette().color(QPalette::Text));
+          p.drawText(row.adjusted(12,0,-8,0),Qt::AlignVCenter|Qt::TextSingleLine,
+                     QFontMetrics(font).elidedText(a.title,Qt::ElideRight,row.width()-20));
+        }
+        continue;
+      }
+      if(a.type=='3') {
+        font.setPixelSize(20);font.setBold(false);p.setFont(font);
+        p.setPen(QColor("#ff9d82"));
+        p.drawText(row.adjusted(12,0,-8,0),Qt::AlignVCenter|Qt::TextSingleLine,
+                   QFontMetrics(font).elidedText(a.title,Qt::ElideRight,row.width()-20));
+        continue;
+      }
+      const bool focus=item.selectable && i==pg.selected;
+      if(focus)p.fillRect(row.adjusted(1,2,-2,-2),palette().color(QPalette::Highlight));
+      else if(item.selectable)p.fillRect(row.adjusted(1,2,-2,-2),QColor("#151515"));
+      const QColor fg=focus?palette().color(QPalette::HighlightedText):
+                      item.selectable?palette().color(QPalette::Text):palette().color(QPalette::Mid);
+      font.setPixelSize(23);font.setBold(focus);p.setFont(font);p.setPen(fg);
+      QRect name(row.x()+14,row.y()+6,row.width()-45,32);
+      p.drawText(name,Qt::AlignVCenter|Qt::TextSingleLine,
+                 QFontMetrics(font).elidedText(a.title,Qt::ElideRight,name.width()));
+      font.setPixelSize(17);font.setBold(false);p.setFont(font);
+      p.setPen(focus?fg:(item.selectable?palette().color(QPalette::Link):palette().color(QPalette::Mid)));
+      p.drawText(QRect(row.x()+14,row.y()+38,row.width()-32,23),
+                 Qt::AlignVCenter|Qt::TextSingleLine,kindName(a.type));
+      if(item.selectable) {
+        font.setPixelSize(29);p.setFont(font);p.setPen(fg);
+        p.drawText(QRect(row.right()-32,row.y()+13,27,36),Qt::AlignCenter,QString::fromUtf8("›"));
+      }
+    }
+    p.restore();
+    p.setPen(palette().color(QPalette::Mid));
+    p.drawLine(right.left()-8,right.top(),right.left()-8,right.bottom());
+    if(pg.selected>=0&&pg.selected<pg.items.size()) {
+      const auto &a=pg.items[pg.selected].address;
+      label(p,QRect(right.x()+7,right.y()+6,right.width()-14,32),kindName(a.type),20,true,
+            palette().color(QPalette::Link));
+      text(p,QRect(right.x()+7,right.y()+49,right.width()-14,120),
+           a.title,23);
+      label(p,QRect(right.x()+7,right.y()+194,right.width()-14,30),"SERVER",17,true,
+            palette().color(QPalette::Mid));
+      text(p,QRect(right.x()+7,right.y()+226,right.width()-14,62),
+           a.host+":"+QString::number(a.port),19);
+      text(p,QRect(right.x()+7,right.bottom()-90,right.width()-14,80),
+           a.type=='1'?"Open this directory":a.type=='0'?"Read this document":
+           "Open or download this item",19);
+    } else {
+      text(p,right.adjusted(10,8,-12,-8),"This page contains information, but no selectable links.",21);
+    }
+    if(y>left.height()){
+      const int bar=qMax(20,left.height()*left.height()/y);
+      const int yy=left.y()+(maxScroll?offset*(left.height()-bar)/maxScroll:0);
+      p.fillRect(QRect(left.right()-4,yy,3,bar),palette().color(QPalette::Link));
+    }
   }
   void draw(QPainter &p,const QRect &r) override {
     QString heading="Gopher";
@@ -435,6 +553,8 @@ protected:
       p.restore();
     } else if(mode==ConfirmDownload) {
       text(p,listArea,"Save "+pending.title+" to Downloads/Gopher?\n\nOK to download and open, Back to cancel.",25);
+    } else if(mode==Browsing && page() && !page()->text) {
+      drawMenu(p,listArea,*page());
     } else {
       QStringList labels;
       QList<bool> enabled;
@@ -447,10 +567,6 @@ protected:
         for(const auto &a:recent){labels<<a.title;enabled<<true;}current=choice;
       } else if(mode==Actions) {
         labels=actions();for(int i=0;i<labels.size();++i)enabled<<true;current=actionChoice;
-      } else if(page()) {
-        const auto *pg=page();
-        for(const auto &item:pg->items){labels<<item.address.title;enabled<<item.selectable;}
-        current=pg->selected;
       }
       if(labels.isEmpty())text(p,listArea,"Nothing here yet.",25);
       else {
@@ -463,17 +579,12 @@ protected:
           label(p,row.adjusted(10,0,-10,0),labels[i],23,i==current,fg);
         }
         QString info;
-        if(mode==Browsing&&page()&&current<page()->items.size()) {
-          const auto &a=page()->items[current].address;
-          info=(a.type=='1'?"Directory":a.type=='0'?"Text":a.type=='7'?"Search unavailable":
-                a.type=='i'?"Information":a.type=='3'?"Server error":"File")+
-               QString("\n\n")+display(a);
-        } else if(mode==Bookmarks&&current<marks.size())info=display(marks[current]);
+        if(mode==Bookmarks&&current<marks.size())info=display(marks[current]);
         else if(mode==Home)info="Explore Gopher servers without a keyboard.";
         if(!info.isEmpty())text(p,layout.info,info,20);
       }
     }
-    if(busy)label(p,QRect(r.x(),r.bottom()-28,r.width(),26),"Connecting... Back cancels",18);
+    if(busy)label(p,QRect(r.x(),r.bottom()-28,r.width(),26),downloading?"Downloading... Back cancels":"Connecting... Back cancels",18);
     else if(!status.isEmpty())label(p,QRect(r.x(),r.bottom()-28,r.width(),26),status,18);
   }
 public:
