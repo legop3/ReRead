@@ -156,6 +156,7 @@ class Gopher : public Screen {
         if(selected.selectable)
           a<<(bookmarked(selected.address)?"Remove link bookmark":"Bookmark selected link");
       }
+      if(page()->text)a<<"Save text document";
       a<<"Show address";
       if(index+1<trail.size())a<<"Forward";
     } else if(previous==Bookmarks && !marks.isEmpty())a<<"Remove bookmark";
@@ -323,6 +324,27 @@ class Gopher : public Screen {
     if(mode==Browsing){setMode(rootOrigin);return;}
     setMode(Home);
   }
+  void saveTextDocument() {
+    if(!page()||!page()->text)return;
+    QDir().mkpath(filesPath());
+    QString name=safeName(page()->address.title);
+    if(!name.endsWith(".txt",Qt::CaseInsensitive))name+=".txt";
+    QString path=filesPath()+"/"+name;
+    const QString stem=QFileInfo(name).completeBaseName();
+    for(int n=1;QFileInfo::exists(path)&&n<10000;++n)
+      path=filesPath()+"/"+stem+"-"+QString::number(n)+".txt";
+    if(QFileInfo::exists(path)){setStatus("No available filename");return;}
+    QStorageInfo storage(filesPath());
+    if(!storage.isValid()||storage.bytesAvailable()<minimumFree) {
+      setStatus("Not enough storage");return;
+    }
+    QSaveFile file(path);
+    QByteArray bytes=page()->document.toUtf8();
+    if(!file.open(QIODevice::WriteOnly)||file.write(bytes)!=bytes.size()||!file.commit()) {
+      file.cancelWriting();setStatus("Could not save document");return;
+    }
+    setStatus("Saved in Downloads/Gopher");
+  }
   void launchFile(const QString &path) {
     auto ctx=g_app_launch_context_new();
     g_app_launch_context_unsetenv(ctx,"READER_APP_ID");
@@ -406,7 +428,8 @@ class Gopher : public Screen {
         saveMarks();
         if(source==Bookmarks)choice=qBound(0,choice,qMax(0,marks.size()-1));
         setStatus("Bookmark removed");
-      } else if(action=="Show address"&&page()){inspected=page()->address;previous=source;setMode(AddressInfo);}
+      } else if(action=="Save text document")saveTextDocument();
+      else if(action=="Show address"&&page()){inspected=page()->address;previous=source;setMode(AddressInfo);}
       else if(action=="Forward"&&index+1<trail.size()) {if(page()&&page()->text)page()->textScroll=textOffset;++index;textOffset=page()?page()->textScroll:0;layoutText();}
       else if(action=="Bookmarks")setMode(Bookmarks);
       else if(action=="History")setMode(History);
