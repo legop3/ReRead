@@ -4,4 +4,4 @@
 - [x] Camera review follows the current screen orientation. Pass the grip through the GIO launch environment; fbdev Xorg does not support RandR rotation.
 - [x] Enforce the current "help bar" completely. the question mark button should always and only show the help bar. at the same time, add device status info to the bottom of the help bar. battery, WiFi, storage info across the bottom of the help bar. if needed, revise the way that screens register their help. maybe the help bar should be moved from the application to being a system overlay?
 - [x] enforce the circle dot (favorites) button as the close app button.
-- [x] review all apps and revise them to follow the new app design enforcements 
+- [x] review all apps and revise them to follow the new app design enforcements
