@@ -2,10 +2,11 @@
 
 A native button-only Gopher client for the Intel Reader.
 
-- Open **Browse Gopherspace** to visit Floodgap's directory. Follow ordinary
+- Open **Browse Gopherspace** to visit a built-in starting directory (Floodgap, SDF and Quix). Follow ordinary
   Gopher menus, including links to other servers, without an on-screen keyboard.
 - Plain text pages are rendered inside Gopher with scrolling and Zoom font size.
-- Use **Options** for reload, bookmarking, viewing the address, forward,
+- Gopher informational lines are plain text, while supported links are highlighted rows with type labels and open indicators. Search and unsupported protocol links are visibly unavailable.
+- Use **Options** for reload, bookmarking the current page or selected link, viewing the full address, forward,
   bookmarks, history, or Home. Back returns through visited pages.
 - Gopher search items are present but unavailable until ReRead has shared
   system text entry. No private keyboard or web settings are provided.
@@ -29,7 +30,7 @@ docker run --rm -v "$PWD:/work" reread-app-builder sh -c '
 '
 ```
 
-Output: `out/antix/reread-app-gopher_0.1.0_i386.deb`.
+Output: `out/antix/reread-app-gopher_0.2.0_i386.deb`.
 
 Alternatively, use the shared release tool: `./release.py app gopher`.
 
