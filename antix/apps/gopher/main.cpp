@@ -230,7 +230,12 @@ class Gopher : public Screen {
     }
   }
   QList<Address> startSites() const {
-    return {{"gopher.floodgap.com","","Floodgap Gopher",70,'1'}};
+    return {
+      {"gopher.floodgap.com","/new","Explore Gopher servers",70,'1'},
+      {"gopher.floodgap.com","","Floodgap",70,'1'},
+      {"sdf.org","","SDF Gopherspace",70,'1'},
+      {"quix.us","","Quix Gopher",70,'1'}
+    };
   }
   void disconnectRequest() {
     timeout.stop();
@@ -358,8 +363,9 @@ class Gopher : public Screen {
   }
   void openSelection() {
     if(mode==Home) {
-      if(homeChoice==0)open(startSites().first());
-      else if(homeChoice==1)setMode(Bookmarks);
+      const auto sites=startSites();
+      if(homeChoice<sites.size())open(sites[homeChoice]);
+      else if(homeChoice==sites.size())setMode(Bookmarks);
       else setMode(History);
       return;
     }
@@ -402,7 +408,7 @@ class Gopher : public Screen {
     if(p->selected>=0 && p->selected<p->items.size() && p->items[p->selected].selectable)open(p->items[p->selected].address);
   }
   void move(int delta) {
-    if(mode==Home){homeChoice=qBound(0,homeChoice+delta,2);}
+    if(mode==Home){homeChoice=qBound(0,homeChoice+delta,startSites().size()+1);}
     else if(mode==Actions){actionChoice=qBound(0,actionChoice+delta,actions().size()-1);}
     else if(mode==Bookmarks){choice=qBound(0,choice+delta,qMax(0,marks.size()-1));}
     else if(mode==History){choice=qBound(0,choice+delta,qMax(0,recent.size()-1));}
@@ -572,7 +578,9 @@ protected:
       QList<bool> enabled;
       int current=0;
       if(mode==Home) {
-        labels=QStringList{"Browse Gopherspace","Bookmarks","History"};enabled=QList<bool>{true,true,true};current=homeChoice;
+        for(const auto &a:startSites()){labels<<a.title;enabled<<true;}
+        labels<<"Bookmarks"<<"History";
+        enabled<<true<<true;current=homeChoice;
       } else if(mode==Bookmarks) {
         for(const auto &m:marks){labels<<m.title;enabled<<true;}current=choice;
       } else if(mode==History) {
@@ -592,7 +600,11 @@ protected:
         }
         QString info;
         if(mode==Bookmarks&&current<marks.size())info=display(marks[current]);
-        else if(mode==Home)info="Explore Gopher servers without a keyboard.";
+        else if(mode==Home) {
+          const auto sites=startSites();
+          if(current<sites.size())info=display(sites[current])+"\n\nOpen a Gopher directory";
+          else info=current==sites.size()?"Saved places":"Recently visited pages";
+        }
         if(!info.isEmpty())text(p,layout.info,info,20);
       }
     }
