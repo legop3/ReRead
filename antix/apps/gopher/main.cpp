@@ -108,7 +108,7 @@ QByteArray unstuff(QByteArray bytes) {
 
 class Gopher : public Screen {
   enum Mode { Home, Browsing, Bookmarks, History, Actions, ConfirmDownload, AddressInfo };
-  Mode mode=Home, previous=Browsing;
+  Mode mode=Home, previous=Browsing, rootOrigin=Home;
   QList<Page> trail;
   int index=-1, choice=0, homeChoice=0, actionChoice=0;
   QList<Address> marks, recent;
@@ -283,10 +283,17 @@ class Gopher : public Screen {
     if(a.type=='3'||a.type=='i')return;
     if(a.type=='h'){setStatus("Web links need an HTML browser");return;}
     if(!supported(a.type)){setStatus("This item needs an unsupported service");return;}
-    if(a.type=='0'||a.type=='1')request(a);
+    if(a.type=='0'||a.type=='1'){
+      if(mode!=Browsing)rootOrigin=mode;
+      request(a);
+    }
     else {pending=a;previous=mode;setMode(ConfirmDownload);}
   }
   void append(Page p) {
+    if(mode!=Browsing) {
+      // A bookmark or start-page jump begins a new navigation path.
+      trail.clear();index=-1;
+    }
     while(trail.size()>index+1)trail.removeLast();
     remember(p.address);
     if(!p.text) {
@@ -313,6 +320,7 @@ class Gopher : public Screen {
     if(mode==Actions||mode==ConfirmDownload||mode==AddressInfo){setMode(previous);return;}
     if(mode==Bookmarks||mode==History){setMode(Home);return;}
     if(mode==Browsing&&index>0){if(page()&&page()->text)page()->textScroll=textOffset;--index;setMode(Browsing);textOffset=page()?page()->textScroll:0;layoutText();return;}
+    if(mode==Browsing){setMode(rootOrigin);return;}
     setMode(Home);
   }
   void launchFile(const QString &path) {
