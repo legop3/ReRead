@@ -14,6 +14,7 @@ A native button-only Gopher client for the Intel Reader.
   `$REREAD_FILES_DIR/Downloads/Gopher/` (normally
   `/var/lib/reader/files/Downloads/Gopher/`). Successful transfers use
   atomic writes and launch the default MIME handler through GIO.
+- Plain-text documents can be saved directly from Options without re-downloading.
 - The Guide button's hold overlay and Favorites exit are owned by ReRead.
 - Downloads are limited to 128 MiB and menu/text responses to 2 MiB.
   Bookmarks are saved under the application-specific XDG data directory.
@@ -36,6 +37,9 @@ Alternatively, use the shared release tool: `./release.py app gopher`.
 
 Install through the Reader's web Apps page or with
 `reader-update install /path/to/reread-app-gopher_0.1.0_i386.deb`.
+
+The package build compiles and runs `test-gopher.cpp` to check menu parsing,
+non-selectable informational rows, unsupported item types, and text dot-stuffing.
 
 ## Implementation
 
