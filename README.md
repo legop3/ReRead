@@ -17,6 +17,30 @@ You need an Intel Reader, a **1 GB or larger USB stick**, and a **powered USB hu
 
 No source checkout, Docker, stock disk dump or registered USB drive is required. The installer includes **Camera**, **Software**, **Files**, and the **Images**, **Text** and **Audio** file handlers. Use Software to update the platform and apps or install additional applications.
 
+### Restore stock or another disk backup
+
+Use a **whole-disk dump**, such as the stock Reader backup, to make a restore USB:
+
+```sh
+./make-installer.py ~/Backups/reader.img --template ~/Downloads/reread-installer-usb.img
+./make-usb.sh out/restore-installer.img
+```
+
+The template is the normal [ReRead USB installer](https://legop3.github.io/ReRead/install/).
+This needs Python 3 and Docker, but **does not build an OS or need the antiX ISO,
+camera firmware or a working Reader connection**. If you already built ReRead,
+`--template` can be omitted. Raw `.img`/`.dd` files and standard single-file gzip
+backups (`.gz`) are supported. Supply a full disk image, not a partition backup,
+ZIP archive or QCOW virtual disk. The image must fit the Reader's 4 GB SSD.
+
+The original dump and template are left untouched. `--output PATH` chooses a new
+output filename. Use a USB stick large enough for the generated image; stock
+backups can need more space than the normal ReRead installer. Boot it through the
+powered hub as above. **Restoration automatically erases the Reader SSD and
+reboots without confirmation**, writing the supplied image unchanged. The existing
+internal-SSD identity check remains in place. Preparing the file does not flash a
+USB stick or modify the Reader.
+
 ### Linux command line
 
 From a source checkout, you can also flash a downloaded image:

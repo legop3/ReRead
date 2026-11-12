@@ -406,3 +406,24 @@ The backend test uses real APT parsing and a disposable wpa_supplicant with the
 networks. The native navigation test uses a temporary CLI fixture inside the builder;
 it refuses to replace an installed `reader-software` command. Screenshots go under
 `build/repository/`. The browser test intercepts API requests and makes no device changes.
+
+## Generic disk-image restoration
+
+Use the root [make-installer.py](../make-installer.py) command and the
+[restore instructions](../README.md#restore-stock-or-another-disk-backup).
+It repacks a released USB installer with a supplied raw/gzip full-disk dump.
+The matching kernel, initramfs and payload marker are reused; the marker only
+identifies the USB payload, not an OS or filesystem inside the image. No files
+in the dump are edited. The existing installer streams gzip → dd to the known
+internal SSD, checks write/decompression completion, syncs and reboots.
+
+The packager uses the shared disk-image helper and standard mtools, gzip and
+Syslinux in the existing Docker builder. It builds no platform or app packages.
+Developer reuse: `./make-installer.py evidence/reader.img --container intelreader-validator`.
+That option requires input/output paths under the checkout; ordinary Docker runs
+also support paths outside it.
+
+`python3 /work/antix/test-restore.py` in the builder tests raw and gzip packing,
+boots the resulting installer against a disposable virtual Reader SSD, checks
+byte-for-byte output and automatic reboot. It does not boot or restore stock
+software on physical hardware.

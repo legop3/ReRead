@@ -13,8 +13,8 @@ MIB=1024*1024
 BOOT_MIB=128
 SSD_SECTORS=7821072
 ROOT_BYTES=SSD_SECTORS*512-BOOT_MIB*MIB
-BUILD.mkdir(exist_ok=True)
-OUT.mkdir(exist_ok=True)
+BUILD.mkdir(parents=True,exist_ok=True)
+OUT.mkdir(parents=True,exist_ok=True)
 
 def run(*args,**kwargs): return subprocess.run(args,check=True,**kwargs)
 KERNEL='5.10.256-antix.1-486-smp'
@@ -84,15 +84,15 @@ def initrd(root,output):
             shutil.copyfileobj(process.stdout,packed,4*MIB)
         assert process.wait()==0
 
-def disk(name,size,files,rootfs=None,boot_serial=None):
-    part=BUILD/(name+'-fat.img')
+def disk(name,size,files,rootfs=None,boot_serial=None,build_dir=None,output_dir=None):
+    part=(build_dir or BUILD)/(name+'-fat.img')
     fat_mib=BOOT_MIB-1 if rootfs else size-1
     with part.open('wb') as f:f.truncate(fat_mib*MIB)
     run('mkfs.vfat','-F','32','-n','REREADBOOT' if rootfs else 'REREADUSB',
         *(['-i',boot_serial] if boot_serial else []),str(part),stdout=subprocess.DEVNULL)
     run('mcopy','-s','-i',str(part),*map(str,files.iterdir()),'::/')
     run('syslinux','--install',str(part))
-    result=OUT/(name+'.img')
+    result=(output_dir or OUT)/(name+'.img')
     total_bytes=BOOT_MIB*MIB+rootfs.stat().st_size if rootfs else size*MIB
     with result.open('wb') as f:f.truncate(total_bytes)
     layout=f'label: dos\nunit: sectors\n\nstart=2048,size={fat_mib*2048},type=c,bootable\n'
