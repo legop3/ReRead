@@ -104,8 +104,9 @@ QByteArray unstuff(QByteArray bytes) {
   }
   return result;
 }
-}
 
+// Keep the implementation private to this translation unit, including its
+// Address/Page types. The parser tests include this file directly.
 class Gopher : public Screen {
   enum Mode { Home, Browsing, Bookmarks, History, Actions, ConfirmDownload, AddressInfo };
   Mode mode=Home, previous=Browsing, rootOrigin=Home;
@@ -666,6 +667,8 @@ public:
     loadMarks();loadRecent();controlsForMode();
   }
 };
+} // namespace
+
 int main(int argc,char **argv) {
   QApplication app(argc,argv);app.setApplicationName("reread-gopher");
   app.setDesktopFileName("reread-gopher");app.setFont(QFont("DejaVu Sans"));
