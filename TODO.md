@@ -5,3 +5,4 @@
 - [x] Enforce the current "help bar" completely. the question mark button should always and only show the help bar. at the same time, add device status info to the bottom of the help bar. battery, WiFi, storage info across the bottom of the help bar. if needed, revise the way that screens register their help. maybe the help bar should be moved from the application to being a system overlay?
 - [x] enforce the circle dot (favorites) button as the close app button.
 - [x] review all apps and revise them to follow the new app design enforcements
+- [ ] global keyboard input, maybe use some sort of standard linux / X thing for onscreen keyboard? if thats a thing, maybe use and onscreen keyboard that already exists that can be navigated by buttons? if not just make one i guess
