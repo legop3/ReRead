@@ -120,7 +120,7 @@ class Gopher : public Screen {
       controls={{READER_UP,"Select"},{READER_OK,"Open"},{READER_OPTIONS,"Actions"},{READER_BACK,"Back"}};
     update();
   }
-  void setMode(Mode m) {mode=m;choice=0;controlsForMode();}
+  void setMode(Mode m) {mode=m;controlsForMode();}
   QStringList actions() const {
     if(mode!=Actions)return {};
     QStringList a;
@@ -184,7 +184,7 @@ class Gopher : public Screen {
     if(save) {
       QStorageInfo storage(filesPath());
       QDir().mkpath(filesPath());storage.refresh();
-      if(storage.isValid()&&storage.bytesAvailable()<minimumFree+fileLimit/16) {
+      if(!storage.isValid()||storage.bytesAvailable()<minimumFree) {
         disconnectRequest();setStatus("Not enough free storage");return;
       }
       QString name=safeName(a.title);
