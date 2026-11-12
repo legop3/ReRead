@@ -51,7 +51,7 @@ reset settings, and confirmed erasure of saved progress.
 | Options | Left phone softkey |
 | Zoom + / - | * / # |
 | View | Open the ReRead game menu |
-| Favorites | Close the game, return to the library |
+| Favorites | Close the entire app, stopping the game and preserving saves |
 | Guide (hold) | Standard ReRead contextual help overlay |
 
 The game menu has **Resume** and **Exit to Java ME**. It is painted by the

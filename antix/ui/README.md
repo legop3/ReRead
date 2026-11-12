@@ -154,3 +154,23 @@ Core 0.21+ initializes Screen's orientation from the optional launch environment
 sets this on its GIO launch context for Last photo. This changes only the new
 window's painting, help and directional controls, and requires no UI ABI change.
 The Reader's fbdev Xorg output rejects RandR rotation.
+
+## Shared system status and reserved buttons
+
+Home's top bar and Guide's bottom row use the same status component. It shows
+battery/charging, Wi-Fi association/SSID, ALSA volume, available shared-file
+storage and local time. It reads the existing UPower-backed battery JSON and
+ALSA status file, Qt filesystem statistics and `wpa_cli status` for the detected
+wireless interface. No adapter is hardcoded and no scan or new daemon is added. Connected Wi-Fi
+uses cyan, volume yellow, and storage white with amber/red low-space thresholds;
+badge text is black and time stays white on black.
+Wi-Fi queries are asynchronous, bounded to two seconds and refreshed every five
+seconds only while Home's status or Guide is active; background/dimmed apps stop
+refreshing. Unknown/disconnected states are explicit.
+
+Guide always shows only contextual help and shared status. Favorites is consumed
+centrally on first press and uses normal Qt close handling, including when a
+child editor owns focus. Home alone handles it as return-to-Home. Per-app Guide
+or Favorites bindings cannot replace these roles. UI 5's class layout and virtual
+interface stay unchanged, so installed app binaries receive these rules when the
+platform updates. J2ME keeps Exit to Java ME in its game menu.

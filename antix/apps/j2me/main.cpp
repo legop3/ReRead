@@ -94,8 +94,8 @@ class J2ME : public Screen {
     showHeader=!running;
     title=errorPage?"Game failed":confirmDelete?"Erase game data?":options?"Game settings":"Java ME";
     subtitle=(options||confirmDelete||errorPage)?metadata.value(game()).value("title").toString(QFileInfo(game()).fileName()):QString::number(games.size())+" games in Files/J2ME";
-    controls=running?(gameMenu?QList<Control>{{READER_UP,"Select"},{READER_OK,"Choose"},{READER_BACK,"Resume"},{READER_FAVORITES,"Quit"}}:
-      QList<Control>{{READER_UP,"Move"},{READER_OK,"Fire"},{READER_OPTIONS,"Left softkey"},{READER_BACK,"Right softkey"},{READER_ZOOM_IN,"*"},{READER_ZOOM_OUT,"#"},{READER_VIEW_TOGGLE,"Menu"},{READER_FAVORITES,"Quit"}}):
+    controls=running?(gameMenu?QList<Control>{{READER_UP,"Select"},{READER_OK,"Choose"},{READER_BACK,"Resume"},{READER_FAVORITES,"Close app"}}:
+      QList<Control>{{READER_UP,"Move"},{READER_OK,"Fire"},{READER_OPTIONS,"Left softkey"},{READER_BACK,"Right softkey"},{READER_ZOOM_IN,"*"},{READER_ZOOM_OUT,"#"},{READER_VIEW_TOGGLE,"Menu"},{READER_FAVORITES,"Close app"}}):
       errorPage?QList<Control>{{READER_BACK,"Games"}}:
       confirmDelete?QList<Control>{{READER_OK,"Erase"},{READER_BACK,"Cancel"}}:
       options?QList<Control>{{READER_UP,"Setting"},{READER_LEFT,"Change"},{READER_BACK,"Games"},{READER_OK,"Change"}}:
@@ -176,7 +176,7 @@ protected:
     if(running) {
       if(gameMenu) {
         if(value!=1)return;
-        if(id==READER_FAVORITES){finishGame();return;}
+        if(id==READER_FAVORITES){close();return;}
         if(id==READER_BACK||id==READER_VIEW_TOGGLE){gameMenu=false;core.pause(false);chrome();return;}
         if(id==READER_UP||id==READER_DOWN){
           gameAction=qBound(0,gameAction+(id==READER_DOWN?1:-1),1);
@@ -188,7 +188,7 @@ protected:
         }
         return;
       }
-      if(id==READER_FAVORITES && value==1){finishGame();return;}
+      if(id==READER_FAVORITES && value==1){close();return;}
       if(id==READER_VIEW_TOGGLE && value==1){
         for(int key:heldKeys)core.key(key,false);
         heldKeys.clear();

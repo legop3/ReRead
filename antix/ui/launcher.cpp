@@ -349,6 +349,7 @@ class Launcher : public Screen {
 
 public:
   Launcher() : Screen("ReRead") {
+    setProperty("reread-home",true);
     refresh();
     auto watcher = new QFileSystemWatcher(this);
     watcher->addPath("/usr/share/applications");

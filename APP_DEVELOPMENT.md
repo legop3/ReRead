@@ -126,15 +126,17 @@ physical **button icons**, each paired with a short action label.
 - Clear help when the window loses activation, hides or becomes inactive for
   sleep/dimming, so a missed key release cannot leave the overlay latched.
 - Keep the controls list current when entering menus, confirmation dialogs or
-  another mode. Guide should serve this purpose; another role needs a specific,
-  exceptional reason.
+  another mode. Guide is reserved exclusively for this purpose; do not bind another action.
 
 **SDK behavior (0.20 / UI 5):** populate `controls` for each screen. Screen
 handles Guide press/release, repeat suppression and cleanup on focus loss,
 Hold lock, hiding, dimming and sleep. Help is a raised child overlay, above
 ordinary child widgets too, and never changes `content()`. Long hint lists wrap
 at readable size; inverted screens rotate and reposition help with their UI.
-Do not handle Guide in an app or add a permanent footer. `helpVisible()` exposes
+The overlay also includes shared battery/charging, Wi-Fi, volume, free storage
+and time, using the same presentation as Home. It always works, including screens
+with no app-specific hints. Its Close app hint is supplied automatically.
+Do not handle Guide or Favorites in an app or add a permanent footer. `helpVisible()` exposes
 the state for diagnostics; it is not a visibility toggle.
 
 ## Buttons and their icons
@@ -150,7 +152,7 @@ scan codes into apps or create an app-specific key map for this hardware.
 | D-pad | Move selection; pan or scroll content when appropriate |
 | OK | Activate the selection or primary contextual action |
 | Back | Return within the app; close from its root |
-| Favorites | Close the current app/window, exposing its caller or Home |
+| Favorites | Always close the app, exposing its caller or Home; Home itself returns to its main screen |
 | Options | Context actions or settings |
 | Guide | Hold for help; release to hide |
 | Play | Play/pause or another clearly labelled primary action |
@@ -163,7 +165,12 @@ scan codes into apps or create an app-specific key map for this hardware.
 Event values are **0 = released, 1 = pressed, 2 = repeated**. Allow repeat for
 navigation/scrolling, and use only the first press for opening, deleting,
 launching another program or other one-shot actions. This avoids one physical
-press opening several nested folders or starting multiple viewers. Screen owns Guide press/release; another toolkit must provide both. Close normally with a successful exit; the window manager
+press opening several nested folders or starting multiple viewers. Screen owns Guide press/release; another toolkit must provide both. Screen consumes Favorites and calls the normal Qt `close()` path; honor
+`closeEvent` and clean up playback, subprocesses and inhibitors there or in the
+app destructor. It is not a game-exit, cancel or back action. Put those actions
+in the app menu. Existing redundant handlers are ignored by Screen. Home's
+internal `reread-home` property supplies its sole launcher exception.
+Close normally with a successful exit; the window manager
 restores the previous window without a custom return-to-Home protocol.
 
 ### Application icons and physical-button icons are different

@@ -4,13 +4,13 @@ using namespace ReRead;
 static void require(bool ok,const char *message){if(!ok)throw std::runtime_error(message);}
 class TestScreen : public Screen {
 public:
-  int guideDelivered=0;
+  int guideDelivered=0, favoritesDelivered=0;
   TestScreen():Screen("Test") {
     showHeader=false;
     controls={{READER_OK,"Activate"},{READER_UP,"Navigate"},{READER_BACK,"Close"}};
   }
   void draw(QPainter &p,const QRect &r) override {p.fillRect(r,Qt::blue);}
-  void button(reader_button id,int) override {if(id==READER_GUIDE)++guideDelivered;}
+  void button(reader_button id,int) override {if(id==READER_GUIDE)++guideDelivered;if(id==READER_FAVORITES)++favoritesDelivered;}
 };
 static void events(){QApplication::processEvents();}
 int main(int argc,char **argv) {
@@ -43,5 +43,21 @@ int main(int argc,char **argv) {
   require(screen.safeArea().contains(overlay->geometry()) && overlay->height()>50,"Long control lists wrap within safe bounds");
   require(overlay->y()==screen.safeArea().y(),"Inverted overlay follows screen orientation");
   screen.hide();require(!screen.helpVisible(),"Hiding the app clears help");
+  TestScreen empty;empty.controls.clear();empty.show();events();
+  auto emptyDevice=empty.findChild<Device *>();emptyDevice->setActive(true);
+  empty.dispatch(READER_GUIDE,1);events();
+  require(empty.helpVisible(),"Guide always supplies shared Close and status even with no app hints");
+  auto emptyOverlay=empty.findChild<QWidget *>("reread-help");
+  require(emptyOverlay->height()>=95,"Help includes the status row");
+  empty.dispatch(READER_GUIDE,0);events();
+  QLineEdit editor(&empty);editor.show();editor.setFocus();events();emptyDevice->setActive(true);
+  QKeyEvent repeatedClose(QEvent::KeyPress,Qt::Key_Favorites,Qt::NoModifier,QString(),true);
+  QApplication::sendEvent(&editor,&repeatedClose);require(empty.isVisible(),"Repeat does not close apps");
+  QKeyEvent close(QEvent::KeyPress,Qt::Key_Favorites,Qt::NoModifier);
+  QApplication::sendEvent(&editor,&close);events();
+  require(!empty.isVisible() && empty.favoritesDelivered==0,"Favorites closes through the shared UI even from an editor");
+  TestScreen home;home.setProperty("reread-home",true);home.show();events();
+  home.findChild<Device *>()->setActive(true);home.dispatch(READER_FAVORITES,1);events();
+  require(home.isVisible() && home.favoritesDelivered==1,"Home handles Favorites without terminating the launcher");
   return 0;
 }
