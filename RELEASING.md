@@ -82,7 +82,7 @@ validate, then publish the exact prepared bytes without rebuilding:
 ```
 
 `--skip-build` requires the same committed build source and verifies the bundle hashes.
-Later commits changing only `release.py`, its release-policy tests or this guide
+Later commits changing only `release.py`, its release-policy tests, this guide or root `TODO.md`
 are permitted, so a publisher fix can resume an existing draft without rebuilding.
 The release still targets the original build commit; changes to app, SDK, package
 recipes or other build inputs require a rebuild.

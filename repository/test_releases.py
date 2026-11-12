@@ -119,6 +119,7 @@ class ReleasePolicy(unittest.TestCase):
 
     def test_publisher_fix_can_resume_but_changed_build_inputs_cannot(self):
         for changed, permitted in [('release.py\nrepository/test_releases.py', True),
+                                    ('TODO.md', True),
                                     ('antix/apps/j2me/main.cpp', False),
                                     ('antix/apps/package.py', False)]:
             with self.subTest(changed=changed), patch.object(releasing, 'run', side_effect=[None, changed]):

@@ -55,7 +55,7 @@ def same_build_source(built, current):
     if built == current:
         return True
     # A publisher repair must not force recompilation of an unchanged app.
-    allowed = {'release.py', 'repository/test_releases.py', 'RELEASING.md'}
+    allowed = {'release.py', 'repository/test_releases.py', 'RELEASING.md', 'TODO.md'}
     try:
         run('git', 'merge-base', '--is-ancestor', built, current)
         changed = run('git', 'diff', '--name-only', built, current, capture=True).splitlines()
