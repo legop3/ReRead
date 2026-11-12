@@ -91,10 +91,6 @@ QList<Item> parseMenu(QByteArray bytes) {
     if(out.size()>=2000)break;
     out << item;
   }
-  for(int i=0;i<out.size();++i)if(out[i].selectable) {
-    // The first highlight is always an actual action, never a server heading.
-    break;
-  }
   return out;
 }
 QByteArray unstuff(QByteArray bytes) {
@@ -144,12 +140,20 @@ class Gopher : public Screen {
       controls={{READER_UP,"Select"},{READER_OK,"Open"},{READER_OPTIONS,"Actions"},{READER_BACK,"Back"}};
     update();
   }
-  void setMode(Mode m) {mode=m;controlsForMode();}
+  void setMode(Mode m) {
+    if(m!=mode && (m==Bookmarks||m==History))choice=0;
+    mode=m;controlsForMode();
+  }
   QStringList actions() const {
     QStringList a;
     if(previous==Browsing && page()) {
       a<<"Reload";
-      a<<(bookmarked(page()->address)?"Remove bookmark":"Add bookmark");
+      a<<(bookmarked(page()->address)?"Remove page bookmark":"Bookmark this page");
+      if(!page()->text && page()->selected>=0 && page()->selected<page()->items.size()) {
+        const auto &selected=page()->items[page()->selected];
+        if(selected.selectable)
+          a<<(bookmarked(selected.address)?"Remove link bookmark":"Bookmark selected link");
+      }
       a<<"Show address";
       if(index+1<trail.size())a<<"Forward";
     } else if(previous==Bookmarks && !marks.isEmpty())a<<"Remove bookmark";
@@ -369,17 +373,25 @@ class Gopher : public Screen {
       const QString action=actions().value(actionChoice);
       Mode source=previous;setMode(source);
       if(action=="Reload"&&page())request(page()->address);
-      else if(action=="Add bookmark"&&page()) {
-        if(!bookmarked(page()->address)){marks<<page()->address;saveMarks();}
-        setStatus("Bookmarked");
-      } else if(action=="Remove bookmark") {
+      else if((action=="Bookmark this page"||action=="Bookmark selected link")&&page()) {
+        Address a=page()->address;
+        if(action=="Bookmark selected link" && page()->selected>=0 &&
+           page()->selected<page()->items.size())a=page()->items[page()->selected].address;
+        if(!bookmarked(a) && marks.size()<200){marks<<a;saveMarks();}
+        setStatus("Bookmarked: "+a.title);
+      } else if(action.startsWith("Remove ") && action.endsWith("bookmark")) {
         Address a;
-        if(source==Bookmarks && choice<marks.size())a=marks[choice];
+        if(source==Bookmarks && choice>=0 && choice<marks.size())a=marks[choice];
+        else if(action=="Remove link bookmark" && page() &&
+                page()->selected>=0 && page()->selected<page()->items.size())
+          a=page()->items[page()->selected].address;
         else if(page())a=page()->address;
         for(int i=marks.size()-1;i>=0;--i)if(key(marks[i])==key(a))marks.removeAt(i);
-        saveMarks();setStatus("Bookmark removed");
+        saveMarks();
+        if(source==Bookmarks)choice=qBound(0,choice,qMax(0,marks.size()-1));
+        setStatus("Bookmark removed");
       } else if(action=="Show address"&&page())setStatus(display(page()->address));
-      else if(action=="Forward"&&index+1<trail.size()) {++index;layoutText();}
+      else if(action=="Forward"&&index+1<trail.size()) {++index;textOffset=0;layoutText();}
       else if(action=="Bookmarks")setMode(Bookmarks);
       else if(action=="History")setMode(History);
       else if(action=="Home")setMode(Home);
@@ -462,7 +474,7 @@ protected:
       if(selectionY+selectionHeight>offset+left.height()-12)
         offset=qMin(maxScroll,selectionY+selectionHeight-left.height()+12);
     }
-    // Display position derives from focus, but selection is preserved in Page.
+    // Selection-based scrolling retains the directory's focused row.
     auto &stored=const_cast<Page&>(pg);
     stored.scroll=offset;
     p.save();p.setClipRect(left);
