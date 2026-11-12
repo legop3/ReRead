@@ -440,7 +440,7 @@ protected:
       QList<bool> enabled;
       int current=0;
       if(mode==Home) {
-        labels={"Browse Gopherspace","Bookmarks","History"};enabled={true,true,true};current=homeChoice;
+        labels=QStringList{"Browse Gopherspace","Bookmarks","History"};enabled=QList<bool>{true,true,true};current=homeChoice;
       } else if(mode==Bookmarks) {
         for(const auto &m:marks){labels<<m.title;enabled<<true;}current=choice;
       } else if(mode==History) {
