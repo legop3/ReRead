@@ -43,6 +43,7 @@ struct Page {
   QString document;
   bool text=false;
   int selected=-1, scroll=0;
+  qreal textScroll=0;
 };
 QString key(const Address &a) {
   return QString::number(uchar(a.type))+"|"+a.host+"|"+QString::number(a.port)+"|"+a.selector;
@@ -106,7 +107,7 @@ QByteArray unstuff(QByteArray bytes) {
 }
 
 class Gopher : public Screen {
-  enum Mode { Home, Browsing, Bookmarks, History, Actions, ConfirmDownload };
+  enum Mode { Home, Browsing, Bookmarks, History, Actions, ConfirmDownload, AddressInfo };
   Mode mode=Home, previous=Browsing;
   QList<Page> trail;
   int index=-1, choice=0, homeChoice=0, actionChoice=0;
@@ -116,6 +117,7 @@ class Gopher : public Screen {
   QByteArray incoming;
   std::unique_ptr<QSaveFile> transfer;
   QString transferPath, status;
+  Address inspected;
   bool downloading=false, busy=false;
   Address pending;
   int fontSize=25;
@@ -132,7 +134,7 @@ class Gopher : public Screen {
   void controlsForMode() {
     if(mode==Home || mode==Bookmarks || mode==History)
       controls={{READER_UP,"Select"},{READER_OK,"Open"},{READER_OPTIONS,"Actions"},{READER_BACK,"Back"}};
-    else if(mode==Actions || mode==ConfirmDownload)
+    else if(mode==Actions || mode==ConfirmDownload || mode==AddressInfo)
       controls={{READER_UP,"Select"},{READER_OK,"Choose"},{READER_BACK,"Cancel"}};
     else if(page()&&page()->text)
       controls={{READER_UP,"Scroll"},{READER_RIGHT,"Page"},{READER_ZOOM_IN,"Text size"},{READER_OPTIONS,"Actions"},{READER_BACK,"Back"}};
@@ -252,8 +254,8 @@ class Gopher : public Screen {
     pending=a;downloading=save;busy=true;
     setStatus(save?"Downloading...":"Connecting to "+a.host+"...");
     if(save) {
-      QStorageInfo storage(filesPath());
-      QDir().mkpath(filesPath());storage.refresh();
+      QDir().mkpath(filesPath());
+      QStorageInfo storage(filesPath());storage.refresh();
       if(!storage.isValid()||storage.bytesAvailable()<minimumFree) {
         disconnectRequest();setStatus("Not enough free storage");return;
       }
@@ -308,9 +310,9 @@ class Gopher : public Screen {
   QRect bodyRect() const {return content().adjusted(0,headerHeight,-12,-32);}
   void back() {
     if(busy){disconnectRequest();setStatus("Canceled");return;}
-    if(mode==Actions||mode==ConfirmDownload){setMode(previous);return;}
+    if(mode==Actions||mode==ConfirmDownload||mode==AddressInfo){setMode(previous);return;}
     if(mode==Bookmarks||mode==History){setMode(Home);return;}
-    if(mode==Browsing&&index>0){--index;setMode(Browsing);textOffset=0;layoutText();return;}
+    if(mode==Browsing&&index>0){if(page()&&page()->text)page()->textScroll=textOffset;--index;setMode(Browsing);textOffset=page()?page()->textScroll:0;layoutText();return;}
     setMode(Home);
   }
   void launchFile(const QString &path) {
@@ -396,8 +398,8 @@ class Gopher : public Screen {
         saveMarks();
         if(source==Bookmarks)choice=qBound(0,choice,qMax(0,marks.size()-1));
         setStatus("Bookmark removed");
-      } else if(action=="Show address"&&page())setStatus(display(page()->address));
-      else if(action=="Forward"&&index+1<trail.size()) {++index;textOffset=0;layoutText();}
+      } else if(action=="Show address"&&page()){inspected=page()->address;previous=source;setMode(AddressInfo);}
+      else if(action=="Forward"&&index+1<trail.size()) {if(page()&&page()->text)page()->textScroll=textOffset;++index;textOffset=page()?page()->textScroll:0;layoutText();}
       else if(action=="Bookmarks")setMode(Bookmarks);
       else if(action=="History")setMode(History);
       else if(action=="Home")setMode(Home);
@@ -454,7 +456,7 @@ protected:
       }
       return;
     }
-    if(id==READER_OK)openSelection();
+    if(id==READER_OK && mode!=AddressInfo)openSelection();
   }
   int menuRowHeight(const Item &item) const {
     if(item.address.type=='i')return item.address.title.trimmed().isEmpty()?18:34;
@@ -559,6 +561,7 @@ protected:
     else if(mode==History)heading="History";
     else if(mode==Actions)heading="Actions";
     else if(mode==ConfirmDownload)heading="Download file?";
+    else if(mode==AddressInfo)heading="Gopher address";
     label(p,QRect(r.x(),r.y(),r.width(),38),heading,28,true,palette().color(QPalette::Link));
     QRect listArea=r.adjusted(0,headerHeight,0,-32);
     if(mode==Browsing&&page()&&page()->text) {
@@ -571,6 +574,9 @@ protected:
       p.restore();
     } else if(mode==ConfirmDownload) {
       text(p,listArea,"Save "+pending.title+" to Downloads/Gopher?\n\nOK to download and open, Back to cancel.",25);
+    } else if(mode==AddressInfo) {
+      text(p,listArea,inspected.title+"\n\n"+kindName(inspected.type)+
+           "\n\n"+display(inspected),24);
     } else if(mode==Browsing && page() && !page()->text) {
       drawMenu(p,listArea,*page());
     } else {
