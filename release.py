@@ -35,6 +35,35 @@ def releases(repo):
             for release in page]
 
 
+def release_detail(repo, tag, required=False):
+    """Resolve drafts by ID; GitHub's release listing can lag behind creation."""
+    for attempt in range(5):
+        try:
+            info = gh_json('release', 'view', tag, '--repo', repo, '--json', 'databaseId')
+            result = gh_json('api', f'repos/{repo}/releases/{info["databaseId"]}?fresh={time.time_ns()}')
+            if result['tag_name'] == tag:
+                return result
+        except subprocess.CalledProcessError:
+            if not required:
+                return None
+        if attempt < 4:
+            time.sleep(2)
+    raise RuntimeError('Cannot read draft ' + tag + '; retry with --skip-build --publish')
+
+
+def same_build_source(built, current):
+    if built == current:
+        return True
+    # A publisher repair must not force recompilation of an unchanged app.
+    allowed = {'release.py', 'repository/test_releases.py', 'RELEASING.md'}
+    try:
+        run('git', 'merge-base', '--is-ancestor', built, current)
+        changed = run('git', 'diff', '--name-only', built, current, capture=True).splitlines()
+    except subprocess.CalledProcessError:
+        return False
+    return bool(changed) and set(changed) <= allowed
+
+
 def stable_assets(catalog):
     result = {}
     for release in catalog:
@@ -132,7 +161,7 @@ def prepare(args, version, tag, commit, catalog):
 
 def verify(bundle, args, commit, tag):
     meta = json.loads((bundle / 'release.json').read_text())
-    if meta['commit'] != commit or meta['tag'] != tag or meta['repository'] != args.repo:
+    if not same_build_source(meta['commit'], commit) or meta['tag'] != tag or meta['repository'] != args.repo:
         raise RuntimeError('Prepared release belongs to a different source commit, tag or repository; rebuild it')
     for name, digest in meta['assets'].items():
         if sha(bundle / name) != digest:
@@ -154,16 +183,18 @@ def publish(args, bundle, meta, catalog):
     for name, digest in meta['assets'].items():
         if name.endswith('.deb') and name in published and published[name].get('digest') != 'sha256:' + digest:
             raise RuntimeError('Package version already published with different bytes: ' + name)
-    if run('git', 'rev-parse', 'HEAD', capture=True) != commit or run('git', 'status', '--porcelain', capture=True):
+    if not same_build_source(commit, run('git', 'rev-parse', 'HEAD', capture=True)) or run('git', 'status', '--porcelain', capture=True):
         raise RuntimeError('Source changed during the build; commit and rebuild before publishing')
+    existing = release_detail(args.repo, tag)
+    if existing and not existing['draft']:
+        raise RuntimeError('Release is already published; use a new version')
     run('git', 'push', 'origin', 'HEAD:main')
     if not existing:
         title = f'ReRead {meta["version"]}' if args.kind == 'platform' else f'{args.app} {meta["version"]}'
         notes = ['--notes-file', args.notes_file] if args.notes_file else ['--generate-notes']
         run('gh', 'release', 'create', tag, '--repo', args.repo, '--draft', '--target', commit,
             '--title', title, *notes)
-        catalog = releases(args.repo)
-        existing = next(r for r in catalog if r['tag_name'] == tag)
+        existing = release_detail(args.repo, tag, required=True)
     elif existing['target_commitish'] != commit:
         raise RuntimeError('Draft targets another commit; inspect the draft before resuming')
     paths = [bundle / name for name in meta['assets']] + [bundle / 'release.json', bundle / 'SHA256SUMS']
@@ -174,9 +205,9 @@ def publish(args, bundle, meta, catalog):
                 raise RuntimeError('Conflicting draft asset: ' + path.name)
         else:
             run('gh', 'release', 'upload', tag, path, '--repo', args.repo)
-    uploaded = next(r for r in releases(args.repo) if r['tag_name'] == tag)
+    uploaded = release_detail(args.repo, tag, required=True)
     for path in paths:
-        asset = next(a for a in uploaded['assets'] if a['name'] == path.name)
+        asset = next((a for a in uploaded['assets'] if a['name'] == path.name), {})
         if asset.get('digest') != 'sha256:' + sha(path):
             raise RuntimeError('Uploaded digest mismatch: ' + path.name)
     since = time.time() - 5

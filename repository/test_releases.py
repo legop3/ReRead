@@ -56,7 +56,8 @@ class ReleasePolicy(unittest.TestCase):
             (bundle / 'SHA256SUMS').write_text(''.join(f'{digest}  {name}\n' for name,digest in sorted(assets.items())))
             args = SimpleNamespace(repo='owner/repo')
             releasing.verify(bundle, args, 'abc', 'app-v1')
-            with self.assertRaises(RuntimeError):releasing.verify(bundle, args, 'other', 'app-v1')
+            with patch.object(releasing, 'same_build_source', return_value=False):
+                with self.assertRaises(RuntimeError):releasing.verify(bundle, args, 'other', 'app-v1')
             package.write_bytes(b'changed')
             with self.assertRaises(RuntimeError):releasing.verify(bundle, args, 'abc', 'app-v1')
 
@@ -99,13 +100,29 @@ class ReleasePolicy(unittest.TestCase):
                 if arguments[:3] == ('git', 'rev-parse', 'HEAD'):return 'abc'
                 return ''
             with patch.object(releasing, 'run', side_effect=command) as commands, \
-                 patch.object(releasing, 'releases', return_value=[draft]), \
+                 patch.object(releasing, 'release_detail', return_value=draft), \
                  patch.object(releasing, 'gh_json', return_value=jobs):
                 releasing.publish(args, bundle, metadata, [draft])
             calls = [call.args for call in commands.call_args_list]
             edit = next(call for call in calls if call[:3] == ('gh', 'release', 'edit'))
             self.assertIn('--latest=false', edit)
             self.assertTrue(any(call[:4] == ('gh', 'run', 'watch', 100) for call in calls))
+
+    def test_draft_lookup_uses_release_id_and_retries_visibility_delay(self):
+        import subprocess
+        missing = subprocess.CalledProcessError(1, ['gh'])
+        detail = dict(tag_name='j2me-v1', assets=[])
+        with patch.object(releasing, 'gh_json', side_effect=[missing, {'databaseId': 123}, detail]) as api, \
+             patch.object(releasing.time, 'sleep'):
+            self.assertEqual(releasing.release_detail('owner/repo', 'j2me-v1', required=True), detail)
+        self.assertIn('/releases/123?', api.call_args.args[1])
+
+    def test_publisher_fix_can_resume_but_changed_build_inputs_cannot(self):
+        for changed, permitted in [('release.py\nrepository/test_releases.py', True),
+                                    ('antix/apps/j2me/main.cpp', False),
+                                    ('antix/apps/package.py', False)]:
+            with self.subTest(changed=changed), patch.object(releasing, 'run', side_effect=[None, changed]):
+                self.assertEqual(releasing.same_build_source('built', 'current'), permitted)
 
 
 if __name__ == '__main__':unittest.main()

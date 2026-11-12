@@ -81,7 +81,11 @@ validate, then publish the exact prepared bytes without rebuilding:
 ./release.py platform --skip-build --publish
 ```
 
-`--skip-build` requires the same committed source and verifies the bundle hashes.
+`--skip-build` requires the same committed build source and verifies the bundle hashes.
+Later commits changing only `release.py`, its release-policy tests or this guide
+are permitted, so a publisher fix can resume an existing draft without rebuilding.
+The release still targets the original build commit; changes to app, SDK, package
+recipes or other build inputs require a rebuild.
 It can also resume an interrupted draft upload. If publication succeeded but APT
 failed, inspect Actions and rerun `apt-repository.yml`; do not rebuild the same
 package version. `gh workflow run apt-repository.yml` redeploys existing assets.
