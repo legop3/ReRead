@@ -27,6 +27,17 @@ def main():
         "-Wl,-rpath-link,"+str(BUILD), "-lreader-ui", "-lreader-device",
         *libs, "-o", str(binary)
     ], check=True, env=env)
+    # Exercise protocol parsing and the current UI source on every app-only build.
+    test_binary = BUILD / "reader-gopher-test"
+    subprocess.run([
+        "g++", "-m32", "-std=c++17", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
+        *flags, "-I"+str(SOURCE), "-I"+str(BASE / "antix/ui"),
+        "-I"+str(BASE / "antix"), str(SOURCE / "test-gopher.cpp"),
+        "-L"+str(BUILD), "-Wl,-rpath-link,"+str(BUILD),
+        "-lreader-ui", "-lreader-device", *libs, "-o", str(test_binary)
+    ], check=True, env=env)
+    subprocess.run([str(test_binary)], check=True,
+                   env=dict(env, LD_LIBRARY_PATH=str(BUILD)))
     stage = BASE / "build/antix/reread-app-gopher"
     if stage.exists():
         shutil.rmtree(stage)
